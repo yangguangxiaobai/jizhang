@@ -16,6 +16,7 @@ import { registerMasterDataRoutes } from './routes/master-data.js';
 import { registerStatsRoutes } from './routes/stats.js';
 import { registerTrashRoutes } from './routes/trash.js';
 import { registerRecurringRoutes } from './routes/recurring.js';
+import { registerPortabilityRoutes } from './routes/portability.js';
 import { registerTransactionRoutes } from './routes/transactions.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
@@ -56,7 +57,18 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     logger: { level: config.logLevel },
     trustProxy: config.trustProxy,
+    // A CSV import posts the file as raw text. Without this parser Fastify has no handler
+    // for `text/csv` and answers 415 before the route runs.
+    bodyLimit: 8 * 1024 * 1024,
   });
+
+  app.addContentTypeParser(
+    'text/csv',
+    { parseAs: 'string' },
+    (_request, body, done) => {
+      done(null, body);
+    },
+  );
 
   // ── Unified error contract: { error: { code, message } } (design.md §5) ──────
   // Fastify 5 types the handler's error as `unknown` by default, so the
@@ -143,6 +155,12 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         (instance) => registerStatsRoutes(instance, { db, now: options.now }),
         (instance) => registerTrashRoutes(instance, { db, now: options.now }),
         (instance) => registerRecurringRoutes(instance, { db, now: options.now }),
+        (instance) =>
+          registerPortabilityRoutes(instance, {
+            db,
+            dataDir: config.dataDir,
+            now: options.now,
+          }),
       ],
     });
   } else {
