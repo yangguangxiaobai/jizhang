@@ -88,6 +88,23 @@ export class NotFoundError extends Error {
   }
 }
 
+/**
+ * The request was well-formed but the resource is not in a state that allows it.
+ *
+ * Currently raised only by `purge`, which refuses to hard-delete a transaction that is
+ * still live. That refusal is the guard rail protecting real data from a mistyped id or
+ * a mismatched UI state, so it is a distinct condition from "not found" and must not be
+ * flattened into one.
+ */
+export class ConflictError extends Error {
+  readonly statusCode = 409;
+  readonly code = 'CONFLICT';
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
 /** Earliest plausible transaction date: 2000-01-01. Guards absurd input. */
 const MIN_DATE_MS = Date.UTC(2000, 0, 1);
 /** One day of slack past "now" absorbs client clock skew and timezone edges. */
@@ -221,6 +238,20 @@ export class TransactionService {
   }
 
   /**
+   * The raw `deleted` flag, or `undefined` when no such row exists.
+   *
+   * `undefined` and `0` must stay distinguishable: "no such bill" and "this bill is
+   * still live" are different answers, and folding them together is how a typo would
+   * silently hard-delete the wrong thing.
+   */
+  private deletedFlag(id: string): number | undefined {
+    const row = this.db
+      .prepare('SELECT deleted FROM transactions WHERE id = ?')
+      .get(id) as { deleted: number } | undefined;
+    return row?.deleted;
+  }
+
+  /**
    * Requires the row to exist and be live; throws `NotFoundError` otherwise, so
    * routes can let the error handler render a 404.
    */
@@ -350,14 +381,97 @@ export class TransactionService {
       .run(this.now(), id);
   }
 
-  /** Restores a soft-deleted row. Used by tests and the future trash view. */
+  /**
+   * Restores a soft-deleted row. Used by the trash view and by tests.
+   *
+   * Idempotent by design: asking to restore a row that is already live returns it
+   * unchanged. It must return EARLY rather than re-running the UPDATE, because the
+   * UPDATE also bumps `updated_at`, and `updated_at` is the tie-breaker in the list
+   * ordering (`ORDER BY date DESC, updated_at DESC`). Re-stamping a live row would make
+   * it silently jump position in the list, which is a state change the caller never
+   * asked for.
+   */
   restore(id: string): TransactionDto {
-    const row = this.getById(id, true);
-    if (row === undefined) throw new NotFoundError();
+    const deleted = this.deletedFlag(id);
+    if (deleted === undefined) throw new NotFoundError();
+    if (deleted === 0) return this.getByIdOrThrow(id);
+
     this.db
       .prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE id = ?')
       .run(this.now(), id);
     return this.getByIdOrThrow(id);
+  }
+
+  /**
+   * Hard delete — the one sanctioned exception to "business rows are only soft-deleted"
+   * (see `database-guidelines.md`).
+   *
+   * Only ever acts on a row that is ALREADY soft-deleted, so a hard delete can only ever
+   * follow a deliberate trip through the trash. A live row is a conflict, not a
+   * not-found: the two mean different things to the caller and must not be collapsed.
+   *
+   * No cascade is needed: `transactions` has no inbound foreign keys (the schema's only
+   * `REFERENCES` is `sessions -> users`), so nothing is left dangling.
+   */
+  purge(id: string): void {
+    const deleted = this.deletedFlag(id);
+    if (deleted === undefined) throw new NotFoundError();
+    if (deleted === 0) {
+      throw new ConflictError(
+        'Only bills in the recycle bin can be permanently deleted. Delete it first, then purge it.',
+      );
+    }
+
+    this.db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+  }
+
+  /** Restores every soft-deleted row. Returns how many came back. */
+  restoreAll(): number {
+    const run = this.db.transaction(
+      (): number =>
+        this.db.prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE deleted = 1').run(
+          this.now(),
+        ).changes,
+    );
+    return run();
+  }
+
+  /** Permanently deletes every soft-deleted row. Returns how many are gone. */
+  purgeAll(): number {
+    const run = this.db.transaction(
+      (): number => this.db.prepare('DELETE FROM transactions WHERE deleted = 1').run().changes,
+    );
+    return run();
+  }
+
+  /**
+   * Deleted rows only, most recently deleted first.
+   *
+   * The ordering key is `updated_at`, used as a proxy for the deletion time: a row in
+   * the trash is not editable, and `softDelete` stamps `updated_at` when it flips the
+   * flag. That is why this deliberately does NOT reuse `list()`'s
+   * `ORDER BY date DESC, updated_at DESC` — in the trash you want the thing you just
+   * deleted at the top, not the bill with the newest transaction date.
+   */
+  listDeleted(limit = MAX_PAGE_SIZE): TransactionDto[] {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_PAGE_SIZE);
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM transactions
+          WHERE deleted = 1
+          ORDER BY updated_at DESC, id
+          LIMIT ?`,
+      )
+      .all(safeLimit) as TransactionRow[];
+    return rows.map(toDto);
+  }
+
+  /** Number of rows currently in the trash, for the "will delete N" confirmation. */
+  countDeleted(): number {
+    const row = this.db
+      .prepare('SELECT COUNT(*) AS c FROM transactions WHERE deleted = 1')
+      .get() as { c: number };
+    return row.c;
   }
 
   /**
