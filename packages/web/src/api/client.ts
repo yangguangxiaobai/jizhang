@@ -198,6 +198,64 @@ export interface TrashBulkResult {
   readonly remaining: number;
 }
 
+/** How often a recurring bill repeats. Mirrors `@jizhang/shared`'s union. */
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+export interface RecurringRule {
+  readonly id: string;
+  readonly name: string;
+  readonly type: number;
+  readonly amountCents: number;
+  readonly categoryId: string;
+  readonly accountId: string;
+  readonly frequency: RecurringFrequency;
+  readonly anchorDate: number;
+  readonly nextDueDate: number;
+  /** True when earlier due dates exist that were not generated (the per-run cap). */
+  readonly hasOlderDue: boolean;
+  readonly enabled: boolean;
+  readonly updatedAt: number;
+}
+
+export interface RecurringRuleInput {
+  readonly name?: string;
+  readonly type?: number;
+  readonly amountCents?: number;
+  readonly categoryId?: string;
+  readonly accountId?: string;
+  readonly frequency?: RecurringFrequency;
+  readonly anchorDate?: number;
+  readonly enabled?: boolean;
+}
+
+export type OccurrenceStatus = 'pending' | 'confirmed' | 'ignored';
+
+export interface RecurringOccurrence {
+  readonly id: string;
+  readonly ruleId: string;
+  readonly plannedDate: number;
+  readonly status: OccurrenceStatus;
+  readonly transactionId: string | null;
+  readonly type: number;
+  readonly amountCents: number;
+  readonly categoryId: string;
+  readonly accountId: string;
+  readonly note: string;
+  readonly updatedAt: number;
+}
+
+export interface GenerateResult {
+  readonly created: number;
+  readonly truncated: number;
+  readonly pending: number;
+}
+
+/** `created: false` means the occurrence was already confirmed; no second bill exists. */
+export interface ConfirmResult {
+  readonly transaction: Transaction;
+  readonly created: boolean;
+}
+
 export interface MeResponse {
   readonly username: string;
   readonly expiresAt: number;
@@ -522,6 +580,42 @@ export const api = {
       request<{ cycleStartDay: number | null }>('/api/v1/settings', {
         method: 'PUT',
         body: { cycleStartDay },
+      }),
+  },
+
+  /**
+   * Recurring bills.
+   *
+   * A due date becomes a PENDING occurrence, never a bill. `confirm` is the only call
+   * that can put money in the ledger, and it is idempotent — a repeat returns the bill
+   * it already created (`created: false`) instead of making a second one.
+   */
+  recurring: {
+    listRules: () => request<{ items: RecurringRule[] }>('/api/v1/recurring/rules'),
+    createRule: (input: RecurringRuleInput) =>
+      request<RecurringRule>('/api/v1/recurring/rules', { method: 'POST', body: input }),
+    updateRule: (id: string, changes: RecurringRuleInput) =>
+      request<RecurringRule>(`/api/v1/recurring/rules/${id}`, {
+        method: 'PATCH',
+        body: changes,
+      }),
+    removeRule: (id: string) =>
+      request<void>(`/api/v1/recurring/rules/${id}`, { method: 'DELETE' }),
+    setRuleEnabled: (id: string, enabled: boolean) =>
+      request<RecurringRule>(`/api/v1/recurring/rules/${id}/enabled`, {
+        method: 'POST',
+        body: { enabled },
+      }),
+    generate: () => request<GenerateResult>('/api/v1/recurring/generate', { method: 'POST' }),
+    listOccurrences: () =>
+      request<{ items: RecurringOccurrence[] }>('/api/v1/recurring/occurrences'),
+    listPending: () =>
+      request<{ items: RecurringOccurrence[]; total: number }>('/api/v1/recurring/pending'),
+    confirm: (id: string) =>
+      request<ConfirmResult>(`/api/v1/recurring/occurrences/${id}/confirm`, { method: 'POST' }),
+    ignore: (id: string) =>
+      request<RecurringOccurrence>(`/api/v1/recurring/occurrences/${id}/ignore`, {
+        method: 'POST',
       }),
   },
 };

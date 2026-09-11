@@ -119,6 +119,9 @@ async function signOut(): Promise<void> {
     <button type="button" class="ghost" @click="router.push({ name: 'trash' })">
       回收站
     </button>
+    <button type="button" class="ghost" @click="router.push({ name: 'recurring-rules' })">
+      周期账单
+    </button>
   </section>
 
   <section class="card">

@@ -22,6 +22,7 @@ import { api, TYPE_EXPENSE } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
+import { useRecurringStore } from '../stores/recurring.js';
 import { formatDayLabel, formatMonthLabel, formatYuan } from '../utils/money.js';
 
 /** How many recent rows the dashboard shows, matching the reference dashboard. */
@@ -29,6 +30,7 @@ const RECENT_LIMIT = 5;
 
 const budget = useBudgetStore();
 const meta = useMetaStore();
+const recurring = useRecurringStore();
 const router = useRouter();
 
 const loading = ref(true);
@@ -63,6 +65,11 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+
+  // Recurring bills are a separate concern and must not be able to break the dashboard:
+  // this generates any due occurrences and loads the count for the reminder card. The
+  // store swallows its own errors, so a failure here leaves the rest of the page intact.
+  await recurring.generateAndReload();
 });
 
 /** Label straight off the server's own month key, so the header cannot drift. */
@@ -151,6 +158,19 @@ function isRefund(item: Transaction): boolean {
           <strong :class="{ negative: balanceCents < 0 }">{{ formatYuan(balanceCents) }}</strong>
         </div>
       </div>
+    </section>
+
+    <!--
+      Rendered only when there is something to confirm, and with the server's real count.
+      The task that added it was explicit that a permanent "0 items" card would be worse
+      than no card at all.
+    -->
+    <section v-if="recurring.pendingCount > 0" class="pending-card" role="status">
+      <div>
+        <span class="label">待确认</span>
+        <strong>{{ recurring.pendingCount }} 笔到期账单</strong>
+      </div>
+      <button type="button" @click="router.push({ name: 'recurring-pending' })">去确认</button>
     </section>
 
     <section class="card budget">
@@ -261,6 +281,37 @@ h2 {
 
 .negative {
   color: var(--danger);
+}
+
+/* The reminder that something needs a decision. */
+.pending-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  border-radius: 0.7rem;
+}
+
+.pending-card strong {
+  font-size: 1.05rem;
+}
+
+.pending-card button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 0.55rem;
+  cursor: pointer;
 }
 
 .row {

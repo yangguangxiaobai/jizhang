@@ -87,6 +87,31 @@ const routes = [
         meta: { title: '回收站', nav: 'settings' },
       },
       {
+        path: 'recurring',
+        name: 'recurring-rules',
+        component: () => import('../views/RecurringRulesView.vue'),
+        meta: { title: '周期账单', nav: 'settings' },
+      },
+      {
+        path: 'recurring/new',
+        name: 'recurring-rule-new',
+        component: () => import('../views/RecurringRuleEditView.vue'),
+        meta: { title: '新建周期账单', nav: 'settings' },
+      },
+      {
+        path: 'recurring/:id/edit',
+        name: 'recurring-rule-edit',
+        component: () => import('../views/RecurringRuleEditView.vue'),
+        meta: { title: '编辑周期账单', nav: 'settings' },
+      },
+      {
+        path: 'pending',
+        name: 'recurring-pending',
+        component: () => import('../views/PendingOccurrencesView.vue'),
+        // Reached from the dashboard's reminder card, so the 首页 tab stays highlighted.
+        meta: { title: '待确认账单', nav: 'dashboard' },
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('../views/SettingsView.vue'),
