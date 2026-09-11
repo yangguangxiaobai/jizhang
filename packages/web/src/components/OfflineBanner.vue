@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Offline banner.
  *
@@ -46,7 +46,7 @@ const visible = computed(() => offline.value || showRestored.value);
   font-size: 0.8rem;
   line-height: 1.5;
   text-align: center;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--danger);
 }
 

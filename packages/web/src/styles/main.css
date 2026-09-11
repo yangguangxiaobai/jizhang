@@ -1,24 +1,99 @@
+/*
+ * Theme tokens.
+ *
+ * ## Two attribute-free states and two explicit ones
+ *
+ * The absence of `data-theme` means "follow the system" and is handled by the media query.
+ * `data-theme="dark"` / `data-theme="light"` are explicit choices and must WIN over the
+ * system, which is why they are written as attribute selectors rather than as another media
+ * query. A three-state preference ("system / light / dark") cannot be expressed by a
+ * two-state toggle, and a user who picks dark on a light phone is not asking to be
+ * overruled at sunset.
+ *
+ * The attribute is set before first paint by `theme-init.js` (inlined by
+ * `scripts/vite-plugin-theme-init.mjs`).
+ *
+ * ## `--fg` and `--ok` were referenced everywhere but never defined
+ *
+ * Every view wrote `color: var(--fg)`, and several wrote `var(--ok, #3f9e6a)`. Neither
+ * variable existed here: the token is called `--text`, and `--ok` was simply absent. An
+ * undefined custom property makes the whole declaration invalid at computed-value time, so
+ * those colours silently fell back to inheritance — which is why the light theme looked
+ * roughly right and the dark theme did not. They are defined below rather than renamed at
+ * every call site, because the call sites are the majority and the intent is identical.
+ */
+
 :root {
   --bg: #f6f7f9;
   --surface: #ffffff;
   --border: #e2e5ea;
+  /* `--text` is the original name; `--fg` is the name every component actually uses.
+     Both are kept so neither the stylesheet nor the views have to change. */
   --text: #1c1f23;
+  --fg: #1c1f23;
   --muted: #6b7280;
   --accent: #2563eb;
+  /* Text that sits ON `--accent`. A token rather than a literal `#fff`, because the dark
+     accent is a light blue: white on it measures 2.54:1, below the 3:1 floor. Every primary
+     button in the app had a hard-coded `#fff`, so the dark theme shipped with unreadable
+     button labels until this was measured in a browser. */
+  --on-accent: #ffffff;
   --danger: #dc2626;
+  --ok: #15803d;
   color-scheme: light dark;
 }
 
+/*
+ * Explicit light: needed so a user on a dark phone can force light. It repeats the `:root`
+ * values rather than relying on the cascade, because the media query below would otherwise
+ * win inside the same specificity band.
+ */
+[data-theme='light'] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e2e5ea;
+  --text: #1c1f23;
+  --fg: #1c1f23;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --on-accent: #ffffff;
+  --danger: #dc2626;
+  --ok: #15803d;
+  color-scheme: light;
+}
+
+/* Dark, whenever the user has not expressed a preference. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #16181d;
     --surface: #1e2127;
     --border: #2f333b;
     --text: #e8eaed;
+    --fg: #e8eaed;
     --muted: #9aa1ad;
-    --accent: #3b82f6;
+    /* Lifted from the light accent: #2563eb is too dark against #16181d to read. */
+    --accent: #60a5fa;
+    --on-accent: #10151c;
     --danger: #f87171;
+    --ok: #4ade80;
+    color-scheme: dark;
   }
+}
+
+/* Explicit dark wins over a light system. */
+[data-theme='dark'] {
+  --bg: #16181d;
+  --surface: #1e2127;
+  --border: #2f333b;
+  --text: #e8eaed;
+  --fg: #e8eaed;
+  --muted: #9aa1ad;
+  --accent: #60a5fa;
+  /* Near-black, not white: white on #60a5fa is 2.54:1. */
+  --on-accent: #10151c;
+  --danger: #f87171;
+  --ok: #4ade80;
+  color-scheme: dark;
 }
 
 * {
@@ -41,7 +116,7 @@ body {
     'Microsoft YaHei',
     sans-serif;
   line-height: 1.5;
-  color: var(--text);
+  color: var(--fg);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
 }

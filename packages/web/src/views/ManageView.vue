@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Master-data management: categories, accounts and tags.
  *
@@ -591,7 +591,7 @@ async function deleteTag(tag: TagCount): Promise<void> {
 }
 
 .tabs button.active {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   font-weight: 600;
 }
@@ -691,7 +691,7 @@ select {
 }
 
 .editor-actions .primary {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }

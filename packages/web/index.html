@@ -30,6 +30,12 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png" />
 
     <title>记账</title>
+    <!--
+      The theme preference is applied here, before first paint and before the bundle. The
+      build inlines `theme-init.js` at this placeholder; without it the page paints light
+      and then snaps to dark, and on a phone that flash is unmissable.
+    -->
+    <!--theme-init-->
   </head>
   <body>
     <div id="app"></div>

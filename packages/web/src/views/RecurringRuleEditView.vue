@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Create or edit one recurring rule.
  *
@@ -279,7 +279,7 @@ small {
 }
 
 .segmented button.active {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
 }
@@ -336,7 +336,7 @@ small {
   min-height: 44px;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   border-radius: 0.55rem;

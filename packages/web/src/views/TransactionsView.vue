@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Transaction list: month switcher, filters, grouped rows, per-month subtotals.
  *
@@ -301,7 +301,7 @@ input {
 .filter-actions button {
   min-height: 44px;
   font: inherit;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   border-radius: 0.5rem;

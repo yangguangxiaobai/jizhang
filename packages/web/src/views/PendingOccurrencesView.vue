@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * The pending queue: due dates waiting for a decision.
  *
@@ -215,7 +215,7 @@ button:disabled {
 }
 
 .primary {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }

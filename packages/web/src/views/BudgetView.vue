@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Budget overview: each envelope's progress, plus the carryover pool.
  *
@@ -437,7 +437,7 @@ const historyLoading = computed(
   min-height: 44px;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   border-radius: 0.55rem;
@@ -470,7 +470,7 @@ const historyLoading = computed(
   padding: 0 1.25rem;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   border-radius: 0.55rem;

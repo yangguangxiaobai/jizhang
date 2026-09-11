@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Salary records: what each pay cheque was allocated to, and the ability to delete
  * one (which removes its budget cycle from the overview).
@@ -210,7 +210,7 @@ async function remove(id: string, amountCents: number): Promise<void> {
   min-height: 44px;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   border-radius: 0.55rem;

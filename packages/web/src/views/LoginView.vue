@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Login. Single account (parent task D7): no "sign up" affordance, because the
  * account is provisioned with the server's `set-password` CLI.
@@ -130,7 +130,7 @@ button {
   min-height: 44px;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   border-radius: 0.6rem;

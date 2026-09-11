@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Recurring rules: what repeats, and whether it is still active.
  *
@@ -191,7 +191,7 @@ h2 {
   padding: 0 1rem;
   font: inherit;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   border-radius: 0.55rem;
@@ -297,7 +297,7 @@ button:disabled {
 
 .primary {
   width: 100%;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }

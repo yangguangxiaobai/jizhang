@@ -2,6 +2,8 @@ import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+import { themeInitPlugin } from './src/vite-plugin-theme-init.js';
+
 /**
  * Service-worker policy for a bookkeeping app that requires a login.
  *
@@ -29,6 +31,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   plugins: [
     vue(),
+    // Inlines the stored theme into the head before first paint, so a dark preference does
+    // not flash white while the bundle downloads.
+    themeInitPlugin(),
     VitePWA({
       // Update in the background and take effect on the next load, so a stale tab
       // cannot be pinned to an old build indefinitely.

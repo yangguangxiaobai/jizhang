@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Statistics: category share, monthly trend, and the carryover-pool series.
  *
@@ -290,7 +290,7 @@ const topCategory = computed(() => {
 }
 
 .windows button.active {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   font-weight: 600;
 }

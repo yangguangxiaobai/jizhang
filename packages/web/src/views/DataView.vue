@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Data: export, import, and backups.
  *
@@ -301,13 +301,13 @@ button:disabled {
 
 .primary {
   width: 100%;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }
 
 .actions button:not(.ghost) {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }

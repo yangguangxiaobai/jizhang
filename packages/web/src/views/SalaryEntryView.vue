@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Record a salary — the action that starts a budget cycle.
  *
@@ -370,7 +370,7 @@ h2 {
 }
 
 .primary {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }

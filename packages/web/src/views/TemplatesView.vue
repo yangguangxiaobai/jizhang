@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Allocation templates: modules = category + ratio, ratios summing to 100%.
  *
@@ -370,7 +370,7 @@ select {
 }
 
 .editor-actions .primary {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
   font-weight: 600;
@@ -500,7 +500,7 @@ select {
 }
 
 .actions .primary {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }

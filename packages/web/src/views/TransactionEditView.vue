@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Create or edit one transaction.
  *
@@ -306,7 +306,7 @@ async function remove(): Promise<void> {
 }
 
 .type-switch button.active {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   font-weight: 600;
 }
@@ -489,7 +489,7 @@ small.invalid {
 }
 
 .primary {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border: 0;
 }
