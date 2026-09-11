@@ -24,4 +24,5 @@ export const SHARED_PLACEHOLDER = 'T1 skeleton — domain logic lands in T5';
 export * from './types.js';
 export * from './date-utils.js';
 export * from './budget-engine.js';
+export * from './recurring.js';
 export * from './seed-data.js';

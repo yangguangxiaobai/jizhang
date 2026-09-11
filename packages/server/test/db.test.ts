@@ -174,15 +174,20 @@ describe('migrations', () => {
       closeDatabase(secondDb);
     }
 
-    // Now simulate a new release shipping migration 002: the pre-migration
+    // Now simulate a new release shipping one more migration: the pre-migration
     // snapshot is what makes a bad upgrade recoverable. Injecting it into the
     // live array is the only way to observe the backup without shipping a fake
     // migration in the product code.
+    //
+    // The version is derived from the real list rather than hard-coded: a literal
+    // collides the moment the product ships that version, and the collision surfaces
+    // as a confusing `applied` assertion rather than as "this probe is stale".
     const thirdDb = openDatabase(config);
     try {
       const mutable = MIGRATIONS as unknown as Migration[];
+      const probeVersion = Math.max(...MIGRATIONS.map((entry) => entry.version)) + 1;
       const injected: Migration = {
-        version: 2,
+        version: probeVersion,
         name: 'test-only-probe',
         sql: 'CREATE TABLE t2_probe (id TEXT PRIMARY KEY);',
       };
@@ -190,7 +195,7 @@ describe('migrations', () => {
       try {
         const third = initializeDatabase(thirdDb, config.dataDir);
 
-        expect(third.migrations.applied).toContain(2);
+        expect(third.migrations.applied).toContain(probeVersion);
         expect(third.migrations.backupPath).not.toBeNull();
         const backupPath = third.migrations.backupPath as string;
         expect(existsSync(backupPath)).toBe(true);
