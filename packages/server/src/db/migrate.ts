@@ -1,0 +1,182 @@
+/**
+ * Versioned migration runner.
+ *
+ * Contract (parent task T2 PRD R3):
+ *   * migrations are applied in array order, only the ones not yet recorded;
+ *   * each migration runs in its own transaction — a failure rolls back and the
+ *     version is NOT recorded, so the next boot retries it;
+ *   * the database file is backed up before the first migration of a run;
+ *   * re-running is a no-op (parent `implement.md` risk check R2).
+ *
+ * Kept deliberately small: this is a single-user SQLite app where migrations are
+ * rare, so a full framework would be more surface area than value.
+ */
+import { existsSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+import type { Db } from './index.js';
+import { MIGRATION_001_INIT } from './migrations/001-init.js';
+
+export interface Migration {
+  readonly version: number;
+  readonly name: string;
+  readonly sql: string;
+}
+
+/**
+ * Every migration, in application order. Append new entries at the end and never
+ * reorder or renumber existing ones.
+ */
+export const MIGRATIONS: readonly Migration[] = [
+  { version: 1, name: 'init', sql: MIGRATION_001_INIT },
+];
+
+interface AppliedRow {
+  readonly version: number;
+  readonly name: string;
+  readonly applied_at: number;
+}
+
+export interface MigrateResult {
+  readonly applied: readonly number[];
+  readonly alreadyApplied: readonly number[];
+  /** Path of the pre-migration backup, when one was taken. */
+  readonly backupPath: string | null;
+}
+
+/** Creates `schema_migrations` if absent. Safe to call on every boot. */
+function ensureMigrationTable(db: Db): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version    INTEGER PRIMARY KEY,
+      name       TEXT    NOT NULL,
+      applied_at INTEGER NOT NULL
+    );
+  `);
+}
+
+function appliedVersions(db: Db): Set<number> {
+  const rows = db
+    .prepare('SELECT version FROM schema_migrations')
+    .all() as { version: number }[];
+  return new Set(rows.map((row) => row.version));
+}
+
+/**
+ * Copies the database file to `DATA_DIR/backups/jizhang-<ISO-ish>.db`.
+ *
+ * Uses SQLite's own `.backup` rather than a filesystem copy: in WAL mode the
+ * `-wal` sidecar may hold committed data the main file does not have yet, so a
+ * plain copy can silently lose the most recent transactions (design.md §7.4).
+ * Returns `null` when there is no database file yet (a fresh install).
+ */
+export function backupDatabase(db: Db, dataDir: string): string | null {
+  const backupsDir = path.join(dataDir, 'backups');
+  mkdirSync(backupsDir, { recursive: true });
+
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .replace('Z', '');
+  const target = path.join(backupsDir, `jizhang-${stamp}.db`);
+
+  // VACUUM INTO writes a consistent snapshot of the live database, including
+  // anything still sitting in the WAL. It fails if the target exists, which is
+  // fine: the timestamp makes collisions effectively impossible.
+  db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+
+  return existsSync(target) ? target : null;
+}
+
+/** Row count of a table, or 0 when the table does not exist yet. */
+function tableRowCount(db: Db, table: string): number {
+  const exists = db
+    .prepare("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(table) as { x: number } | undefined;
+  if (exists === undefined) return 0;
+  const row = db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get() as {
+    c: number;
+  };
+  return row.c;
+}
+
+/**
+ * Applies every pending migration. Idempotent.
+ *
+ * @param dataDir directory that holds the database file; backups go to
+ *   `<dataDir>/backups`. Pass `null` to skip the backup (tests only).
+ */
+export function runMigrations(db: Db, dataDir: string | null): MigrateResult {
+  ensureMigrationTable(db);
+
+  const done = appliedVersions(db);
+  const pending = MIGRATIONS.filter((migration) => !done.has(migration.version));
+
+  if (pending.length === 0) {
+    return {
+      applied: [],
+      alreadyApplied: MIGRATIONS.map((m) => m.version),
+      backupPath: null,
+    };
+  }
+
+  // Back up only when this database has already been migrated before, i.e. it
+  // holds real data that a bad migration could destroy. A fresh install has
+  // nothing to lose, and must not litter DATA_DIR/backups on first boot.
+  //
+  // Note: "is the file non-empty?" is NOT a valid test here — opening the
+  // database already writes a header (the WAL pragma alone does), so a brand new
+  // file looks non-empty immediately.
+  const isUpgrade = done.size > 0;
+  const backupPath =
+    dataDir !== null && isUpgrade ? backupDatabase(db, dataDir) : null;
+
+  const applied: number[] = [];
+  const record = db.prepare(
+    'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+  );
+
+  for (const migration of pending) {
+    // better-sqlite3's `transaction` wraps its function in BEGIN/COMMIT and rolls
+    // back on throw, which is exactly the contract we want per migration.
+    const apply = db.transaction(() => {
+      db.exec(migration.sql);
+      record.run(migration.version, migration.name, Date.now());
+    });
+    apply();
+    applied.push(migration.version);
+  }
+
+  return {
+    applied,
+    alreadyApplied: [...done].sort((a, b) => a - b),
+    backupPath,
+  };
+}
+
+/** Diagnostics for tests and the startup log. */
+export function migrationStatus(db: Db): {
+  applied: AppliedRow[];
+  pending: number[];
+  tables: string[];
+} {
+  ensureMigrationTable(db);
+  const applied = db
+    .prepare('SELECT version, name, applied_at FROM schema_migrations ORDER BY version')
+    .all() as AppliedRow[];
+  const done = new Set(applied.map((row) => row.version));
+  const tables = (
+    db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all() as { name: string }[]
+  ).map((row) => row.name);
+
+  return {
+    applied,
+    pending: MIGRATIONS.filter((m) => !done.has(m.version)).map((m) => m.version),
+    tables,
+  };
+}
+
+export { tableRowCount };
