@@ -191,6 +191,26 @@ export class SalaryService {
   }
 
   /**
+   * Live salary records inside `[from, to)`, for income aggregation.
+   *
+   * Windowed rather than reusing `list()`: that one applies `LIMIT 200`, so summing
+   * its output over a long chart range would silently truncate history and under-report
+   * income.
+   */
+  listInWindow(from: number, to: number): { amountCents: number; date: number }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT amount_cents, date
+           FROM salary_records
+          WHERE deleted = 0 AND date >= ? AND date < ?
+          ORDER BY date`,
+      )
+      .all(from, to) as { amount_cents: number; date: number }[];
+
+    return rows.map((row) => ({ amountCents: row.amount_cents, date: row.date }));
+  }
+
+  /**
    * Records a salary and its allocation snapshot.
    *
    * @param input.allocations optional fine-tuned allocation; when omitted the

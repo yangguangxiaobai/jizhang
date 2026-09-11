@@ -5,6 +5,8 @@
  *   * a refund reduces net expense and NEVER counts as income;
  *   * a category whose refunds cancel its spending nets to zero;
  *   * the pool series ends exactly at the engine's current pool.
+ *   * monthly income is transactions PLUS recorded salaries, but salary income never
+ *     leaks into the expense category share.
  */
 import Database from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
@@ -50,6 +52,22 @@ async function addTransaction(input: Record<string, unknown>): Promise<void> {
     payload: { accountId: ACCOUNT, ...input },
   });
   expect(response.statusCode, JSON.stringify(input)).toBe(201);
+}
+
+/**
+ * Records a salary (the separate `salary_records` table, not a category transaction).
+ *
+ * Salaries are income in `monthlyTrend` but carry no category, which is why they need
+ * their own helper here rather than going through `addTransaction`.
+ */
+async function recordSalary(amountCents: number, date: number): Promise<void> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/salaries',
+    headers: authed(),
+    payload: { amountCents, date },
+  });
+  expect(response.statusCode, JSON.stringify({ amountCents, date })).toBe(201);
 }
 
 async function get(url: string) {
@@ -373,6 +391,92 @@ describe('monthly trend', () => {
     expect(body.items.map((p: { netExpenseCents: number }) => p.netExpenseCents)).toEqual([
       4000, 2000, 1000,
     ]);
+  });
+
+  it('counts a recorded salary as income, with no matching transaction', async () => {
+    // The gap this closes: a salary lives in `salary_records`, not in `transactions`,
+    // so aggregating the ledger alone reported income 0 for a month whose only income
+    // was a salary — which is how the home dashboard would have shown "收入 0" right
+    // after the user recorded their pay.
+    await recordSalary(1_234_500, dayIn(0, 5));
+
+    const body = await get('/api/v1/stats/monthly-trend?months=3');
+    expect(body.items[2].incomeCents).toBe(1_234_500);
+    // A salary is income, never spending.
+    expect(body.items[2].netExpenseCents).toBe(0);
+  });
+
+  it('adds salary income on top of income transactions', async () => {
+    await addTransaction({ type: 1, amountCents: 300_000, categoryId: SALARY, date: dayIn(0, 3) });
+    await recordSalary(1_000_000, dayIn(0, 5));
+
+    const body = await get('/api/v1/stats/monthly-trend?months=2');
+    // 300,000 (transaction) + 1,000,000 (salary), summed not replaced.
+    expect(body.items[1].incomeCents).toBe(1_300_000);
+  });
+
+  it('excludes a soft-deleted salary from income', async () => {
+    await recordSalary(500_000, dayIn(0, 5));
+    const created = await get('/api/v1/salaries');
+    const salaryId = created.items[0].id as string;
+
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/salaries/${salaryId}`,
+      headers: authed(),
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    const body = await get('/api/v1/stats/monthly-trend?months=2');
+    expect(body.items[1].incomeCents).toBe(0);
+  });
+
+  it('buckets a salary into its own month, not the current one', async () => {
+    // Same multi-month guard as the transaction version above: a salary two months old
+    // must not be attributed to the current month.
+    await recordSalary(700_000, dayIn(-2, 5));
+    await recordSalary(100_000, dayIn(0, 5));
+
+    const body = await get('/api/v1/stats/monthly-trend?months=4');
+    // 4 points: indices 0..3 = three months ago..now. Two months ago is index 1.
+    expect(body.items[1].incomeCents).toBe(700_000);
+    expect(body.items[3].incomeCents).toBe(100_000);
+    expect(body.items[0].incomeCents).toBe(0);
+    expect(body.items[2].incomeCents).toBe(0);
+  });
+
+  it('includes a salary exactly on the window edge and excludes one before it', async () => {
+    // The window is `[firstStart, end)`: the earliest month's first instant is inside,
+    // the instant before it is outside.
+    const firstStart = dayIn(-2, 1);
+    const justBefore = firstStart - 1;
+    expect(justBefore).toBeLessThan(firstStart);
+
+    await recordSalary(11_000, firstStart);
+    await recordSalary(22_000, justBefore);
+
+    const body = await get('/api/v1/stats/monthly-trend?months=3');
+    expect(body.items[0].incomeCents).toBe(11_000);
+  });
+
+  it('does not fold salary income into the expense category share', async () => {
+    // A salary has no category. Giving it one would misreport the composition of
+    // spending, so `categoryShare` must stay exactly as it was.
+    await addTransaction({ type: 0, amountCents: 40_000, categoryId: FOOD, date: dayIn(0, 10) });
+    const before = await get(
+      `/api/v1/stats/category-share?from=${dayIn(0, 1)}&to=${dayIn(1, 1)}`,
+    );
+
+    await recordSalary(999_999, dayIn(0, 5));
+
+    const after = await get(
+      `/api/v1/stats/category-share?from=${dayIn(0, 1)}&to=${dayIn(1, 1)}`,
+    );
+    expect(after).toEqual(before);
+    expect(after.totalCents).toBe(40_000);
+    expect(
+      after.items.some((i: { categoryId: string }) => i.categoryId === SALARY),
+    ).toBe(false);
   });
 });
 

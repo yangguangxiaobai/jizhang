@@ -208,6 +208,16 @@ export class StatsService {
    *
    * Months with no activity are included with zeros — a gap in the axis would make
    * the chart lie about continuity.
+   *
+   * Income is **transactions plus salary records**. Salaries live in their own table
+   * (they carry an allocation snapshot rather than a category), so aggregating the
+   * ledger alone reported an income of 0 for a month whose only income was a recorded
+   * salary. Every screen that shows "income" must agree, and the home dashboard reads
+   * this same method, so the rule lives here rather than being patched per screen.
+   *
+   * Deliberately NOT folded into `categoryShare`: a salary has no category, and
+   * inventing one would misreport the composition of spending. If you are looking at
+   * `categoryShare` and wondering why salary income is missing, that is this comment.
    */
   monthlyTrend(months = 6): MonthlyTrendPoint[] {
     const safeMonths = Math.min(Math.max(Math.trunc(months), 1), 36);
@@ -233,6 +243,16 @@ export class StatsService {
       bucket.expense += expenseContribution(txn);
     }
 
+    // Salaries are bucketed by the same `startOfMonthOf` as transactions. Using
+    // `monthStartOffset` here would read the salary's date as an OFFSET instead of an
+    // instant and scatter every salary — that helper is for computing a window edge,
+    // not for assigning one row to its month.
+    for (const salary of this.salaries().listInWindow(firstStart, end)) {
+      const bucket = buckets.get(startOfMonthOf(salary.date));
+      if (bucket === undefined) continue;
+      bucket.income += salary.amountCents;
+    }
+
     return starts.map((start) => {
       const bucket = buckets.get(start) ?? { income: 0, expense: 0 };
       return {
@@ -244,10 +264,15 @@ export class StatsService {
     });
   }
 
+  /** The salary service, sharing this service's injected clock. */
+  private salaries(): SalaryService {
+    return new SalaryService(this.db, { now: this.now });
+  }
+
   private cycleConfig(): CycleConfig {
     // Reuse the salary service's settings reader so the cycle definition has exactly
     // one implementation.
-    const day = new SalaryService(this.db, { now: this.now }).getCycleStartDay();
+    const day = this.salaries().getCycleStartDay();
     return day === undefined ? NATURAL_MONTH : { kind: 'start-day', day };
   }
 

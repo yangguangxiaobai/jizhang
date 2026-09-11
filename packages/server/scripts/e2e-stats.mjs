@@ -179,6 +179,63 @@ check(
 );
 check('the cycle mode is reported', poolTrend.cycle.kind === 'natural-month', JSON.stringify(poolTrend.cycle));
 
+// ── salary income ────────────────────────────────────────────────────────────
+// A salary row is not a transaction, so aggregating the ledger alone under-reports
+// income. These checks pin the extended rule AND its narrow blast radius: the budget
+// engine's pool must not move just because income now counts salaries.
+console.log('\n[monthly income includes salaries]');
+const incomeTxnTotal = allRows
+  .filter((t) => t.type === 1)
+  .reduce((sum, t) => sum + t.amountCents, 0);
+
+const trendAfterSalary = (await get('/stats/monthly-trend?months=6')).json.items;
+const nowAfter = trendAfterSalary[trendAfterSalary.length - 1];
+// 100,000 was recorded via POST /salaries above and belongs to the current month.
+check(
+  'the current month income is transactions + the recorded salary',
+  nowAfter.incomeCents === incomeTxnTotal + 100_000,
+  `-> ${nowAfter.incomeCents} vs ${incomeTxnTotal} + 100000`,
+);
+check(
+  'and it is strictly more than the transactions alone',
+  nowAfter.incomeCents > incomeTxnTotal,
+  `-> ${nowAfter.incomeCents} > ${incomeTxnTotal}`,
+);
+
+// A salary in a prior month must land in that month's bucket, not the current one.
+const priorSalary = 777_000;
+await post('/salaries', { amountCents: priorSalary, date: dayIn(-1, 3), note: '上月工资' });
+const trendPrior = (await get('/stats/monthly-trend?months=6')).json.items;
+check(
+  'a prior-month salary lands in its own bucket',
+  trendPrior[trendPrior.length - 2].incomeCents === priorSalary,
+  `-> ${trendPrior[trendPrior.length - 2].incomeCents}`,
+);
+check(
+  'and it does not raise the current month income',
+  trendPrior[trendPrior.length - 1].incomeCents === nowAfter.incomeCents,
+  `-> ${trendPrior[trendPrior.length - 1].incomeCents}`,
+);
+
+// A salary that is a pure income record must not create spending.
+check(
+  'salary income never becomes net expense',
+  trendPrior[trendPrior.length - 2].netExpenseCents === 0,
+  `-> ${trendPrior[trendPrior.length - 2].netExpenseCents}`,
+);
+
+// The budget engine reads salary allocations (as it always did), NOT this income
+// rule. Adding a salary with no template allocates against the default template and
+// must therefore leave the pool contract intact.
+const poolAfterSalary = (await get('/stats/pool-trend')).json;
+const overviewAfterSalary = (await get('/budget/overview')).json;
+check(
+  'AC3 the pool contract survives the income change',
+  poolAfterSalary.points[poolAfterSalary.points.length - 1].poolCents ===
+    overviewAfterSalary.carryoverPoolCents,
+  `trend=${poolAfterSalary.points[poolAfterSalary.points.length - 1].poolCents} budget=${overviewAfterSalary.carryoverPoolCents}`,
+);
+
 // ── range + month window helpers ─────────────────────────────────────────────
 console.log('\n[helpers]');
 const range = (await get('/stats/range')).json;
