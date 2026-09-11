@@ -228,6 +228,20 @@ export class TransactionService {
     }
   }
 
+  /**
+   * Checks that a category and an account may be referenced, without writing anything.
+   *
+   * Exposed so other writers (recurring rules) enforce exactly the same rule as a bill
+   * does, instead of each re-implementing the two lookups and drifting. `type` is
+   * accepted for signature symmetry with `create` even though the lookup does not need
+   * it yet — a rule and its bills share one category, so mismatched types are caught the
+   * moment the occurrence is confirmed.
+   */
+  assertReferencesUsable(_type: number, categoryId: string, accountId: string): void {
+    this.assertCategoryUsable(categoryId);
+    this.assertAccountUsable(accountId);
+  }
+
   getById(id: string, includeDeleted = false): TransactionDto | undefined {
     const row = this.db
       .prepare(

@@ -15,6 +15,7 @@ import { registerBudgetRoutes } from './routes/budget.js';
 import { registerMasterDataRoutes } from './routes/master-data.js';
 import { registerStatsRoutes } from './routes/stats.js';
 import { registerTrashRoutes } from './routes/trash.js';
+import { registerRecurringRoutes } from './routes/recurring.js';
 import { registerTransactionRoutes } from './routes/transactions.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
@@ -141,6 +142,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         (instance) => registerBudgetRoutes(instance, { db, now: options.now }),
         (instance) => registerStatsRoutes(instance, { db, now: options.now }),
         (instance) => registerTrashRoutes(instance, { db, now: options.now }),
+        (instance) => registerRecurringRoutes(instance, { db, now: options.now }),
       ],
     });
   } else {
