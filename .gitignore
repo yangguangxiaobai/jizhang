@@ -1,0 +1,35 @@
+# ── dependencies / build output ───────────────────────────────────────────────
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# ── runtime data (SQLite lives on a volume in Docker; ./data for local runs) ──
+data/
+
+# A SQLite database is user data, never source. This also catches the snapshot files
+# `cli.js verify` and `cli.js backup` are pointed at during a drill: one was created
+# in packages/server/ while investigating a bug, and without this rule it would have
+# been committed with real ledger rows in it.
+*.db
+*.db-wal
+*.db-shm
+
+# ── secrets ──────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── editor / OS ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ── local scratch ────────────────────────────────────────────────────────────
+.tmp-*/
