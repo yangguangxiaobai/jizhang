@@ -110,6 +110,11 @@ export async function resetToKnownState() {
     db.prepare('DELETE FROM budget_allocations').run();
     db.prepare('DELETE FROM salary_records').run();
     db.prepare('DELETE FROM settings').run();
+    // Recurring state must go too. Occurrences reference rules, so they go first.
+    // Without this the recurring suite would inherit another suite's rules, and every
+    // other suite would inherit its pending occurrences.
+    db.prepare('DELETE FROM recurring_occurrences').run();
+    db.prepare('DELETE FROM recurring_rules').run();
 
     // Categories: restore every builtin row, retire anything else.
     db.prepare("UPDATE categories SET deleted = 1 WHERE id NOT LIKE 'builtin-%'").run();
