@@ -25,6 +25,9 @@ import {
   NATURAL_MONTH,
   computeCarryoverPool,
   computeModuleViews,
+  computePoolTrend,
+  dateOnly,
+  listCycleStarts,
   type BudgetAllocation,
   type CycleConfig,
   type Transaction,
@@ -117,23 +120,74 @@ export async function registerBudgetRoutes(
     return day === undefined ? NATURAL_MONTH : { kind: 'start-day', day };
   }
 
+  /**
+   * Parses `?periodStart=`.
+   *
+   * Absent and `''` both mean "the current cycle", matching how the stats routes treat
+   * their optional window parameters. Anything present must be a finite integer.
+   *
+   * Validation happens here; whether the value names a REAL cycle is checked against
+   * `listCycleStarts` by the caller, because "not a number" and "a number naming no
+   * cycle" deserve the same 400 but for different reasons.
+   */
+  function parsePeriodStart(query: Record<string, unknown>): number | undefined {
+    const raw = query['periodStart'];
+    if (raw === undefined || raw === '') return undefined;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || !Number.isInteger(value)) {
+      throw new ValidationError(
+        'periodStart must be an epoch-millisecond timestamp of a known budget cycle.',
+      );
+    }
+    return value;
+  }
+
   // ── budget overview ────────────────────────────────────────────────────────
-  app.get('/api/v1/budget/overview', async (_request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/api/v1/budget/overview', async (request: FastifyRequest, reply: FastifyReply) => {
     const allocations = loadAllocations();
     const transactions = loadTransactions();
     const cycle = cycleConfig();
+
+    const requested = parsePeriodStart((request.query ?? {}) as Record<string, unknown>);
+    // `group.start` is `dateOnly`-normalised inside the engine, so normalise the request
+    // the same way before matching, or a timestamp with a time of day never matches.
+    const target = requested === undefined ? undefined : dateOnly(requested);
+
+    if (target !== undefined && !listCycleStarts(allocations, cycle).includes(target)) {
+      // Fail loudly. Falling back to the current cycle would put one month's numbers
+      // under another month's heading, which is worse than an error.
+      throw new ValidationError('Unknown budget period.');
+    }
 
     const views = computeModuleViews({
       allocationsDesc: allocations,
       transactions,
       cycle,
+      ...(target === undefined ? {} : { periodStart: target }),
     });
-    const pool = computeCarryoverPool({
-      allocationsDesc: allocations,
-      transactions,
-      currentModuleViews: views,
-      cycle,
-    });
+
+    // The pool for a HISTORICAL cycle comes from the existing trend series — it is the
+    // number that series already plots for that cycle, so the budget page and the chart
+    // cannot disagree about it. Deriving it by truncating the allocations and calling
+    // `computeCarryoverPool` would be wrong: that function's current-cycle branch only
+    // carries an OVERSPENT module's shortfall, and a closed cycle's leftover from
+    // un-overspent modules enters through the historical branch instead.
+    //
+    // When no period is requested, the code path is exactly as it was: the live pool.
+    const pool =
+      target === undefined
+        ? computeCarryoverPool({
+            allocationsDesc: allocations,
+            transactions,
+            currentModuleViews: views,
+            cycle,
+          })
+        : (computePoolTrend({
+            allocationsDesc: allocations,
+            transactions,
+            currentModuleViews: views,
+            cycle,
+          }).find((point) => point.periodStart === target)?.poolCents ?? 0);
 
     // Category names travel with the numbers so the client renders without a join.
     const names = new Map<string, string>();
@@ -158,6 +212,21 @@ export async function registerBudgetRoutes(
       totalBudgetCents: totalBudget,
       totalSpentCents: totalSpent,
       hasBudget: views.length > 0,
+    });
+  });
+
+  // ── which cycles can be reviewed ───────────────────────────────────────────
+  // A separate endpoint rather than extra fields on the overview: the overview must
+  // answer byte-identically when no period is requested, so that every existing caller
+  // and test keeps its exact contract.
+  app.get('/api/v1/budget/periods', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const cycle = cycleConfig();
+    const periods = listCycleStarts(loadAllocations(), cycle);
+
+    return reply.send({
+      periods,
+      currentPeriodStart: periods[periods.length - 1] ?? null,
+      cycle,
     });
   });
 

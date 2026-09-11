@@ -646,6 +646,266 @@ describe('AC11 budget overview', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Historical cycle review — T14
+// ---------------------------------------------------------------------------
+//
+// Every fixture here spans TWO cycles. A single-cycle fixture cannot catch a wrong
+// period key: it would agree with the current-cycle path by construction.
+//
+// The cycle identifier is the engine's own `group.start` — for `natural-month` that is
+// `dateOnly` (LOCAL midnight) of the EARLIEST SALARY DAY in the month, not the 1st. These
+// tests never hard-code it: they read it back from `/api/v1/budget/periods`, which is the
+// same value the UI would send. Hard-coding an epoch would encode the machine's timezone
+// into the expectation and pass or fail depending on where it runs.
+
+/** The cycle starts the server reports, ascending. */
+async function listPeriods(): Promise<number[]> {
+  return (await get('/api/v1/budget/periods')).json().periods as number[];
+}
+
+/**
+ * A LOCAL-midnight date in 2026.
+ *
+ * Salaries and transactions only need a date that lands in the intended cycle, and the
+ * localStorage cycle maths is local, so a local anchor keeps the fixture honest wherever
+ * the suite runs. (Assertions about the reported `periodStart` still read the value back
+ * from the API rather than recomputing it.)
+ */
+const localDay = (month1: number, day: number) => new Date(2026, month1 - 1, day).getTime();
+const JUL = (day: number) => localDay(7, day);
+
+describe('T14 GET /api/v1/budget/periods', () => {
+  it('AC5 lists every cycle, ascending, with the current one last', async () => {
+    salaries.create({ amountCents: 1_000_000, date: JUL(3) });
+    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+
+    const body = (await get('/api/v1/budget/periods')).json();
+
+    expect(body.periods).toHaveLength(2);
+    // Ascending, and the current one is the newest.
+    expect(body.periods[0]).toBeLessThan(body.periods[1]);
+    expect(body.currentPeriodStart).toBe(body.periods[1]);
+    expect(body.cycle).toEqual({ kind: 'natural-month' });
+
+    // The start is the earliest salary day in the month, NOT the first of the month.
+    const firstOfJuly = new Date(2026, 6, 1).getTime();
+    expect(body.periods[0]).not.toBe(firstOfJuly);
+    expect(new Date(body.periods[0] as number).getDate()).toBe(3);
+  });
+
+  it('AC5 an empty ledger reports no periods at all', async () => {
+    const body = (await get('/api/v1/budget/periods')).json();
+
+    // The view hides or disables the switcher on this, rather than showing an empty one.
+    expect(body.periods).toEqual([]);
+    expect(body.currentPeriodStart).toBeNull();
+  });
+
+  it('AC5 the period list agrees with the pool-trend series', async () => {
+    salaries.create({ amountCents: 1_000_000, date: JUL(3) });
+    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+
+    const periods = await listPeriods();
+    const trend = (await get('/api/v1/stats/pool-trend')).json().points as {
+      periodStart: number;
+    }[];
+
+    // The anti-drift assertion: both must come from the same grouping.
+    expect(periods).toEqual(trend.map((point) => point.periodStart));
+  });
+
+  it('requires a session', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/budget/periods' });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
+describe('T14 budget overview for a historical cycle', () => {
+  /** July: 300,000 food / 200,000 transport spending 200,000. August: 400,000 food. */
+  async function twoCycles(): Promise<{ july: number; august: number }> {
+    const july = await post('/api/v1/salaries', {
+      amountCents: 500_000,
+      date: JUL(3),
+      allocations: [
+        { categoryId: FOOD, amountCents: 300_000 },
+        { categoryId: TRANSPORT, amountCents: 200_000 },
+      ],
+    });
+    expect(july.statusCode, july.body).toBe(201);
+
+    const august = await post('/api/v1/salaries', {
+      amountCents: 1_000_000,
+      date: AUG(5),
+      allocations: [
+        { categoryId: FOOD, amountCents: 400_000 },
+        { categoryId: TRANSPORT, amountCents: 600_000 },
+      ],
+    });
+    expect(august.statusCode, august.body).toBe(201);
+
+    for (const [amountCents, date] of [
+      [200_000, new Date(2026, 6, 12).getTime()],
+      [120_000, new Date(2026, 7, 10).getTime()],
+    ] as const) {
+      const created = await post('/api/v1/transactions', {
+        type: 0,
+        amountCents,
+        categoryId: FOOD,
+        accountId: 'builtin-default-account',
+        date,
+      });
+      expect(created.statusCode, created.body).toBe(201);
+    }
+
+    const periods = await listPeriods();
+    expect(periods).toHaveLength(2);
+    return { july: periods[0] as number, august: periods[1] as number };
+  }
+
+  it('AC1 reviewing July returns July figures, not August renamed', async () => {
+    const { july } = await twoCycles();
+
+    const current = (await get('/api/v1/budget/overview')).json();
+    const historical = (await get(`/api/v1/budget/overview?periodStart=${july}`)).json();
+
+    expect(historical.totalBudgetCents).toBe(500_000);
+    expect(historical.totalSpentCents).toBe(200_000);
+    expect(
+      historical.modules.find((m: { categoryId: string }) => m.categoryId === FOOD).budgetCents,
+    ).toBe(300_000);
+    // The proof it is a different cycle rather than a relabelled copy.
+    expect(historical.totalBudgetCents).not.toBe(current.totalBudgetCents);
+    expect(historical.totalSpentCents).not.toBe(current.totalSpentCents);
+  });
+
+  it('AC1 spending from the neighbouring cycle does not leak in', async () => {
+    const { july } = await twoCycles();
+
+    const historical = (await get(`/api/v1/budget/overview?periodStart=${july}`)).json();
+
+    // July's food spend is 200,000; August's 120,000 must not be added to it.
+    expect(
+      historical.modules.find((m: { categoryId: string }) => m.categoryId === FOOD).spentCents,
+    ).toBe(200_000);
+  });
+
+  it('AC2 an overspent historical module is reported negative, not clamped', async () => {
+    salaries.create({ amountCents: 500_000, date: JUL(3) });
+    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    // Spend more than July's food budget.
+    await post('/api/v1/transactions', {
+      type: 0,
+      amountCents: 900_000,
+      categoryId: FOOD,
+      accountId: 'builtin-default-account',
+      date: new Date(2026, 6, 12).getTime(),
+    });
+
+    const periods = await listPeriods();
+    const historical = (await get(`/api/v1/budget/overview?periodStart=${periods[0]}`)).json();
+    const food = historical.modules.find((m: { categoryId: string }) => m.categoryId === FOOD);
+
+    expect(food.remainingCents).toBeLessThan(0);
+  });
+
+  it('AC3 an unknown period is rejected, never silently the current cycle', async () => {
+    await twoCycles();
+
+    const unknown = await get(
+      `/api/v1/budget/overview?periodStart=${new Date(2020, 0, 1).getTime()}`,
+    );
+
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.json().error.code).toBe('VALIDATION');
+    expect(unknown.json().error.message).toMatch(/unknown budget period/i);
+  });
+
+  it('AC3 a non-integer period is rejected', async () => {
+    const response = await get('/api/v1/budget/overview?periodStart=abc');
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION');
+  });
+
+  it('AC4 an empty periodStart means the current cycle, as if omitted', async () => {
+    await twoCycles();
+
+    const omitted = (await get('/api/v1/budget/overview')).json();
+    const empty = (await get('/api/v1/budget/overview?periodStart=')).json();
+
+    expect(empty).toEqual(omitted);
+  });
+
+  it('AC4 asking explicitly for the newest period equals omitting it', async () => {
+    const { august } = await twoCycles();
+
+    const omitted = (await get('/api/v1/budget/overview')).json();
+    const explicit = (await get(`/api/v1/budget/overview?periodStart=${august}`)).json();
+
+    // Field-for-field, not just totals: the pool included. This is the invariant that
+    // proves the new parameter did not fork the default code path.
+    expect(explicit).toEqual(omitted);
+  });
+
+  it('a timestamp with a time of day still matches its cycle', async () => {
+    const { july } = await twoCycles();
+
+    const withTime = (
+      await get(`/api/v1/budget/overview?periodStart=${july + 13 * 3_600_000}`)
+    ).json();
+    const midnight = (await get(`/api/v1/budget/overview?periodStart=${july}`)).json();
+
+    // `group.start` is date-normalised inside the engine, so the request must be too.
+    expect(withTime).toEqual(midnight);
+  });
+
+  it('honours a configured cycle start day when reviewing the past', async () => {
+    // Cycle starts on the 15th: 7/15–8/14 and 8/15–9/14.
+    salaries.setCycleStartDay(15);
+    const previous = await post('/api/v1/salaries', {
+      amountCents: 500_000,
+      date: new Date(2026, 6, 20).getTime(),
+      allocations: [{ categoryId: FOOD, amountCents: 500_000 }],
+    });
+    expect(previous.statusCode, previous.body).toBe(201);
+    const current = await post('/api/v1/salaries', {
+      amountCents: 500_000,
+      date: new Date(2026, 7, 20).getTime(),
+      allocations: [{ categoryId: FOOD, amountCents: 500_000 }],
+    });
+    expect(current.statusCode, current.body).toBe(201);
+
+    for (const [amountCents, date] of [
+      [50_000, new Date(2026, 7, 10).getTime()],
+      [70_000, new Date(2026, 7, 16).getTime()],
+    ] as const) {
+      await post('/api/v1/transactions', {
+        type: 0,
+        amountCents,
+        categoryId: FOOD,
+        accountId: 'builtin-default-account',
+        date,
+      });
+    }
+
+    const periods = await listPeriods();
+    expect(periods).toHaveLength(2);
+    // With start-day mode the period key IS the configured boundary.
+    expect(new Date(periods[0] as number).getDate()).toBe(15);
+
+    const historical = (await get(`/api/v1/budget/overview?periodStart=${periods[0]}`)).json();
+
+    // Only the transaction inside [7/15, 8/15) counts; the 8/16 one belongs to the next
+    // cycle. This is what proves a historical window is bounded by the next cycle rather
+    // than left open-ended.
+    expect(
+      historical.modules.find((m: { categoryId: string }) => m.categoryId === FOOD).spentCents,
+    ).toBe(50_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Guard
 // ---------------------------------------------------------------------------
 
