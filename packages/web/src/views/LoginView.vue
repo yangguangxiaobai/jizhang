@@ -21,7 +21,7 @@ async function submit(): Promise<void> {
   if (!ok) return;
 
   const next = route.query['next'];
-  await router.push(typeof next === 'string' && next !== '' ? next : { name: 'transactions' });
+  await router.push(typeof next === 'string' && next !== '' ? next : { name: 'dashboard' });
 }
 </script>
 

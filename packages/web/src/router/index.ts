@@ -20,6 +20,12 @@ const routes = [
     children: [
       {
         path: '',
+        name: 'dashboard',
+        component: () => import('../views/DashboardView.vue'),
+        meta: { title: '首页', nav: 'dashboard' },
+      },
+      {
+        path: 'transactions',
         name: 'transactions',
         component: () => import('../views/TransactionsView.vue'),
         meta: { title: '账单', nav: 'transactions' },
@@ -97,8 +103,8 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta['public'] === true) {
-    // Already signed in? Skip the login page.
-    if (auth.username !== null && to.name === 'login') return { name: 'transactions' };
+    // Already signed in? Skip the login page and land on the dashboard.
+    if (auth.username !== null && to.name === 'login') return { name: 'dashboard' };
     return true;
   }
 

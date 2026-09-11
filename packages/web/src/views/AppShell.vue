@@ -34,6 +34,15 @@ const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? ''
 
     <nav class="tabbar" aria-label="主导航">
       <RouterLink
+        :to="{ name: 'dashboard' }"
+        class="tab"
+        :class="{ active: activeNav === 'dashboard' }"
+      >
+        <span class="glyph" aria-hidden="true">🏠</span>
+        <span>首页</span>
+      </RouterLink>
+
+      <RouterLink
         :to="{ name: 'transactions' }"
         class="tab"
         :class="{ active: activeNav === 'transactions' }"
@@ -127,8 +136,8 @@ h1 {
   position: sticky;
   bottom: 0;
   display: grid;
-  /* 账单 / 预算 / 记一笔 / 统计 / 我的 */
-  grid-template-columns: repeat(5, 1fr);
+  /* 首页 / 账单 / 预算 / 记一笔 / 统计 / 我的 */
+  grid-template-columns: repeat(6, 1fr);
   background: var(--surface);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
