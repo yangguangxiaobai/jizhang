@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Offline banner.
  *
@@ -48,6 +48,15 @@ const visible = computed(() => offline.value || showRestored.value);
   text-align: center;
   color: var(--on-accent);
   background: var(--danger);
+  /*
+   * Arrives from above, because that is where it lives on screen — a top bar rising from
+   * below would read as content that had been pushed out of the way.
+   *
+   * Only `opacity` and `transform` move, so the page below is never reflowed: the space
+   * the banner occupies is reserved the moment it is inserted, and it slides into it.
+   */
+  --rise-distance: -6px;
+  animation: rise-in var(--dur-base) var(--ease-out) backwards;
 }
 
 .banner.restored {

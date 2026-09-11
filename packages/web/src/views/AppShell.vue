@@ -43,7 +43,21 @@ const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? ''
 
     <main class="content">
       <InstallHint />
-      <RouterView />
+      <!--
+        Keyed on the route path so every navigation mounts fresh elements, which is what
+        lets the CSS arrival in `styles/main.css` replay. Without the key, moving between
+        two records of the same view (`/transactions/new` -> `/transactions/:id/edit`)
+        would reuse the DOM and keep the previous form's values on screen.
+
+        Deliberately NOT wrapped in `<Transition>`: every view renders a fragment rather
+        than a single root element, and a transition around a fragment silently does
+        nothing. The arrival is expressed in CSS instead, and the departure is an instant
+        cut — one thing moving at a time is the point, and a tab bar that waits for the
+        outgoing page to finish leaving feels broken.
+      -->
+      <div :key="route.path" class="view-slot">
+        <RouterView />
+      </div>
     </main>
 
     <nav class="tabbar" aria-label="主导航">
@@ -122,6 +136,9 @@ const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? ''
   padding: calc(0.75rem + env(safe-area-inset-top)) 1rem 0.75rem;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  /* One step up the elevation ladder, so scrolled content passes *under* the bar rather
+     than appearing to slide behind a flat sheet of the same colour. */
+  box-shadow: var(--lift-1);
 }
 
 h1 {
@@ -158,6 +175,7 @@ h1 {
 }
 
 .tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -172,6 +190,41 @@ h1 {
   background: none;
   border: 0;
   cursor: pointer;
+  /*
+   * The press squash is undelayed (it is the touch itself), while the label colour waits
+   * one `--stagger` step behind the indicator below. Two parts of the same control
+   * settling at different times is the whole of "follow through and overlapping action";
+   * if they moved together the bar would read as a row of switches flipping.
+   */
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    color var(--dur-quick) var(--ease-out) var(--stagger);
+}
+
+/*
+ * The active indicator. It is a second, decorative element rather than a styling of the
+ * label, so it can arrive on its own curve: it stretches out from the centre with a slight
+ * overshoot while the label above it is still on its way to the accent colour.
+ */
+.tab::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0.3rem;
+  width: 1.1rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transform: translateX(-50%) scaleX(0);
+  transition:
+    transform var(--dur-base) var(--ease-pop),
+    opacity var(--dur-quick) var(--ease-out);
+}
+
+.tab.active::after {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(1);
 }
 
 .tab.active {
@@ -191,6 +244,11 @@ h1 {
 .glyph {
   font-size: 1.15rem;
   line-height: 1;
+  transition: transform var(--dur-base) var(--ease-pop) var(--stagger);
+}
+
+.tab.active .glyph {
+  transform: translateY(-2px) scale(1.12);
 }
 
 @media (min-width: 40rem) {

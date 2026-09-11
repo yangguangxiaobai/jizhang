@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Dashboard: the first screen after login.
  *
@@ -189,7 +189,11 @@ function isRefund(item: Transaction): boolean {
           aria-valuemax="100"
           aria-label="本周期预算已用比例"
         >
-          <span class="fill" :class="{ over: budgetPercent > 100 }" :style="{ width: `${Math.min(100, budgetPercent)}%` }" />
+          <span
+            class="fill"
+            :class="{ over: budgetPercent > 100 }"
+            :style="{ '--fill': Math.min(1, budgetPercent / 100) }"
+          />
         </div>
         <p class="hint">
           {{ formatYuan(budget.overview.totalSpentCents) }} / {{ formatYuan(budget.overview.totalBudgetCents) }} 已用
@@ -295,6 +299,21 @@ h2 {
   border: 1px solid var(--accent);
   border-left-width: 4px;
   border-radius: 0.7rem;
+  /* Raised above the cards around it: this is the one block on the page that is asking
+     for something, and depth is how the design says so without adding another colour. */
+  box-shadow: var(--lift-2);
+  /*
+   * And it is the only element in the app that overshoots. Everything else rises into
+   * place on `--ease-out`; this one arrives on `--ease-pop` and lands a hair past its
+   * size, which is the single deliberate exaggeration in the interface. It is reserved
+   * for the one card whose entire purpose is to be noticed — spend it anywhere else and
+   * it stops meaning anything.
+   *
+   * It overrides the generic arrival from `.view-slot > *` (a scoped component rule wins
+   * that tie) and keeps the same position in the sequence.
+   */
+  animation: pop-in var(--dur-base) var(--ease-pop) backwards;
+  animation-delay: calc(var(--stagger) * 2);
 }
 
 .pending-card strong {
@@ -334,11 +353,35 @@ h2 {
   overflow: hidden;
 }
 
+/*
+ * The fill's width is expressed as a `transform: scaleX()` rather than as a `width`
+ * percentage, and the reason is the animation: `width` is a layout property, so animating
+ * it re-runs layout for the whole track on every frame. `scaleX` is handed to the
+ * compositor and costs the main thread nothing. The track clips it, so the geometry on
+ * screen is identical — this is the same bar, drawn a cheaper way.
+ *
+ * `--fill` is a unit interval rather than a percentage so the arithmetic lives in the
+ * template (which the view already does for `budgetPercent`) and the stylesheet only
+ * interpolates.
+ */
 .fill {
   display: block;
+  width: 100%;
   height: 100%;
   background: var(--accent);
   border-radius: 4px;
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-slow) var(--ease-out);
+  /* Grows into place on arrival, so the length reads as a measurement rather than as a
+     bar that was simply always that long. */
+  animation: fill-grow var(--dur-slow) var(--ease-out) backwards;
+}
+
+@keyframes fill-grow {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 .fill.over {

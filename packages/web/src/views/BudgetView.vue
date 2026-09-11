@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Budget overview: each envelope's progress, plus the carryover pool.
  *
@@ -17,10 +17,16 @@ onMounted(() => {
   void budget.loadAll();
 });
 
-/** Progress bar width, capped so an overspent module does not overflow its track. */
-function barWidth(spentCents: number, budgetCents: number): string {
-  if (budgetCents <= 0) return spentCents > 0 ? '100%' : '0%';
-  return `${Math.min(100, Math.round((spentCents / budgetCents) * 100))}%`;
+/**
+ * Progress bar length, capped so an overspent module does not overflow its track.
+ *
+ * Returns a unit interval rather than a percentage string: the bar is drawn with
+ * `transform: scaleX()`, which the compositor can animate, instead of `width`, which
+ * forces layout on every frame. See `styles/main.css` for the rest of that argument.
+ */
+function barRatio(spentCents: number, budgetCents: number): number {
+  if (budgetCents <= 0) return spentCents > 0 ? 1 : 0;
+  return Math.min(1, spentCents / budgetCents);
 }
 
 function usedPercent(spentCents: number, budgetCents: number): number {
@@ -176,7 +182,12 @@ const historyLoading = computed(
       </section>
 
       <ul class="modules">
-        <li v-for="module in budget.displayedOverview.modules" :key="module.categoryId">
+        <li
+          v-for="(module, index) in budget.displayedOverview.modules"
+          :key="module.categoryId"
+          class="reveal"
+          :style="{ '--i': index }"
+        >
           <div class="module-head">
             <span class="name">{{ module.categoryName }}</span>
             <span class="figures">
@@ -200,7 +211,7 @@ const historyLoading = computed(
             <span
               class="fill"
               :class="{ over: module.spentCents > module.budgetCents }"
-              :style="{ width: barWidth(module.spentCents, module.budgetCents) }"
+              :style="{ '--fill': barRatio(module.spentCents, module.budgetCents) }"
             />
           </div>
 
@@ -406,10 +417,24 @@ const historyLoading = computed(
 
 .fill {
   display: block;
+  width: 100%;
   height: 100%;
   background: var(--accent);
   border-radius: 4px;
-  transition: width 0.2s ease;
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left center;
+  /* Switching period changes the data under a bar that is already on screen, so this one
+     really is a transition — the bar slides to its new length instead of jumping. */
+  transition: transform var(--dur-slow) var(--ease-out);
+  /* And it extends into place when the module first arrives. */
+  animation: fill-grow var(--dur-slow) var(--ease-out) backwards;
+  animation-delay: min(var(--stagger) * var(--i, 0), calc(var(--stagger) * 6));
+}
+
+@keyframes fill-grow {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 .fill.over {

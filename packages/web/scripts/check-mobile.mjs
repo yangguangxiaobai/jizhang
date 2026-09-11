@@ -78,6 +78,10 @@ for (const path of files) {
     for (const chunk of blocks) {
       const selector = chunk.split('{')[0] ?? '';
       if (!INTERACTIVE_HINT.test(selector)) continue;
+      // A pseudo-element is never a hit target. `.tab::after` is the active-tab
+      // indicator: 2px tall on purpose, and no finger ever lands on it. Flagging it
+      // would push the size of a decoration into the size of the control it decorates.
+      if (/::(?:before|after|marker|placeholder)\b/.test(selector)) continue;
 
       for (const match of chunk.matchAll(HEIGHT_RE)) {
         const value = Number(match[1]);

@@ -98,9 +98,23 @@ function percent(ratio: number): string {
 
 <template>
   <div class="donut">
-    <svg :viewBox="`0 0 120 120`" :width="size" :height="size" role="img" aria-label="分类占比">
+    <svg
+      :viewBox="`0 0 120 120`"
+      :width="size"
+      :height="size"
+      role="img"
+      aria-label="分类占比"
+      :style="{ '--pivot': `${CENTER}px` }"
+    >
       <circle :cx="CENTER" :cy="CENTER" :r="RADIUS" class="track" />
-      <path v-for="arc in arcs" :key="arc.label" :d="arc.path" :fill="arc.color">
+      <path
+        v-for="(arc, index) in arcs"
+        :key="arc.label"
+        :d="arc.path"
+        :fill="arc.color"
+        class="slice"
+        :style="{ '--i': index }"
+      >
         <title>{{ arc.label }} {{ percent(arc.ratio) }}</title>
       </path>
     </svg>
@@ -109,7 +123,12 @@ function percent(ratio: number): string {
   </div>
 
   <ul class="legend">
-    <li v-for="arc in arcs" :key="`legend-${arc.label}`">
+    <li
+      v-for="(arc, index) in arcs"
+      :key="`legend-${arc.label}`"
+      class="reveal"
+      :style="{ '--i': index + 2 }"
+    >
       <span class="swatch" :style="{ background: arc.color }" aria-hidden="true" />
       <span class="label">{{ arc.label }}</span>
       <span class="ratio">{{ percent(arc.ratio) }}</span>
@@ -118,6 +137,26 @@ function percent(ratio: number): string {
 </template>
 
 <style scoped>
+/*
+ * The slices swing into place about the chart's centre, one after another in angular
+ * order — which is as close to a literal application of the "arcs" principle as a chart
+ * gets: each slice travels along the circle it belongs to rather than moving in a straight
+ * line or simply fading.
+ *
+ * The pivot is expressed by translating the centre to the origin and back instead of with
+ * `transform-origin`. An SVG element's transform origin defaults to the corner of the
+ * viewBox, and the `transform-box` property that would let it be redefined is unevenly
+ * supported on the iOS versions this app targets. The transform list below is the same
+ * rotation, written in a form every engine agrees about.
+ */
+@keyframes arc-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--pivot), var(--pivot)) rotate(-14deg) scale(0.92)
+      translate(calc(-1 * var(--pivot)), calc(-1 * var(--pivot)));
+  }
+}
+
 .donut {
   position: relative;
   display: grid;
@@ -127,6 +166,11 @@ function percent(ratio: number): string {
 svg {
   max-width: 100%;
   height: auto;
+}
+
+.slice {
+  animation: arc-in var(--dur-slow) var(--ease-out) backwards;
+  animation-delay: min(var(--stagger) * var(--i, 0), calc(var(--stagger) * 6));
 }
 
 .track {

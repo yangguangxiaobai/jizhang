@@ -40,6 +40,56 @@
   --on-accent: #ffffff;
   --danger: #dc2626;
   --ok: #15803d;
+
+  /*
+   * Elevation ladder. Two shadows per step — a tight "key" shadow and a wider "ambient"
+   * one — because a single blur radius reads as a grey halo, not as an object sitting above
+   * a surface. Depth is a theme concern, so these values are repeated in every theme block
+   * below: in dark mode the shadow has to be much darker to be visible at all, and the
+   * surface/value contrast does most of the separating work.
+   */
+  --lift-0: none;
+  --lift-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
+  --lift-2: 0 2px 6px rgb(15 23 42 / 0.09), 0 1px 2px rgb(15 23 42 / 0.05);
+  --lift-3: 0 10px 24px rgb(15 23 42 / 0.14), 0 2px 6px rgb(15 23 42 / 0.07);
+
+  /* ── motion ──────────────────────────────────────────────────────────────
+   *
+   * The duration ladder encodes DISTANCE, not importance: the further something travels,
+   * the longer it takes. A 2px nudge that lasted as long as a full-screen slide would read
+   * as sluggish, and a full-screen slide that matched the nudge would read as a glitch.
+   *
+   *   --dur-press   0–2px   the touch itself
+   *   --dur-quick   4–6px   colour, fades, dismissals
+   *   --dur-base    8–12px  an element arriving
+   *   --dur-slow    full width / whole chart
+   *
+   * Every duration and easing in the app resolves to one of these tokens. There is no
+   * literal `0.3s` anywhere, which is what makes the single `prefers-reduced-motion` block
+   * at the bottom of this file able to switch the whole application's motion off.
+   */
+  --dur-press: 90ms;
+  --dur-quick: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+  /* Gap between consecutive items arriving. Capped at use sites: a 60-row list must not
+   * take two seconds to finish appearing. */
+  --stagger: 36ms;
+  /* How far an arriving element travels. Small on purpose: this is a ledger, not a
+   * slideshow, and a large travel distance makes the numbers harder to read, not easier. */
+  --rise-distance: 8px;
+  /* Squash. A control that compresses under the finger reads as a physical object; a
+   * control that changes colour only reads as a picture of a button. */
+  --press-scale: 0.97;
+
+  /* Easing. `linear` appears nowhere in the app: constant speed is what a machine does,
+   * and the whole point of easing is that nothing in the physical world starts or stops
+   * instantly. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* decelerate — arriving */
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0); /* accelerate — departing */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* travelling through */
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1); /* overshoot — small parts only */
+
   color-scheme: light dark;
 }
 
@@ -59,6 +109,10 @@
   --on-accent: #ffffff;
   --danger: #dc2626;
   --ok: #15803d;
+  --lift-0: none;
+  --lift-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
+  --lift-2: 0 2px 6px rgb(15 23 42 / 0.09), 0 1px 2px rgb(15 23 42 / 0.05);
+  --lift-3: 0 10px 24px rgb(15 23 42 / 0.14), 0 2px 6px rgb(15 23 42 / 0.07);
   color-scheme: light;
 }
 
@@ -76,6 +130,13 @@
     --on-accent: #10151c;
     --danger: #f87171;
     --ok: #4ade80;
+    /* Much darker than the light-mode ladder: a 6%-alpha shadow is invisible against
+       #16181d, so in dark mode the shadow's job is to darken the content *under* a sticky
+       bar rather than to outline the bar itself. */
+    --lift-0: none;
+    --lift-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
+    --lift-2: 0 2px 6px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.4);
+    --lift-3: 0 10px 24px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.45);
     color-scheme: dark;
   }
 }
@@ -93,6 +154,10 @@
   --on-accent: #10151c;
   --danger: #f87171;
   --ok: #4ade80;
+  --lift-0: none;
+  --lift-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
+  --lift-2: 0 2px 6px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.4);
+  --lift-3: 0 10px 24px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.45);
   color-scheme: dark;
 }
 
@@ -119,4 +184,205 @@ body {
   color: var(--fg);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
+}
+
+/* ===========================================================================
+ * Motion system
+ * ===========================================================================
+ *
+ * Twelve principles, applied where they serve a ledger and declined where they do not.
+ * The mapping is recorded in `.trellis/spec/frontend/motion-guidelines.md`; the short
+ * version is that squash, staging, arcs, timing and follow-through are structural here,
+ * while exaggeration is rationed and looping decoration is refused outright.
+ *
+ * ## Every pose declares only a `from` frame
+ *
+ * There is not one `to` frame in this file. The missing 100% keyframe is supplied by the
+ * element's own computed style, which makes "the animation left it invisible" structurally
+ * impossible: the resting state is the *rule*, and the keyframe only describes where the
+ * element comes from. The usual failure mode — a base rule of `opacity: 0` waiting for an
+ * animation to reveal it, which `animation: none` under `prefers-reduced-motion` then
+ * strands forever — cannot be written this way.
+ *
+ * ## `backwards`, not `both`
+ *
+ * `animation-fill-mode: backwards` paints the `from` pose during the stagger delay and
+ * then releases the element to its own style. `both` would keep a fill frame applied
+ * forever, holding a compositor layer per animated element for no reason.
+ */
+
+/* Arriving: the general-purpose entrance. 8px is deliberately small. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rise-distance));
+  }
+}
+
+/* A single element appearing all at once, allowed to overshoot its own size. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+}
+
+/* Opacity only. Used where a transform would fight another transform on the same box. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * A refusal, in the shape of an animation.
+ *
+ * Four decreasing horizontal excursions. This is one of the two places the app is
+ * deliberately exaggerated (the other is `pop-in`), because a wrong PIN or a rejected form
+ * is the one thing the user must not miss, and it is the only motion here that is an
+ * *interruption* rather than a transition.
+ */
+@keyframes shake-x {
+  from {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+/*
+ * Squash and stretch, as far as a rectangular control can honestly express it.
+ *
+ * The scale is 0.97 — about one pixel on a 44px target. Anything larger starts to look
+ * like the button is dodging the finger, and on a text button the label itself would
+ * visibly shrink, which reads as a rendering bug rather than as weight.
+ *
+ * `:where()` groups the selector list without adding to the specificity, so the rule stays
+ * low enough that a scoped component rule overrides it by ordinary means rather than by
+ * `!important`. Nothing in the app does today; the point is that adding press feedback to a
+ * button should not make that button harder to style.
+ *
+ * The transition is 90ms because the state it reports is the touch itself. An `:active`
+ * that also launches a route change has no time to play before the view is replaced, and
+ * `--dur-press` is short enough that the squash still reads as cause and effect rather than
+ * as a delay before navigating. This note exists so nobody "fixes" that by padding the
+ * navigation.
+ */
+:where(button, [role='button'], summary, a.tab):not(:disabled) {
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    background-color var(--dur-quick) var(--ease-out),
+    border-color var(--dur-quick) var(--ease-out),
+    color var(--dur-quick) var(--ease-out),
+    opacity var(--dur-quick) var(--ease-out);
+}
+
+:where(button, [role='button'], summary, a.tab):not(:disabled):active {
+  transform: scale(var(--press-scale));
+}
+
+/*
+ * Sequential arrival, for a view's own top-level blocks.
+ *
+ * The wrapper is keyed on the route path (`AppShell.vue`), so the blocks are new elements
+ * on every navigation and the animation always replays. Children arrive one after another
+ * rather than together: that overlap is what makes a page read as *composed* instead of
+ * *switched on*, and it also gives the eye an order to follow down the screen.
+ *
+ * The delay ladder stops at six. A view with twenty top-level blocks would otherwise take
+ * most of a second to finish appearing, which is past the point where it reads as speed.
+ */
+.view-slot > * {
+  animation: rise-in var(--dur-base) var(--ease-out) backwards;
+  animation-delay: min(var(--stagger) * var(--i, 0), calc(var(--stagger) * 6));
+}
+
+.view-slot > :nth-child(1) {
+  --i: 0;
+}
+.view-slot > :nth-child(2) {
+  --i: 1;
+}
+.view-slot > :nth-child(3) {
+  --i: 2;
+}
+.view-slot > :nth-child(4) {
+  --i: 3;
+}
+.view-slot > :nth-child(5) {
+  --i: 4;
+}
+.view-slot > :nth-child(6) {
+  --i: 5;
+}
+.view-slot > :nth-child(n + 7) {
+  --i: 6;
+}
+
+/*
+ * The same arrival for an item inside a container. An element opts in with `.reveal` and
+ * supplies its position as `--i`.
+ *
+ * Item indices come from the template (`:style="{ '--i': index }"`), NOT from
+ * `:nth-child`, because the items of a chart are SVG shapes whose DOM order is not their
+ * visual order once they are positioned by the geometry.
+ */
+.reveal {
+  animation: rise-in var(--dur-base) var(--ease-out) backwards;
+  animation-delay: min(var(--stagger) * var(--i, 0), calc(var(--stagger) * 6));
+}
+
+/*
+ * Errors can be a view's first child, so this must come after `.view-slot > *` to win the
+ * tie: something that appears because the user's action was rejected should announce
+ * itself, not drift in politely.
+ */
+[role='alert'] {
+  animation: shake-x var(--dur-slow) var(--ease-in-out);
+}
+
+/*
+ * Focus is a state, not an animation: the ring is drawn instantly so it cannot lag behind
+ * a fast keyboard user. It is a `:focus-visible` ring so a mouse or a finger never sees it.
+ */
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * ───────────────────────────────────────────────────────────────────────────
+ * The reduced-motion contract
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * One block, and nothing else in the app has to know about it, because every duration is
+ * a token. Vestibular discomfort comes from *motion over time*; collapsing the duration to
+ * a millisecond is therefore the correct answer, and it is also the safe one — the
+ * element still reaches its final state, so nothing can be left hidden or half-arrived.
+ *
+ * The press scale is kept. It is an instantaneous state change at 1ms, it carries no
+ * travel, and removing it would take away feedback that has nothing to do with motion.
+ *
+ * A blanket `* { animation: none !important }` is the common version of this and is worse:
+ * it is applied to elements that were relying on a keyframe for a visual state, and the
+ * `!important` makes the resulting bug very hard to see from the stylesheet.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-press: 1ms;
+    --dur-quick: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+    --stagger: 0ms;
+  }
 }

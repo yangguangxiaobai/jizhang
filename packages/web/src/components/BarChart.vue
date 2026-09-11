@@ -80,6 +80,8 @@ interface RenderedBar {
   readonly height: number;
   readonly className: string;
   readonly title: string;
+  /** Index of the group this bar belongs to, used only to stagger the growth. */
+  readonly order: number;
 }
 
 const bars = computed<RenderedBar[]>(() => {
@@ -111,6 +113,7 @@ const bars = computed<RenderedBar[]>(() => {
         height: Number(barHeight.toFixed(2)),
         className: entry.kind,
         title: `${group.label} ${entry.kind === 'income' ? '收入' : '净支出'} ${(entry.value / 100).toFixed(2)}`,
+        order: index,
       });
     });
   });
@@ -135,6 +138,7 @@ function shortLabel(label: string): string {
     class="bars"
     role="img"
     aria-label="月度收支趋势"
+    :style="{ '--baseline': `${zeroY}px` }"
   >
     <!-- baseline -->
     <line
@@ -153,6 +157,7 @@ function shortLabel(label: string): string {
       :width="barWidth"
       :height="bar.height"
       :class="['bar', bar.className]"
+      :style="{ '--i': bar.order }"
     >
       <title>{{ bar.title }}</title>
     </rect>
@@ -189,8 +194,27 @@ function shortLabel(label: string): string {
   stroke-width: 1;
 }
 
+/*
+ * Bars grow up (and down — a refund-heavy month has a negative net expense) from the zero
+ * line rather than fading in, because the height is the datum: watching it extend is what
+ * tells the eye how the two months compare. Groups grow left to right, so the axis reads
+ * in the same direction the data is scanned.
+ *
+ * The origin is moved to the zero line by translating it to the origin and back, for the
+ * same reason as the donut: `transform-origin` on an SVG child is a cross-engine trap, and
+ * a transform list is not. Because the same value is used for both directions, a bar below
+ * the baseline grows downward from the same line.
+ */
+@keyframes grow-y {
+  from {
+    transform: translateY(var(--baseline)) scaleY(0) translateY(calc(-1 * var(--baseline)));
+  }
+}
+
 .bar {
   rx: 1.5;
+  animation: grow-y var(--dur-slow) var(--ease-out) backwards;
+  animation-delay: min(var(--stagger) * var(--i, 0), calc(var(--stagger) * 6));
 }
 
 .bar.income {
@@ -204,6 +228,10 @@ function shortLabel(label: string): string {
 .axis-label {
   font-size: 9px;
   fill: var(--muted);
+  /* Follows the bars rather than leading them: the labels are an annotation on the data,
+     so they settle once the data has arrived. */
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+  animation-delay: calc(var(--dur-slow) * 0.6);
 }
 
 .legend {

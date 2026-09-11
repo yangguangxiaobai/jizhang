@@ -133,6 +133,25 @@ h1 {
   border-radius: 0.75rem;
 }
 
+/*
+ * A rejected PIN shakes the whole card: the field, the message and both buttons move as
+ * one object refusing, rather than a stray line of text twitching on its own.
+ *
+ * `:has()` is doing real work here. The card element is never re-created, so a plain
+ * `v-if`-driven keyframe would fire once and then never again — but a selector that stops
+ * matching when the message is cleared and starts matching when it returns re-applies the
+ * animation from the beginning. Verified in a browser by entering a wrong PIN twice.
+ */
+.card:has([role='alert']) {
+  animation: shake-x var(--dur-slow) var(--ease-in-out);
+}
+
+/* The card already carries the motion; shaking the message inside it as well would double
+   the amplitude on that one line. */
+.card [role='alert'] {
+  animation: none;
+}
+
 .field {
   display: grid;
   gap: 0.3rem;

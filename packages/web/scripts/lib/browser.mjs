@@ -208,6 +208,8 @@ export async function openBrowser({
   await send('Runtime.enable');
   await send('Page.enable');
   await send('Network.enable');
+  await send('DOM.enable');
+  await send('CSS.enable');
   await send('Network.setCookie', {
     name: 'jizhang_session',
     value: sessionCookie.slice('jizhang_session='.length),
@@ -308,6 +310,114 @@ export async function openBrowser({
     }
   }
 
+  /**
+   * Records every CSS animation that *starts*, from inside the page.
+   *
+   * Sampling `document.getAnimations()` after navigating cannot see this app's motion: the
+   * longest arrival is 320ms and the navigation wait alone sleeps 250ms, so by the time an
+   * assertion runs the animations have finished and been discarded — a suite built that way
+   * would pass on a page with no animation at all. Listening for `animationstart` via
+   * `Page.addScriptToEvaluateOnNewDocument` catches them as they begin, on every document,
+   * and is immune to how long the test takes to look.
+   */
+  async function installMotionRecorder() {
+    await send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `(() => {
+        window.__motion = [];
+        // Keyframe metadata that is not an animated property.
+        const META = ['offset', 'computedOffset', 'easing', 'composite'];
+        document.addEventListener(
+          'animationstart',
+          (event) => {
+            const target = event.target;
+            const className =
+              typeof target.className === 'string'
+                ? target.className
+                : (target.className && target.className.baseVal) || '';
+            // Read the properties the engine actually built the animation from, at the
+            // moment it starts. This is what makes "no layout property is animated" a
+            // measured fact rather than a claim about the stylesheet's text.
+            let properties = [];
+            try {
+              const animation = target
+                .getAnimations()
+                .find((candidate) => candidate.animationName === event.animationName);
+              const frames = animation ? animation.effect.getKeyframes() : [];
+              const keys = new Set();
+              for (const frame of frames) {
+                for (const key of Object.keys(frame)) {
+                  if (!META.includes(key)) keys.add(key);
+                }
+              }
+              properties = [...keys];
+            } catch {
+              properties = [];
+            }
+            window.__motion.push({
+              name: event.animationName,
+              tag: target.tagName.toLowerCase(),
+              className: String(className).slice(0, 60),
+              properties,
+              // The *computed* timing function, read from the element that is animating.
+              // The Web Animations API reports a CSS animation's effect-level easing as
+              // 'linear' and keeps the real curve on the keyframes, so reading it from
+              // there reports 'linear' for every animation in the app.
+              easing: getComputedStyle(target).animationTimingFunction,
+              at: Math.round(performance.now()),
+            });
+          },
+          true,
+        );
+      })();`,
+    });
+  }
+
+  /** Every animation that has started in the current document. */
+  async function readMotionLog() {
+    return (await evaluate('window.__motion ?? []')) ?? [];
+  }
+
+  /**
+   * Makes the browser report a different `prefers-reduced-motion`.
+   *
+   * The only way to test the reduced-motion path without a second machine, and the whole
+   * reason the contract is worth having: a claim about what a setting does, that nothing
+   * ever exercises, is a comment.
+   */
+  async function emulateReducedMotion(enabled) {
+    await send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: enabled ? 'reduce' : 'no-preference' }],
+    });
+  }
+
+  /**
+   * Applies a pseudo-class to an element without a pointer, and returns a handle.
+   *
+   * A press state cannot be produced by dispatching events: `:active` is browser-owned and
+   * `element.click()` never sets it. `CSS.forcePseudoState` is the only way to ask "what
+   * does this look like under a finger", and therefore the only way to verify that press
+   * feedback exists at all.
+   *
+   * ## Release through the handle, never by re-resolving the selector
+   *
+   * `DOM.getDocument` **discards the node map**: two consecutive calls over an unchanged
+   * page returned different ids for the same element (101/115, then 151/165). Forcing
+   * `:active` on the first id and clearing on the second left the element *stuck* at the
+   * pressed transform — measured, not inferred: `released` stayed at `matrix(0.97, …)`
+   * for the next 500ms. The clear has to name the id the force used, so the handle owns
+   * it and the caller never sees an id.
+   */
+  async function forcePseudoState(selector, pseudoClasses = ['active']) {
+    const { root } = await send('DOM.getDocument', { depth: 1 });
+    const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector });
+    if (nodeId === 0 || nodeId === undefined) throw new Error(`no element matches ${selector}`);
+    await send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: pseudoClasses });
+    return {
+      nodeId,
+      release: () => send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] }),
+    };
+  }
+
   function startServer(service = 'jizhang') {
     try {
       execFileSync('docker', ['compose', 'start', service], { stdio: 'ignore' });
@@ -335,6 +445,10 @@ export async function openBrowser({
     measureLayout,
     stopServer,
     startServer,
+    installMotionRecorder,
+    readMotionLog,
+    emulateReducedMotion,
+    forcePseudoState,
     waitForServer: () => serverIsUp(origin),
     screenshot,
     consoleErrors,
