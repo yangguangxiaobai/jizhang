@@ -94,6 +94,35 @@ for (const path of files) {
 }
 check(`no interactive rule is shorter than ${MIN_TAP}px`, tapProblems === 0, `${tapProblems} suspect(s)`);
 
+// ── 1b. a control in the TEMPLATE with no rule behind it ─────────────────────
+// The audit above reads CSS only, so it is blind to a `<select>` that never declares a
+// height: nothing matches the selector pattern, and the browser falls back to its default
+// (~19px). That is exactly how an unstyled cycle picker passed this check and was caught
+// only when a browser measured the rendered box. This looks for form controls used in a
+// template with no CSS rule naming their tag or class anywhere in the same file.
+console.log('\n[controls with no styling]');
+const unstyled = [];
+for (const path of files.filter((file) => file.endsWith('.vue'))) {
+  const source = readFileSync(path, 'utf8');
+  const style = styleBlocks(path, source).join('\n');
+  const template = source.match(/<template[^>]*>([\s\S]*?)<\/template>/)?.[1] ?? '';
+  // Only controls that a bare tag selector would be expected to cover; a class-based one is
+  // checked below by looking for that class.
+  for (const tag of ['select', 'textarea']) {
+    if (!new RegExp(`<${tag}\\b`).test(template)) continue;
+    const hasTagRule = new RegExp(`(^|[\\s,>])${tag}\\s*(,|\\{|\\[|:)`, 'm').test(style);
+    if (!hasTagRule) {
+      unstyled.push(`${relative(srcDir, path)}: <${tag}> has no CSS rule`);
+    }
+  }
+}
+for (const problem of unstyled) console.log(`      ${problem}`);
+check(
+  'every <select>/<textarea> in a template has a CSS rule',
+  unstyled.length === 0,
+  `${unstyled.length} suspect(s)`,
+);
+
 // ── 2. form controls are at least 16px ───────────────────────────────────────
 console.log('\n[focus zoom]');
 let fontProblems = 0;
