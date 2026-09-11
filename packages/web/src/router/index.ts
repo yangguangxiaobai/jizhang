@@ -112,6 +112,12 @@ const routes = [
         meta: { title: '待确认账单', nav: 'dashboard' },
       },
       {
+        path: 'data',
+        name: 'data',
+        component: () => import('../views/DataView.vue'),
+        meta: { title: '数据导出与备份', nav: 'settings' },
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('../views/SettingsView.vue'),

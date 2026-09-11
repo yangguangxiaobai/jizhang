@@ -54,6 +54,14 @@ interface RequestOptions {
   readonly method?: Method;
   readonly body?: unknown;
   readonly query?: Record<string, QueryValue>;
+  /**
+   * Sends the body verbatim with its own content type, instead of JSON.
+   *
+   * The CSV import needs this: the body is a file's text, and wrapping it in
+   * `JSON.stringify` would change its bytes. Mutating rules still apply (offline check,
+   * CSRF header), because this is still a write.
+   */
+  readonly rawBody?: { readonly contentType: string; readonly body: string };
 }
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
@@ -81,9 +89,20 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (mutating) {
     headers['X-Requested-With'] = 'fetch';
   }
-  if (options.body !== undefined) {
+  if (options.rawBody !== undefined) {
+    headers['Content-Type'] = options.rawBody.contentType;
+  } else if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
+
+  // Exactly one of the two body shapes is sent; `rawBody` wins because it is the more
+  // specific instruction.
+  const payload: BodyInit | undefined =
+    options.rawBody !== undefined
+      ? options.rawBody.body
+      : options.body === undefined
+        ? undefined
+        : JSON.stringify(options.body);
 
   let response: Response;
   try {
@@ -91,7 +110,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       method,
       headers,
       credentials: 'same-origin',
-      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      ...(payload === undefined ? {} : { body: payload }),
     });
   } catch (error) {
     // A fetch rejection here is a network failure, not an HTTP error.
@@ -254,6 +273,19 @@ export interface GenerateResult {
 export interface ConfirmResult {
   readonly transaction: Transaction;
   readonly created: boolean;
+}
+
+export interface BackupFile {
+  /** File name only; the host path is deliberately not exposed. */
+  readonly fileName: string;
+  readonly sizeBytes: number;
+  readonly createdAtMs: number;
+}
+
+export interface ImportResult {
+  readonly inserted: number;
+  readonly skipped: number;
+  readonly total: number;
 }
 
 export interface MeResponse {
@@ -617,5 +649,30 @@ export const api = {
       request<RecurringOccurrence>(`/api/v1/recurring/occurrences/${id}/ignore`, {
         method: 'POST',
       }),
+  },
+
+  /**
+   * Export, import and backups.
+   *
+   * The exports are plain URLs rather than `request()` calls: they are file downloads
+   * behind the session cookie, so a link the browser follows is both simpler and avoids
+   * pulling the whole CSV into memory through `fetch`. `exportUrl` returns the href.
+   */
+  portability: {
+    exportUrl: (what: 'transactions' | 'salaries' | 'recurring') =>
+      `/api/v1/export/${what}.csv`,
+    /**
+     * Imports a CSV.
+     *
+     * Sent as raw text rather than multipart: a CSV is text, and multipart would need
+     * another dependency. The server parses `text/csv` and applies its body limit.
+     */
+    importTransactions: (csvText: string) =>
+      request<ImportResult>('/api/v1/import/transactions', {
+        method: 'POST',
+        rawBody: { contentType: 'text/csv', body: csvText },
+      }),
+    listBackups: () => request<{ items: BackupFile[] }>('/api/v1/backups'),
+    createBackup: () => request<BackupFile>('/api/v1/backups', { method: 'POST' }),
   },
 };
