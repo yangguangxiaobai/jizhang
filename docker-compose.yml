@@ -1,0 +1,41 @@
+# jizhang runs as one container next to the reverse proxy that already owns
+# 80/443 on this host. It publishes on the loopback interface ONLY, so bringing
+# the app up or down can never steal a port from the user's other sites.
+services:
+  jizhang:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jizhang:latest
+    container_name: jizhang
+    restart: unless-stopped
+
+    # .env is optional at the compose layer so the failure the operator sees is
+    # the server's own configuration report (AC12), not a compose error.
+    # `cp .env.example .env` before the first `up`.
+    env_file:
+      - path: .env
+        required: false
+
+    environment:
+      NODE_ENV: production
+      PORT: '8081'
+      DATA_DIR: /data
+      WEB_DIST_DIR: /app/public
+      NODE_OPTIONS: --max-old-space-size=256
+      LOG_LEVEL: '${LOG_LEVEL:-info}'
+      TRUST_PROXY: '${TRUST_PROXY:-true}'
+
+    volumes:
+      # Named volume (not a host bind mount) so /data is initialised with the
+      # image's ownership and the non-root `node` user can write the SQLite
+      # file. A bind mount needs `mkdir -p data && sudo chown 1000:1000 data`
+      # on the host first — see README "Data directory" for the alternative.
+      - jizhang-data:/data
+
+    ports:
+      # 127.0.0.1 HARD-CODED on purpose: never 80/443, never 0.0.0.0 (design.md §7.2).
+      - '127.0.0.1:8081:8081'
+
+volumes:
+  jizhang-data:
