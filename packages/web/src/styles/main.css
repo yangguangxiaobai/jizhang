@@ -42,16 +42,22 @@
   --ok: #15803d;
 
   /*
-   * Elevation ladder. Two shadows per step — a tight "key" shadow and a wider "ambient"
-   * one — because a single blur radius reads as a grey halo, not as an object sitting above
-   * a surface. Depth is a theme concern, so these values are repeated in every theme block
-   * below: in dark mode the shadow has to be much darker to be visible at all, and the
-   * surface/value contrast does most of the separating work.
+   * Elevation. Two rungs, each a *pair* of shadows — a tight key shadow and a wider
+   * ambient one — because a single blur radius reads as a grey halo, not as an object
+   * sitting above a surface.
+   *
+   * There is no rung for "pressed". The pressed state is expressed by the squash, which is
+   * the honest way to say "the finger is on it"; a shadow that changes under a finger is
+   * invisible anyway, because the finger is on top of it. There is no rung above `--lift-2`
+   * either: nothing in the app floats over the page, and an unused rung is a definition
+   * with no user. `check-motion.mjs` fails a motion token that nothing references.
+   *
+   * Depth is a theme concern, so these values are repeated in every theme block below: a
+   * 6%-alpha shadow is invisible against #16181d, and in dark mode the shadow's job is to
+   * darken the content *under* a sticky bar rather than to outline the bar itself.
    */
-  --lift-0: none;
   --lift-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
   --lift-2: 0 2px 6px rgb(15 23 42 / 0.09), 0 1px 2px rgb(15 23 42 / 0.05);
-  --lift-3: 0 10px 24px rgb(15 23 42 / 0.14), 0 2px 6px rgb(15 23 42 / 0.07);
 
   /* ── motion ──────────────────────────────────────────────────────────────
    *
@@ -86,7 +92,6 @@
    * and the whole point of easing is that nothing in the physical world starts or stops
    * instantly. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* decelerate — arriving */
-  --ease-in: cubic-bezier(0.5, 0, 0.75, 0); /* accelerate — departing */
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* travelling through */
   --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1); /* overshoot — small parts only */
 
@@ -109,10 +114,8 @@
   --on-accent: #ffffff;
   --danger: #dc2626;
   --ok: #15803d;
-  --lift-0: none;
   --lift-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
   --lift-2: 0 2px 6px rgb(15 23 42 / 0.09), 0 1px 2px rgb(15 23 42 / 0.05);
-  --lift-3: 0 10px 24px rgb(15 23 42 / 0.14), 0 2px 6px rgb(15 23 42 / 0.07);
   color-scheme: light;
 }
 
@@ -130,13 +133,10 @@
     --on-accent: #10151c;
     --danger: #f87171;
     --ok: #4ade80;
-    /* Much darker than the light-mode ladder: a 6%-alpha shadow is invisible against
-       #16181d, so in dark mode the shadow's job is to darken the content *under* a sticky
-       bar rather than to outline the bar itself. */
-    --lift-0: none;
+    /* Much darker than the light-mode pair: the shadow darkens the content under a sticky
+       bar rather than outlining the bar itself. */
     --lift-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
     --lift-2: 0 2px 6px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.4);
-    --lift-3: 0 10px 24px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.45);
     color-scheme: dark;
   }
 }
@@ -154,10 +154,8 @@
   --on-accent: #10151c;
   --danger: #f87171;
   --ok: #4ade80;
-  --lift-0: none;
   --lift-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
   --lift-2: 0 2px 6px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.4);
-  --lift-3: 0 10px 24px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.45);
   color-scheme: dark;
 }
 

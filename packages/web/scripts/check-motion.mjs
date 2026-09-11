@@ -348,7 +348,33 @@ check(
   `${uncovered.length} suspect(s)`,
 );
 
-// ── 7. staggered delays are capped ───────────────────────────────────────────
+// ── 7. every motion token has a user ─────────────────────────────────────────
+// The same standard as the keyframes: a definition with no reference is dead code that
+// reads as a capability. Adding `--ease-in` "for departures" when departures are
+// deliberately not animated, or a fourth elevation rung for nothing that floats, makes the
+// vocabulary look bigger than the system is — and the next person writes against the
+// vocabulary. This check is what removed both.
+console.log('\n[motion tokens]');
+const TOKEN_PATTERN = /(--(?:dur|ease|lift)-[a-z0-9-]+|--stagger|--press-scale|--rise-distance)/;
+const definedTokens = new Set(
+  [...mainCss.matchAll(new RegExp(`(?:^|\\s)${TOKEN_PATTERN.source}\\s*:`, 'gm'))].map(
+    (match) => match[1],
+  ),
+);
+const allSource = files.map((path) => readFileSync(path, 'utf8')).join('\n');
+const unusedTokens = [];
+for (const token of definedTokens) {
+  const references = [...allSource.matchAll(new RegExp(`var\\(\\s*${token}\\b`, 'g'))].length;
+  if (references === 0) unusedTokens.push(`main.css: ${token} is defined but never referenced`);
+}
+for (const problem of unusedTokens) console.log(`      ${problem}`);
+check(
+  `all ${definedTokens.size} motion token(s) are referenced`,
+  unusedTokens.length === 0,
+  `${unusedTokens.length} suspect(s)`,
+);
+
+// ── 8. staggered delays are capped ───────────────────────────────────────────
 console.log('\n[stagger caps]');
 const uncapped = [];
 for (const path of files) {
