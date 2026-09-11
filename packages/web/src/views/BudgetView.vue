@@ -8,7 +8,7 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBudgetStore } from '../stores/budget.js';
-import { formatYuan } from '../utils/money.js';
+import { formatMonthLabel, formatYuan } from '../utils/money.js';
 
 const budget = useBudgetStore();
 const router = useRouter();
@@ -29,7 +29,7 @@ function usedPercent(spentCents: number, budgetCents: number): number {
 }
 
 const cycleLabel = computed(() => {
-  const cycle = budget.overview?.cycle;
+  const cycle = budget.displayedOverview?.cycle;
   if (cycle === undefined || cycle === null) return '';
   return cycle.kind === 'natural-month'
     ? '自然月周期'
@@ -37,15 +37,86 @@ const cycleLabel = computed(() => {
 });
 
 const poolLabel = computed(() =>
-  formatYuan(budget.overview?.carryoverPoolCents ?? 0),
+  formatYuan(budget.displayedOverview?.carryoverPoolCents ?? 0),
+);
+
+/** `"2026年7月"` for a cycle start, used by the period switcher. */
+function periodLabel(periodStart: number): string {
+  return formatMonthLabel(periodStart);
+}
+
+/** The options for the switcher, newest first so the current cycle reads first. */
+const periodOptions = computed(() =>
+  [...budget.periods].reverse().map((periodStart) => ({
+    value: periodStart,
+    label: periodLabel(periodStart),
+    isCurrent: periodStart === budget.currentPeriodStart,
+  })),
+);
+
+/**
+ * The switcher's value.
+ *
+ * `null` means "the current cycle", which is deliberately distinct from selecting the
+ * newest cycle explicitly: the current cycle is always shown from the live fetch rather
+ * than a cached copy.
+ */
+const selectedPeriod = computed({
+  get: () => budget.selectedPeriodStart,
+  set: (value: number | null) => {
+    void budget.selectPeriod(value);
+  },
+});
+
+/** True while a historical overview is being fetched for the first time. */
+const historyLoading = computed(
+  () => budget.viewingHistory && budget.displayedOverview === null,
 );
 </script>
 
 <template>
-  <p v-if="budget.loading && budget.overview === null" class="muted">加载中…</p>
+  <p v-if="budget.loading && budget.displayedOverview === null" class="muted">加载中…</p>
+
+  <p v-else-if="historyLoading" class="muted">正在加载该周期…</p>
+
+  <p v-else-if="budget.errorMessage !== null" class="error" role="alert">
+    {{ budget.errorMessage }}
+  </p>
 
   <template v-else>
-    <section v-if="!budget.overview?.hasBudget" class="empty card">
+    <!--
+      The switcher is only offered when there is more than one cycle to review. A
+      selector with a single option is a control that does nothing.
+    -->
+    <section v-if="budget.canReviewHistory" class="period card">
+      <label class="field">
+        <span class="label">查看周期</span>
+        <select v-model="selectedPeriod">
+          <option v-for="option in periodOptions" :key="option.value" :value="option.value">
+            {{ option.label }}{{ option.isCurrent ? '（当前）' : '' }}
+          </option>
+        </select>
+      </label>
+      <button
+        v-if="budget.viewingHistory"
+        type="button"
+        class="ghost"
+        @click="selectedPeriod = null"
+      >
+        回到当前周期
+      </button>
+    </section>
+
+    <!--
+      A past cycle must announce itself. Without this the page silently shows different
+      numbers under the same layout, and "why is my budget wrong" is the obvious next
+      thought.
+    -->
+    <p v-if="budget.viewingHistory" class="history-note" role="status">
+      正在查看历史周期 {{ periodLabel(budget.selectedPeriodStart ?? 0) }}，数据不会随新账单变化。
+    </p>
+
+    <section v-if="!budget.displayedOverview?.hasBudget" class="empty card">
       <h2>还没有预算周期</h2>
       <p>记一次工资，系统会按模板比例自动分配各模块预算。</p>
       <button type="button" @click="router.push({ name: 'salary-new' })">记工资</button>
@@ -55,20 +126,28 @@ const poolLabel = computed(() =>
       <section class="summary card">
         <div class="row">
           <span class="label">本周期预算</span>
-          <strong>{{ formatYuan(budget.overview.totalBudgetCents) }}</strong>
+          <strong>{{ formatYuan(budget.displayedOverview.totalBudgetCents) }}</strong>
         </div>
         <div class="row">
           <span class="label">已用</span>
-          <strong>{{ formatYuan(budget.overview.totalSpentCents) }}</strong>
+          <strong>{{ formatYuan(budget.displayedOverview.totalSpentCents) }}</strong>
         </div>
         <div class="row">
           <span class="label">剩余</span>
           <strong
             :class="{
-              negative: budget.overview.totalBudgetCents - budget.overview.totalSpentCents < 0,
+              negative:
+                budget.displayedOverview.totalBudgetCents -
+                  budget.displayedOverview.totalSpentCents <
+                0,
             }"
           >
-            {{ formatYuan(budget.overview.totalBudgetCents - budget.overview.totalSpentCents) }}
+            {{
+              formatYuan(
+                budget.displayedOverview.totalBudgetCents -
+                  budget.displayedOverview.totalSpentCents,
+              )
+            }}
           </strong>
         </div>
         <p class="cycle">{{ cycleLabel }}</p>
@@ -80,7 +159,10 @@ const poolLabel = computed(() =>
           <strong :class="{ negative: budget.poolIsNegative }">{{ poolLabel }}</strong>
         </div>
         <p class="hint">
-          <template v-if="budget.poolIsNegative">
+          <template v-if="budget.viewingHistory">
+            这是该周期<strong>开始时</strong>的结余池；该周期自己的剩余要等周期结束才进池。
+          </template>
+          <template v-else-if="budget.poolIsNegative">
             本周期超支，已从结余池借用。
           </template>
           <template v-else>
@@ -94,7 +176,7 @@ const poolLabel = computed(() =>
       </section>
 
       <ul class="modules">
-        <li v-for="module in budget.overview.modules" :key="module.categoryId">
+        <li v-for="module in budget.displayedOverview.modules" :key="module.categoryId">
           <div class="module-head">
             <span class="name">{{ module.categoryName }}</span>
             <span class="figures">
@@ -156,6 +238,53 @@ const poolLabel = computed(() =>
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.75rem;
+}
+
+/* ── period switcher ─────────────────────────────────────────────────────── */
+.period {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+/* 16px minimum: below it, iOS Safari zooms the page on focus. */
+.period select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  font: inherit;
+  font-size: 16px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+}
+
+.period .ghost {
+  min-height: 44px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--fg);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  cursor: pointer;
+}
+
+/* A past cycle announces itself; the same layout shows different numbers otherwise. */
+.history-note {
+  padding: 0.6rem 0.85rem;
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  border-radius: 0.6rem;
 }
 
 .summary .row {

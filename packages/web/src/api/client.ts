@@ -236,6 +236,20 @@ export interface BudgetOverview {
   readonly hasBudget: boolean;
 }
 
+/**
+ * Which cycles can be reviewed, ascending.
+ *
+ * A separate request from the overview because the overview must answer identically when
+ * no period is asked for — every existing caller depends on that.
+ */
+export interface BudgetPeriods {
+  /** Cycle starts, ascending. Empty when nothing has been budgeted yet. */
+  readonly periods: number[];
+  /** The newest cycle, or `null` when there is none. */
+  readonly currentPeriodStart: number | null;
+  readonly cycle: CycleConfig;
+}
+
 export interface AllocationItem {
   readonly categoryId: string;
   readonly amountCents: number;
@@ -453,7 +467,13 @@ export const api = {
   health: () => request<{ status: string; version: string }>('/api/v1/health'),
 
   budget: {
-    overview: () => request<BudgetOverview>('/api/v1/budget/overview'),
+    /** `periodStart` omitted = the current cycle, exactly as before this parameter existed. */
+    overview: (periodStart?: number) =>
+      request<BudgetOverview>(
+        '/api/v1/budget/overview',
+        periodStart === undefined ? {} : { query: { periodStart } },
+      ),
+    periods: () => request<BudgetPeriods>('/api/v1/budget/periods'),
   },
 
   salaries: {
