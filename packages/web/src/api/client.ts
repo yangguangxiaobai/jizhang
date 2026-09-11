@@ -1,0 +1,478 @@
+/**
+ * Typed API client.
+ *
+ * Two rules it exists to centralise:
+ *   * every mutating request carries `X-Requested-With: fetch`, which the server
+ *     requires as a second CSRF layer (the session cookie is `SameSite=Lax`);
+ *   * a non-2xx response becomes an `ApiError` carrying the server's
+ *     `{error:{code,message}}` contract, so views can show the real reason instead
+ *     of "something went wrong".
+ *
+ * Requests are same-origin (the Fastify server also hosts this bundle), so the
+ * session cookie rides along with `credentials: 'same-origin'` and there is no CORS
+ * to configure.
+ */
+
+import { markRequestFailed, markRequestSucceeded } from '../composables/useNetwork.js';
+
+/** Shared error shape from design.md §5. */
+interface ApiErrorBody {
+  error?: { code?: string; message?: string };
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+
+  /** True when the session is missing or expired, so the UI should route to login. */
+  get isUnauthorized(): boolean {
+    return this.status === 401;
+  }
+}
+
+/** Thrown when the browser reports no connectivity, before any request is sent. */
+export class OfflineError extends Error {
+  constructor(message = '需要联网才能记账。') {
+    super(message);
+    this.name = 'OfflineError';
+  }
+}
+
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
+
+/** Query values are serialised with `String()`; `undefined` and `''` are dropped. */
+type QueryValue = string | number | boolean | undefined;
+
+interface RequestOptions {
+  readonly method?: Method;
+  readonly body?: unknown;
+  readonly query?: Record<string, QueryValue>;
+}
+
+function buildUrl(path: string, query?: Record<string, QueryValue>): string {
+  if (query === undefined) return path;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === '') continue;
+    params.set(key, String(value));
+  }
+  const search = params.toString();
+  return search === '' ? path : `${path}?${search}`;
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const method: Method = options.method ?? 'GET';
+  const mutating = method !== 'GET';
+
+  // Fail fast and clearly instead of letting the request hang and time out: the
+  // offline story for this app is "read yes, write no" (parent task D4).
+  if (mutating && typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new OfflineError();
+  }
+
+  const headers: Record<string, string> = {};
+  if (mutating) {
+    headers['X-Requested-With'] = 'fetch';
+  }
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method,
+      headers,
+      credentials: 'same-origin',
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+    });
+  } catch (error) {
+    // A fetch rejection here is a network failure, not an HTTP error.
+    markRequestFailed();
+    throw new OfflineError(
+      `无法连接服务器：${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  // Reaching the server at all clears the offline banner, even if the status is an
+  // error: the problem is the request, not the connection.
+  markRequestSucceeded();
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  let parsed: unknown = undefined;
+  if (text !== '') {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = undefined;
+    }
+  }
+
+  if (!response.ok) {
+    const body = (parsed ?? {}) as ApiErrorBody;
+    throw new ApiError(
+      response.status,
+      body.error?.code ?? 'UNKNOWN',
+      body.error?.message ?? `HTTP ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return parsed as T;
+}
+
+// ---------------------------------------------------------------------------
+// Domain shapes (mirror the server's DTOs)
+// ---------------------------------------------------------------------------
+
+export const TYPE_EXPENSE = 0;
+export const TYPE_INCOME = 1;
+
+export interface Category {
+  readonly id: string;
+  readonly name: string;
+  readonly type: number;
+  readonly icon: string;
+  readonly color: number;
+  readonly sortOrder: number;
+  readonly isBuiltin: boolean;
+  readonly updatedAt: number;
+}
+
+export interface Account {
+  readonly id: string;
+  readonly name: string;
+  readonly type: number;
+  readonly initialBalanceCents: number;
+  readonly sortOrder: number;
+  readonly isBuiltin: boolean;
+  readonly updatedAt: number;
+}
+
+export interface Transaction {
+  readonly id: string;
+  readonly type: number;
+  readonly amountCents: number;
+  readonly categoryId: string;
+  readonly accountId: string;
+  readonly date: number;
+  readonly note: string;
+  readonly tags: string[];
+  readonly isRefund: boolean;
+  readonly updatedAt: number;
+}
+
+export type TransactionListQuery = Record<string, QueryValue>;
+
+export interface TransactionListResult {
+  readonly items: Transaction[];
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+export interface TagCount {
+  readonly name: string;
+  readonly count: number;
+}
+
+export interface MeResponse {
+  readonly username: string;
+  readonly expiresAt: number;
+}
+
+export interface TransactionInput {
+  readonly type?: number;
+  readonly amountCents?: number;
+  readonly categoryId?: string;
+  readonly accountId?: string;
+  readonly date?: number;
+  readonly note?: string;
+  readonly tags?: string[];
+  readonly isRefund?: boolean;
+}
+
+/** Budget cycle configuration mirroring the shared engine's `CycleConfig`. */
+export type CycleConfig =
+  | { readonly kind: 'natural-month' }
+  | { readonly kind: 'start-day'; readonly day: number };
+
+export interface BudgetModuleView {
+  readonly categoryId: string;
+  readonly categoryName: string;
+  readonly budgetCents: number;
+  readonly spentCents: number;
+  readonly remainingCents: number;
+}
+
+export interface BudgetOverview {
+  readonly cycle: CycleConfig;
+  readonly modules: BudgetModuleView[];
+  readonly carryoverPoolCents: number;
+  readonly totalBudgetCents: number;
+  readonly totalSpentCents: number;
+  readonly hasBudget: boolean;
+}
+
+export interface AllocationItem {
+  readonly categoryId: string;
+  readonly amountCents: number;
+}
+
+export interface SalaryRecord {
+  readonly id: string;
+  readonly amountCents: number;
+  readonly date: number;
+  readonly note: string;
+  readonly updatedAt: number;
+}
+
+export interface SalaryDetail extends SalaryRecord {
+  readonly allocationId: string | null;
+  readonly allocations: AllocationItem[];
+}
+
+export interface TemplateModule {
+  readonly categoryId: string;
+  readonly ratio: number;
+}
+
+export interface BudgetTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly isDefault: boolean;
+  readonly modules: TemplateModule[];
+  readonly updatedAt: number;
+}
+
+export interface SettingsResponse {
+  readonly cycleStartDay: number | null;
+  readonly minCycleStartDay: number;
+  readonly maxCycleStartDay: number;
+  readonly key: string;
+}
+
+export interface SalaryInput {
+  readonly amountCents: number;
+  readonly date: number;
+  readonly note?: string;
+  readonly templateId?: string;
+  readonly allocations?: AllocationItem[];
+}
+
+export interface CategoryShareItem {
+  readonly categoryId: string;
+  readonly categoryName: string;
+  readonly color: number;
+  /** Net expense in cents; negative when refunds exceeded spending. */
+  readonly amountCents: number;
+  readonly ratio: number;
+}
+
+export interface CategoryShareResult {
+  readonly items: CategoryShareItem[];
+  readonly totalCents: number;
+  readonly from: number;
+  readonly to: number;
+}
+
+export interface MonthlyTrendPoint {
+  readonly month: string;
+  readonly monthStart: number;
+  readonly incomeCents: number;
+  readonly netExpenseCents: number;
+}
+
+export interface PoolTrendResult {
+  readonly points: { periodStart: number; poolCents: number }[];
+  readonly currentCents: number;
+  readonly cycle: CycleConfig;
+}
+
+// ---------------------------------------------------------------------------
+// Endpoints
+// ---------------------------------------------------------------------------
+
+export const api = {
+  auth: {
+    me: () => request<MeResponse>('/api/v1/auth/me'),
+    login: (username: string, password: string) =>
+      request<MeResponse>('/api/v1/auth/login', {
+        method: 'POST',
+        body: { username, password },
+      }),
+    logout: () => request<{ ok: boolean }>('/api/v1/auth/logout', { method: 'POST' }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<{ ok: boolean }>('/api/v1/auth/password', {
+        method: 'POST',
+        body: { currentPassword, newPassword },
+      }),
+  },
+  transactions: {
+    list: (query: TransactionListQuery = {}) =>
+      request<TransactionListResult>('/api/v1/transactions', { query }),
+    get: (id: string) => request<Transaction>(`/api/v1/transactions/${id}`),
+    create: (input: TransactionInput) =>
+      request<Transaction>('/api/v1/transactions', { method: 'POST', body: input }),
+    update: (id: string, input: TransactionInput) =>
+      request<Transaction>(`/api/v1/transactions/${id}`, {
+        method: 'PATCH',
+        body: input,
+      }),
+    remove: (id: string) =>
+      request<void>(`/api/v1/transactions/${id}`, { method: 'DELETE' }),
+  },
+  tags: {
+    list: () => request<{ items: TagCount[] }>('/api/v1/tags'),
+  },
+  categories: {
+    list: (type?: number) =>
+      request<{ items: Category[] }>('/api/v1/categories', {
+        query: type === undefined ? {} : { type },
+      }),
+    create: (input: {
+      name: string;
+      type: number;
+      icon?: string;
+      color?: number;
+    }) => request<Category>('/api/v1/categories', { method: 'POST', body: input }),
+    update: (
+      id: string,
+      changes: {
+        name?: string;
+        icon?: string;
+        color?: number;
+        sortOrder?: number;
+      },
+    ) => request<Category>(`/api/v1/categories/${id}`, { method: 'PATCH', body: changes }),
+    remove: (id: string) =>
+      request<void>(`/api/v1/categories/${id}`, { method: 'DELETE' }),
+    move: (id: string, dir: -1 | 1) =>
+      request<{ items: Category[] }>(`/api/v1/categories/${id}/move`, {
+        method: 'POST',
+        body: { dir },
+      }),
+    usage: (id: string) =>
+      request<{ transactions: number }>(`/api/v1/categories/${id}/usage`),
+  },
+  accounts: {
+    list: () => request<{ items: Account[] }>('/api/v1/accounts'),
+    create: (input: {
+      name: string;
+      type: number;
+      initialBalanceCents?: number;
+    }) => request<Account>('/api/v1/accounts', { method: 'POST', body: input }),
+    update: (
+      id: string,
+      changes: {
+        name?: string;
+        type?: number;
+        initialBalanceCents?: number;
+        sortOrder?: number;
+      },
+    ) => request<Account>(`/api/v1/accounts/${id}`, { method: 'PATCH', body: changes }),
+    remove: (id: string) =>
+      request<void>(`/api/v1/accounts/${id}`, { method: 'DELETE' }),
+    move: (id: string, dir: -1 | 1) =>
+      request<{ items: Account[] }>(`/api/v1/accounts/${id}/move`, {
+        method: 'POST',
+        body: { dir },
+      }),
+    usage: (id: string) =>
+      request<{ transactions: number }>(`/api/v1/accounts/${id}/usage`),
+  },
+  tagsAdmin: {
+    rename: (from: string, to: string) =>
+      request<{ updated: number; items: TagCount[] }>('/api/v1/tags', {
+        method: 'PATCH',
+        body: { from, to },
+      }),
+    remove: (name: string) =>
+      request<{ updated: number; items: TagCount[] }>(
+        `/api/v1/tags/${encodeURIComponent(name)}`,
+        { method: 'DELETE' },
+      ),
+  },
+  stats: {
+    categoryShare: (from: number, to: number) =>
+      request<CategoryShareResult>('/api/v1/stats/category-share', {
+        query: { from, to },
+      }),
+    monthlyTrend: (months = 6) =>
+      request<{ items: MonthlyTrendPoint[] }>('/api/v1/stats/monthly-trend', {
+        query: { months },
+      }),
+    poolTrend: () => request<PoolTrendResult>('/api/v1/stats/pool-trend'),
+    range: () =>
+      request<{ earliest: number | null; latest: number | null }>('/api/v1/stats/range'),
+    monthWindow: (monthStart: number) =>
+      request<{ from: number; to: number }>('/api/v1/stats/month-window', {
+        query: { monthStart },
+      }),
+  },
+
+  health: () => request<{ status: string; version: string }>('/api/v1/health'),
+
+  budget: {
+    overview: () => request<BudgetOverview>('/api/v1/budget/overview'),
+  },
+
+  salaries: {
+    list: () => request<{ items: SalaryRecord[] }>('/api/v1/salaries'),
+    get: (id: string) => request<SalaryDetail>(`/api/v1/salaries/${id}`),
+    create: (input: SalaryInput) =>
+      request<SalaryDetail>('/api/v1/salaries', { method: 'POST', body: input }),
+    update: (id: string, input: Partial<SalaryInput>) =>
+      request<SalaryDetail>(`/api/v1/salaries/${id}`, {
+        method: 'PATCH',
+        body: input,
+      }),
+    replaceAllocations: (id: string, allocations: AllocationItem[]) =>
+      request<SalaryDetail>(`/api/v1/salaries/${id}/allocations`, {
+        method: 'PUT',
+        body: { allocations },
+      }),
+    remove: (id: string) =>
+      request<void>(`/api/v1/salaries/${id}`, { method: 'DELETE' }),
+  },
+
+  templates: {
+    list: () => request<{ items: BudgetTemplate[] }>('/api/v1/templates'),
+    create: (name: string, modules: TemplateModule[], isDefault = false) =>
+      request<BudgetTemplate>('/api/v1/templates', {
+        method: 'POST',
+        body: { name, modules, isDefault },
+      }),
+    update: (
+      id: string,
+      changes: { name?: string; modules?: TemplateModule[] },
+    ) =>
+      request<BudgetTemplate>(`/api/v1/templates/${id}`, {
+        method: 'PATCH',
+        body: changes,
+      }),
+    remove: (id: string) =>
+      request<void>(`/api/v1/templates/${id}`, { method: 'DELETE' }),
+    setDefault: (id: string) =>
+      request<BudgetTemplate>(`/api/v1/templates/${id}/default`, { method: 'POST' }),
+  },
+
+  settings: {
+    get: () => request<SettingsResponse>('/api/v1/settings'),
+    setCycleStartDay: (cycleStartDay: number | null) =>
+      request<{ cycleStartDay: number | null }>('/api/v1/settings', {
+        method: 'PUT',
+        body: { cycleStartDay },
+      }),
+  },
+};
