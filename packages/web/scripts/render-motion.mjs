@@ -34,15 +34,26 @@
  * prefix, and a suite that compared for equality would report every component animation as
  * missing.
  *
- * Usage: node scripts/render-motion.mjs [base-url]
+ * Usage: node scripts/render-motion.mjs <out.png> [base-url]
  */
 
 import { execFileSync } from 'node:child_process';
 
 import { makeChecker, openBrowser } from './lib/browser.mjs';
 
-const ORIGIN = process.argv[2] ?? 'http://127.0.0.1:8081';
+const OUT_PNG = process.argv[2] ?? 'motion.png';
+const ORIGIN = process.argv[3] ?? 'http://127.0.0.1:8081';
 const BASE = `${ORIGIN}/api/v1`;
+
+// The sibling suites take the screenshot path first and the origin second. This one used to
+// take the origin first, and a uniform runner that passed `<out.png> [base-url]` to all six
+// therefore handed a Windows screenshot path to `fetch` and produced a bare
+// `TypeError: fetch failed`. Same signature as the others, plus a check that says so.
+if (!/^https?:\/\//.test(ORIGIN)) {
+  console.error(`the base URL must start with http:// — got ${ORIGIN}`);
+  console.error('usage: node scripts/render-motion.mjs <out.png> [base-url]');
+  process.exit(1);
+}
 
 const { check, failures, finish } = makeChecker();
 
@@ -90,6 +101,31 @@ function toMs(value) {
 // spending of its own would silently skip the arc assertion — the one animation that
 // proves the "arcs" principle. The suite therefore starts from the shared baseline and
 // seeds its own spending rather than inheriting whatever the previous suite left behind.
+//
+// Wait for the server first. Nothing about this app's own suites needs it — the wait was
+// added while chasing a bare `TypeError: fetch failed`, and it is what turned that into a
+// message naming the unreachable URL, which is how the real cause surfaced: this suite had
+// its two arguments the other way round from its five siblings, so a uniform runner handed
+// it a screenshot path as the base URL. The wait stays because a suite that seeds over HTTP
+// should say which host it could not reach instead of failing inside `fetch`.
+async function waitForHealth(attempts = 40) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(`${BASE}/health`);
+      if (response.ok) return true;
+    } catch {
+      // not up yet
+    }
+    await sleep(250);
+  }
+  return false;
+}
+
+if (!(await waitForHealth())) {
+  console.error(`the server at ${BASE} never became reachable; start it before running this suite`);
+  process.exit(1);
+}
+
 try {
   execFileSync(
     'docker',
@@ -612,6 +648,9 @@ try {
     browser.consoleErrors.length === 0,
     browser.consoleErrors.join(' | '),
   );
+
+  await browser.screenshot(OUT_PNG);
+  console.log(`\nscreenshot written to ${OUT_PNG}`);
 } finally {
   await browser.close();
 }
