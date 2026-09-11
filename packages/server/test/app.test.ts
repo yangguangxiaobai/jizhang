@@ -91,6 +91,43 @@ describe('static hosting with SPA fallback', () => {
   });
 });
 
+// The browser's HTTP cache is the half of the "never cache the API" rule that the
+// service worker cannot enforce. Responses here are per-session and carry the ledger;
+// an HTTP cache is keyed by URL, so a stored response would outlive a logout.
+describe('API cache headers', () => {
+  it('marks every API response no-store', async () => {
+    await withApp(async (app) => {
+      // `/api` itself must count as API — a bare prefix check would let it through.
+      for (const url of ['/api', '/api/v1/health', '/api/v1/transactions', '/api/v1/nope']) {
+        const response = await app.inject({ method: 'GET', url });
+        expect(response.headers['cache-control'], url).toBe('no-store');
+      }
+    }, webFixtureDir);
+  });
+
+  it('marks error responses no-store too, so a failure is not cached either', async () => {
+    // This app is built without a database, so the transaction route is unregistered
+    // and the request lands on the not-found handler. That is the point: the header
+    // must come from the shared hook, not from the success path of each route.
+    await withApp(async (app) => {
+      const response = await app.inject({ method: 'GET', url: '/api/v1/definitely-missing' });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.headers['cache-control']).toBe('no-store');
+    }, webFixtureDir);
+  });
+
+  it('does not mark the SPA shell no-store', async () => {
+    // The shell is the one thing worth caching — an installed app must open offline.
+    await withApp(async (app) => {
+      const response = await app.inject({ method: 'GET', url: '/' });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['cache-control']).not.toBe('no-store');
+    }, webFixtureDir);
+  });
+});
+
 describe('loadConfig', () => {
   it('fails fast and names every missing required variable (AC12)', () => {
     expect(() => loadConfig({})).toThrow(ConfigError);

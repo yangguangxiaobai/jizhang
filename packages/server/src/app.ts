@@ -79,6 +79,30 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     return reply.status(statusCode).send({ error: { code, message: error.message } });
   });
 
+  // ── API responses must never be stored by the browser ───────────────────────
+  // The service worker already refuses to cache `/api/**` (`vite.config.ts` registers
+  // an explicit `NetworkOnly` route). This is the other half of that rule, applied to
+  // the browser's own HTTP cache:
+  //
+  //   * Privacy — API responses are per-session and carry the ledger, and an HTTP cache
+  //     is keyed by URL, so a stored response outlives a logout on a shared device. That
+  //     is the same reasoning `spec/frontend/quality-guidelines.md` gives for the service
+  //     worker; it applies to the HTTP cache identically.
+  //   * Consistent staleness — the app is online-first (parent task D4), so there is no
+  //     version of "serve this from cache" that is correct. A cacheable 200 can also
+  //     satisfy a request while the server is unreachable, which turns a failure the UI
+  //     would have reported into a silent success.
+  //
+  // `no-store` rather than a validator: there is nothing here worth reusing. Note that
+  // the SPA shell deliberately keeps its own caching — an installed app must still open
+  // with no connection — so this is scoped to the API prefix only.
+  app.addHook('onSend', (request, reply, payload, done) => {
+    if (request.url === API_PREFIX || request.url.startsWith(`${API_PREFIX}/`)) {
+      reply.header('Cache-Control', 'no-store');
+    }
+    done(null, payload);
+  });
+
   // ── Health (AC6 / AC8; used by the container HEALTHCHECK) ───────────────────
   app.get('/api/v1/health', () => ({
     status: 'ok',
