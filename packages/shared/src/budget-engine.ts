@@ -218,12 +218,22 @@ export interface ComputeModuleViewsInput {
   readonly transactions: readonly Transaction[];
   /** 周期配置；缺省为自然月模式。 */
   readonly cycle?: CycleConfig;
+  /**
+   * 要报告的周期，用与 `PoolTrendPoint.periodStart` **相同**的标识:分组自身的
+   * `group.start`(自然月模式 = 该月**最早的工资日**,不是 1 号;起始日模式 = 配置边界)。
+   *
+   * 省略 = 最新周期,这是所有既有调用方依赖的行为,**不得改变**。
+   * 未知的 start 返回 `[]`;路由层会先校验,所以 `[]` 在这里始终意味着"没有有效分配"。
+   */
+  readonly periodStart?: number;
 }
 
 /**
- * 计算**当前**预算周期的模块视图。
+ * 计算预算周期的模块视图。
  *
- * 空分配 → 返回空数组（参考 `:37`）。
+ * 默认报告**最新**周期;传入 `periodStart` 可报告任意一个历史周期,使用完全相同的规则。
+ *
+ * 空分配 → 返回空数组(参考 `:37`)。
  * 参考 `computeModuleViews`,`:32-91`。
  */
 export function computeModuleViews(
@@ -235,20 +245,34 @@ export function computeModuleViews(
   if (live.length === 0) return [];
 
   const groups = groupByCycle(live, cycle);
-  const current = groups[0];
-  if (current === undefined) return [];
-  const anchor = current.allocations[0];
-  if (anchor === undefined) return [];
 
-  const start =
-    cycle.kind === 'natural-month'
-      ? current.start
-      : periodStartOf(cycle.day, anchor.date);
-  // 自然月模式无上界（到无穷）；起始日模式为下一周期边界。
+  // `group.start` 已经过 `dateOnly`(见 `earliestDate`,`:75-79`),所以请求值也要归一化,
+  // 否则一个带时分秒的时间戳永远匹配不上。
+  //
+  // 先取出局部常量:类型收窄不会穿过箭头函数的闭包,直接用 `input.periodStart`
+  // 会在 `tsc` 下报 "number | undefined 不能赋给 number"(而 vitest 走 esbuild 不查类型,
+  // 所以这个错误只在构建时暴露)。
+  const requested = input.periodStart;
+  const index =
+    requested === undefined
+      ? 0
+      : groups.findIndex((group) => group.start === dateOnly(requested));
+  const current = groups[index];
+  if (current === undefined) return [];
+
+  const start = current.start;
+  // 最新周期沿用既有规则(自然月无上界 / 起始日到下一周期边界)。更早的周期都是**已关闭周期**,
+  // 其窗口是 `[自身起点, 下一个更新周期的起点)` —— 这正是 `computeCarryoverPool`(`:317-334`)
+  // 与 `computePoolTrend`(`:462-482`)已经在用的约定。
+  //
+  // 这里**刻意不用** `nextPeriodStart`:自然月模式没有"下一个周期"的日历定义(引擎用
+  // `end = null`),混用两种口径会让同一个历史周期的模块视图与结余池算法给出不同的窗口。
   const end =
-    cycle.kind === 'natural-month'
-      ? null
-      : nextPeriodStart(cycle.day, start);
+    index > 0
+      ? (groups[index - 1]?.start ?? null)
+      : cycle.kind === 'natural-month'
+        ? null
+        : nextPeriodStart(cycle.day, start);
 
   const views: ModuleView[] = [];
   for (const m of mergeModules(current.allocations)) {
@@ -261,6 +285,31 @@ export function computeModuleViews(
     views.push(makeModuleView(m.categoryId, m.amountCents, spent));
   }
   return views;
+}
+
+// ---------------------------------------------------------------------------
+// listCycleStarts
+// ---------------------------------------------------------------------------
+
+/**
+ * 所有有效周期的起点,**升序** —— "存在哪些周期"的权威答案。
+ *
+ * 用于填充周期选择器,以及校验请求的 `periodStart`。
+ *
+ * 与引擎其余部分共用同一个 `groupByCycle`,因此**不可能**与
+ * `computePoolTrend(...).map((p) => p.periodStart)` 不一致(有单测断言这一点)。
+ * 这正是它值得存在、而不是让路由自己去推导的原因。
+ */
+export function listCycleStarts(
+  allocationsDesc: readonly BudgetAllocation[],
+  cycle: CycleConfig = { kind: 'natural-month' },
+): number[] {
+  const live = liveAllocationsDesc(allocationsDesc);
+  if (live.length === 0) return [];
+  // `groupByCycle` 是最新在前,这里翻成升序,让调用方的下标与时间同向。
+  return groupByCycle(live, cycle)
+    .map((group) => group.start)
+    .reverse();
 }
 
 // ---------------------------------------------------------------------------

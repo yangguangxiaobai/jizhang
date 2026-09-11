@@ -22,6 +22,7 @@ import {
   computeModuleViews,
   computePoolTrend,
   formatCents,
+  listCycleStarts,
   nextPeriodStart,
   parseYuanToCents,
   periodStartOf,
@@ -818,5 +819,243 @@ describe('金额转换与格式化', () => {
     expect(formatCents(5)).toBe('0.05');
     expect(formatCents(-50000)).toBe('-500.00');
     expect(formatCents(123456)).toBe('1234.56');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W1-W7  历史周期回看（`periodStart`）与 listCycleStarts
+// ---------------------------------------------------------------------------
+
+/**
+ * 一个两周期账本：7 月与 8 月各记一次工资，各自有支出。
+ *
+ * ⚠️ 每个用例都用**两个不同周期**的数据 —— 单周期 fixture 抓不到错误的桶键，
+ * 这是 `spec/backend/quality-guidelines.md` 记录的教训。
+ */
+function twoCycleLedger() {
+  const allocationsDesc = [
+    // 最新在前（引擎的输入约定）。
+    allocation({
+      id: 'aug',
+      date: at(2026, 8, 5),
+      modules: [
+        ['food', 400000],
+        ['transport', 100000],
+      ],
+    }),
+    allocation({
+      id: 'jul',
+      date: at(2026, 7, 3),
+      modules: [
+        ['food', 300000],
+        ['transport', 50000],
+      ],
+    }),
+  ];
+  const transactions = [
+    txn({ id: 'aug-food', categoryId: 'food', amountCents: 120000, date: at(2026, 8, 10) }),
+    txn({ id: 'jul-food', categoryId: 'food', amountCents: 200000, date: at(2026, 7, 12) }),
+    txn({ id: 'jul-transport', categoryId: 'transport', amountCents: 60000, date: at(2026, 7, 20) }),
+  ];
+  return { allocationsDesc, transactions };
+}
+
+describe('listCycleStarts', () => {
+  it('W1 返回全部周期起点,升序', () => {
+    const { allocationsDesc } = twoCycleLedger();
+
+    expect(listCycleStarts(allocationsDesc, NATURAL)).toEqual([
+      at(2026, 7, 3),
+      at(2026, 8, 5),
+    ]);
+  });
+
+  it('W1 自然月模式下起点是"该月最早的工资日",不是 1 号', () => {
+    const { allocationsDesc } = twoCycleLedger();
+
+    // 这是与 `PoolTrendPoint.periodStart` 共用的标识;若误用月键或 1 号,此处会失败。
+    const starts = listCycleStarts(allocationsDesc, NATURAL);
+    expect(starts[0]).toBe(at(2026, 7, 3));
+    expect(starts[0]).not.toBe(at(2026, 7, 1));
+  });
+
+  it('W2 与 computePoolTrend 的 periodStart 序列逐点相等（反漂移）', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const fromTrend = computePoolTrend({ allocationsDesc, transactions, cycle: NATURAL }).map(
+      (point) => point.periodStart,
+    );
+
+    expect(listCycleStarts(allocationsDesc, NATURAL)).toEqual(fromTrend);
+  });
+
+  it('W2 起始日模式同样一致', () => {
+    const allocationsDesc = [
+      allocation({ id: 'b', date: at(2026, 9, 16), modules: [['food', 100000]] }),
+      allocation({ id: 'a', date: at(2026, 9, 3), modules: [['food', 100000]] }),
+    ];
+    const cycle = startDay(15);
+
+    const fromTrend = computePoolTrend({ allocationsDesc, transactions: [], cycle }).map(
+      (point) => point.periodStart,
+    );
+
+    expect(listCycleStarts(allocationsDesc, cycle)).toEqual(fromTrend);
+  });
+
+  it('W3 无分配时为空', () => {
+    expect(listCycleStarts([], NATURAL)).toEqual([]);
+  });
+
+  it('W3 软删除的分配不产生周期', () => {
+    const { allocationsDesc } = twoCycleLedger();
+    const withDeleted = allocationsDesc.map((entry) =>
+      entry.id === 'jul' ? { ...entry, deleted: true } : entry,
+    );
+
+    expect(listCycleStarts(withDeleted, NATURAL)).toEqual([at(2026, 8, 5)]);
+  });
+});
+
+describe('computeModuleViews 的 periodStart', () => {
+  it('W4 省略参数 = 最新周期（既有行为不变）', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const views = computeModuleViews({ allocationsDesc, transactions, cycle: NATURAL });
+
+    const food = views.find((v) => v.categoryId === 'food');
+    expect(food?.budgetCents).toBe(400000);
+    expect(food?.spentCents).toBe(120000);
+  });
+
+  it('W4 显式传最新周期起点,与省略参数逐字段相等', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const omitted = computeModuleViews({ allocationsDesc, transactions, cycle: NATURAL });
+    const explicit = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      periodStart: at(2026, 8, 5),
+    });
+
+    // 这条不变式保证新参数没有改变默认路径:两边的分配与支出口径都必须一致。
+    expect(explicit.map((v) => v.budgetCents)).toEqual(omitted.map((v) => v.budgetCents));
+    expect(explicit.map((v) => v.categoryId)).toEqual(omitted.map((v) => v.categoryId));
+  });
+
+  it('W5 回看 7 月:拿到 7 月的预算与 7 月的支出', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const views = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      periodStart: at(2026, 7, 3),
+    });
+
+    const food = views.find((v) => v.categoryId === 'food');
+    const transport = views.find((v) => v.categoryId === 'transport');
+    expect(food?.budgetCents).toBe(300000);
+    expect(food?.spentCents).toBe(200000);
+    expect(transport?.budgetCents).toBe(50000);
+    expect(transport?.spentCents).toBe(60000);
+    // 超支必须被如实反映,而不是被钳制。
+    expect(transport?.remainingCents).toBe(-10000);
+  });
+
+  it('W5 历史周期的支出不会捡到相邻周期的交易', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const july = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      periodStart: at(2026, 7, 3),
+    });
+    const august = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      periodStart: at(2026, 8, 5),
+    });
+
+    // 7 月食品 200000 + 8 月食品 120000;两边各拿各的,谁都不含对方的数。
+    expect(july.find((v) => v.categoryId === 'food')?.spentCents).toBe(200000);
+    expect(august.find((v) => v.categoryId === 'food')?.spentCents).toBe(120000);
+  });
+
+  it('W5 历史回看与当前周期给出不同结果（不是换了标题的同一份数据）', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const july = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      periodStart: at(2026, 7, 3),
+    });
+    const august = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      periodStart: at(2026, 8, 5),
+    });
+
+    expect(july).not.toEqual(august);
+  });
+
+  it('W6 未知的周期起点返回空数组,而不是回退到最新周期', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const views = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      periodStart: at(2026, 1, 1),
+    });
+
+    // 回退会让界面把 8 月的数字显示在 1 月的标题下。
+    expect(views).toEqual([]);
+  });
+
+  it('W6 带时分秒的时间戳按自然日归一化后仍能匹配', () => {
+    const { allocationsDesc, transactions } = twoCycleLedger();
+
+    const views = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle: NATURAL,
+      // `group.start` 是 `dateOnly` 后的值,所以请求值也必须归一化。
+      periodStart: at(2026, 7, 3, 13, 45),
+    });
+
+    expect(views.find((v) => v.categoryId === 'food')?.budgetCents).toBe(300000);
+  });
+
+  it('W7 起始日模式下回看上一个周期,窗口止于下一个周期边界', () => {
+    // 周期起点 15 号:8/15–9/14 是一个周期,7/15–8/14 是上一个。
+    const allocationsDesc = [
+      allocation({ id: 'sep', date: at(2026, 8, 20), modules: [['food', 400000]] }),
+      allocation({ id: 'aug', date: at(2026, 7, 20), modules: [['food', 300000]] }),
+    ];
+    const transactions = [
+      // 属于 7/15–8/14 窗口。
+      txn({ id: 'in-window', categoryId: 'food', amountCents: 50000, date: at(2026, 8, 10) }),
+      // 属于 8/15–9/14 窗口,不能计入上一周期。
+      txn({ id: 'next-window', categoryId: 'food', amountCents: 70000, date: at(2026, 8, 16) }),
+    ];
+    const cycle = startDay(15);
+
+    const previous = computeModuleViews({
+      allocationsDesc,
+      transactions,
+      cycle,
+      periodStart: at(2026, 7, 15),
+    });
+
+    const food = previous.find((v) => v.categoryId === 'food');
+    expect(food?.budgetCents).toBe(300000);
+    // 只有窗口内的那笔,证明历史周期的上界是"下一个周期的起点"而非无穷。
+    expect(food?.spentCents).toBe(50000);
   });
 });
