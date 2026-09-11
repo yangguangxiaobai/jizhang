@@ -79,6 +79,14 @@ const routes = [
         meta: { title: '分类与账户', nav: 'settings' },
       },
       {
+        path: 'trash',
+        name: 'trash',
+        component: () => import('../views/TrashView.vue'),
+        // Reached from 我的, so that tab stays highlighted. No seventh tab: the bar was
+        // verified to fit exactly six at 375px.
+        meta: { title: '回收站', nav: 'settings' },
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('../views/SettingsView.vue'),

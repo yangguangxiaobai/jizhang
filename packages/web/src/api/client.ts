@@ -186,6 +186,18 @@ export interface TagCount {
   readonly count: number;
 }
 
+/** The recycle bin. Every row here is soft-deleted; the endpoint returns nothing else. */
+export interface TrashListResult {
+  readonly items: Transaction[];
+  readonly total: number;
+}
+
+export interface TrashBulkResult {
+  readonly restored?: number;
+  readonly purged?: number;
+  readonly remaining: number;
+}
+
 export interface MeResponse {
   readonly username: string;
   readonly expiresAt: number;
@@ -334,6 +346,23 @@ export const api = {
   },
   tags: {
     list: () => request<{ items: TagCount[] }>('/api/v1/tags'),
+  },
+  /**
+   * The recycle bin.
+   *
+   * Separate from `transactions` on purpose: that list mixes deleted and live rows when
+   * `includeDeleted` is set, and does not say which is which. Here the contract is that
+   * every returned row is deleted, so the view never has to filter for correctness.
+   */
+  trash: {
+    list: () => request<TrashListResult>('/api/v1/trash'),
+    restore: (id: string) =>
+      request<Transaction>(`/api/v1/trash/${id}/restore`, { method: 'POST' }),
+    purge: (id: string) =>
+      request<void>(`/api/v1/trash/${id}`, { method: 'DELETE' }),
+    restoreAll: () =>
+      request<TrashBulkResult>('/api/v1/trash/restore-all', { method: 'POST' }),
+    purgeAll: () => request<TrashBulkResult>('/api/v1/trash', { method: 'DELETE' }),
   },
   categories: {
     list: (type?: number) =>
