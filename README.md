@@ -281,6 +281,7 @@ pnpm test:iphone:only         # 跳过构建
 | 分类 | `GET/POST /categories`、`PATCH/DELETE /categories/:id`、`POST /categories/:id/move`、`GET /categories/:id/usage` |
 | 账户 | `GET/POST /accounts`、`PATCH/DELETE /accounts/:id`、`POST /accounts/:id/move`、`GET /accounts/:id/usage` |
 | 余额 | `GET /accounts/balances` —— 每个活账户的余额 + 资产总额,由服务端派生(余额不落库) |
+| 转账 | `GET/POST /transfers`、`GET/PATCH/DELETE /transfers/:id`(可带 `?accountId=` 只看某一侧)。转账**不算收入也不算支出**,只改两个账户的余额 |
 | 标签 | `GET /tags`、`PATCH /tags`(重命名)、`DELETE /tags/:id` |
 | 周期账单 | `GET/POST /recurring/rules`、`PATCH/DELETE /recurring/rules/:id`、`POST /recurring/rules/:id/enabled`、`POST /recurring/generate`、`GET /recurring/occurrences`、`POST /recurring/occurrences/:id/confirm`、`POST /recurring/occurrences/:id/ignore`、`GET /recurring/pending` |
 | 统计 | `GET /stats/category-share`、`GET /stats/monthly-trend`、`GET /stats/month-window`、`GET /stats/pool-trend`、`GET /stats/range` |
