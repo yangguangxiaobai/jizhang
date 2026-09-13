@@ -66,6 +66,18 @@ export interface SalaryReceipt {
   readonly amountCents: number;
 }
 
+/**
+ * A movement of money between two of the user's own accounts.
+ *
+ * Deliberately not a `Transaction`, and deliberately its own table in the schema. See
+ * `transferFlowCents` for why that is the whole point rather than a filing decision.
+ */
+export interface TransferLike {
+  readonly fromAccountId: string;
+  readonly toAccountId: string;
+  readonly amountCents: number;
+}
+
 /** One account's balance, with the parts it was built from. */
 export interface AccountFlow {
   readonly accountId: string;
@@ -76,6 +88,10 @@ export interface AccountFlow {
   readonly expenseCents: number;
   /** Salaries recorded into this account. */
   readonly salaryCents: number;
+  /** Transfers received into this account. */
+  readonly transferInCents: number;
+  /** Transfers sent out of this account. */
+  readonly transferOutCents: number;
   /** The balance itself; may be negative (a credit card, or an overdraft). */
   readonly balanceCents: number;
 }
@@ -84,6 +100,34 @@ export interface AccountBalanceInput {
   readonly accounts: readonly AccountLike[];
   readonly transactions: readonly AccountFlowTransaction[];
   readonly salaries: readonly SalaryReceipt[];
+  /** Optional so a caller with no transfer table (or no transfers) needs no special case. */
+  readonly transfers?: readonly TransferLike[] | undefined;
+}
+
+/**
+ * Money entering (`+`) or leaving (`−`) one account because of one transfer.
+ *
+ * This one function is the entire accounting content of the transfer feature, and the reason
+ * transfers are a separate table rather than two linked bills:
+ *
+ * ```
+ * Σ over all accounts of transferFlowCents(t, accountId) === 0
+ * ```
+ *
+ * A transfer moves money; it does not create or destroy it, and it is neither income nor
+ * expense. Because nothing in `budget-engine.ts` or `stats-service.ts` reads this table, that
+ * property is structural — there is no filter anyone can forget to add. Encoding a transfer as
+ * a pair of transactions would instead have put the outflow into `expenseContribution` and the
+ * inflow into `incomeContribution`, so every aggregate would have needed a
+ * `transfer_group_id IS NULL` guard, and one missed guard is a silently wrong budget.
+ *
+ * `fromAccountId === toAccountId` is rejected by the service, so the two branches cannot both
+ * match and the net-zero property holds without a special case.
+ */
+export function transferFlowCents(transfer: TransferLike, accountId: string): number {
+  if (transfer.fromAccountId === accountId) return -transfer.amountCents;
+  if (transfer.toAccountId === accountId) return transfer.amountCents;
+  return 0;
 }
 
 /**
@@ -102,11 +146,34 @@ export function ledgerFlowCents(txn: AccountFlowTransaction): number {
  * Rows referencing an account that is not in `accounts` are ignored. That is the
  * soft-deleted-account case described in the module comment; it is not a silent data loss
  * path, because the caller is expected to pass every account it wants represented.
+ *
+ * A transfer into or out of such an account still counts on the **live** side. A transfer is
+ * one row with two branches, so `<live account> -> <deleted account>` reduces the live
+ * account's balance and the total drops by the same amount — which is the same thing that
+ * happens when an account with a positive balance is deleted, and is therefore consistent
+ * rather than special. The alternative (discarding the whole movement) would make a live
+ * account's balance silently ignore money that really left it.
  */
 export function computeAccountBalances(input: AccountBalanceInput): AccountFlow[] {
-  const buckets = new Map<string, { income: number; expense: number; salary: number }>();
+  interface Bucket {
+    income: number;
+    expense: number;
+    salary: number;
+    transferIn: number;
+    transferOut: number;
+  }
+
+  const empty = (): Bucket => ({
+    income: 0,
+    expense: 0,
+    salary: 0,
+    transferIn: 0,
+    transferOut: 0,
+  });
+
+  const buckets = new Map<string, Bucket>();
   for (const account of input.accounts) {
-    buckets.set(account.id, { income: 0, expense: 0, salary: 0 });
+    buckets.set(account.id, empty());
   }
 
   for (const txn of input.transactions) {
@@ -122,16 +189,38 @@ export function computeAccountBalances(input: AccountBalanceInput): AccountFlow[
     bucket.salary += salary.amountCents;
   }
 
+  for (const transfer of input.transfers ?? []) {
+    // Only the two accounts the transfer names, and the side is decided by the one exported
+    // rule rather than by a second `fromAccountId === accountId` test here.
+    for (const accountId of [transfer.fromAccountId, transfer.toAccountId]) {
+      const bucket = buckets.get(accountId);
+      if (bucket === undefined) continue;
+      const flow = transferFlowCents(transfer, accountId);
+      if (flow > 0) bucket.transferIn += flow;
+      else if (flow < 0) bucket.transferOut += -flow;
+    }
+  }
+
   return input.accounts.map((account) => {
-    const bucket = buckets.get(account.id) ?? { income: 0, expense: 0, salary: 0 };
+    // `buckets` was filled from `accounts` in this same call, so the id is always present.
+    // The fallback is an all-zero bucket — exactly what an account with no flows holds — so
+    // it cannot change an answer the way substituting a different value would.
+    const bucket = buckets.get(account.id) ?? empty();
     return {
       accountId: account.id,
       initialBalanceCents: account.initialBalanceCents,
       incomeCents: bucket.income,
       expenseCents: bucket.expense,
       salaryCents: bucket.salary,
+      transferInCents: bucket.transferIn,
+      transferOutCents: bucket.transferOut,
       balanceCents:
-        account.initialBalanceCents + bucket.income + bucket.salary - bucket.expense,
+        account.initialBalanceCents +
+        bucket.income +
+        bucket.salary +
+        bucket.transferIn -
+        bucket.expense -
+        bucket.transferOut,
     };
   });
 }

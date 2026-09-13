@@ -16,8 +16,10 @@ import {
   computeAccountBalances,
   ledgerFlowCents,
   totalBalanceCents,
+  transferFlowCents,
   type AccountFlowTransaction,
   type AccountLike,
+  type TransferLike,
 } from '../src/account-balance.js';
 import { TYPE_EXPENSE, TYPE_INCOME } from '../src/types.js';
 
@@ -223,5 +225,191 @@ describe('totalBalanceCents', () => {
 
   it('空列表是 0', () => {
     expect(totalBalanceCents([])).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 转账（子任务 B）
+// ---------------------------------------------------------------------------
+
+const wechat: AccountLike = { id: 'acc-wechat', initialBalanceCents: 4_912 };
+
+function transfer(partial: {
+  fromAccountId: string;
+  toAccountId: string;
+  amountCents: number;
+}): TransferLike {
+  return partial;
+}
+
+describe('transferFlowCents', () => {
+  const t = transfer({ fromAccountId: alipay.id, toAccountId: bank.id, amountCents: 100_000 });
+
+  it('转出账户是负的', () => {
+    expect(transferFlowCents(t, alipay.id)).toBe(-100_000);
+  });
+
+  it('转入账户是正的', () => {
+    expect(transferFlowCents(t, bank.id)).toBe(100_000);
+  });
+
+  it('不相干的账户是 0', () => {
+    expect(transferFlowCents(t, wechat.id)).toBe(0);
+  });
+
+  /**
+   * 这一条是整个转账特性的数学形式，也是「转账不算收入也不算支出」这句话的可执行版本。
+   * 用多组账户与金额做属性式断言，而不是只测一组 —— 单组很容易碰巧通过。
+   */
+  it('所有账户加起来恒为 0：转账不创造也不销毁钱', () => {
+    const accounts = [alipay, bank, wechat];
+    const transfers = [
+      transfer({ fromAccountId: alipay.id, toAccountId: bank.id, amountCents: 100_000 }),
+      transfer({ fromAccountId: bank.id, toAccountId: wechat.id, amountCents: 1 }),
+      transfer({ fromAccountId: wechat.id, toAccountId: alipay.id, amountCents: 4_912 }),
+      transfer({ fromAccountId: alipay.id, toAccountId: wechat.id, amountCents: 999_999 }),
+    ];
+
+    for (const t of transfers) {
+      const net = accounts.reduce(
+        (sum, account) => sum + transferFlowCents(t, account.id),
+        0,
+      );
+      expect(net, JSON.stringify(t)).toBe(0);
+    }
+
+    // 而且对任意子集也成立：求和顺序不影响结论。
+    for (const account of accounts) {
+      const net = transfers.reduce((sum, t) => sum + transferFlowCents(t, account.id), 0);
+      expect(Number.isSafeInteger(net)).toBe(true);
+    }
+    const grand = accounts.reduce(
+      (sum, account) =>
+        sum + transfers.reduce((inner, t) => inner + transferFlowCents(t, account.id), 0),
+      0,
+    );
+    expect(grand).toBe(0);
+  });
+});
+
+describe('computeAccountBalances 纳入转账', () => {
+  it('转出减少、转入增加，总额完全不变', () => {
+    const before = computeAccountBalances({
+      accounts: [alipay, bank],
+      transactions: [],
+      salaries: [],
+    });
+    const after = computeAccountBalances({
+      accounts: [alipay, bank],
+      transactions: [],
+      salaries: [],
+      transfers: [
+        transfer({ fromAccountId: alipay.id, toAccountId: bank.id, amountCents: 30_000 }),
+      ],
+    });
+
+    const [alipayAfter, bankAfter] = after;
+    expect(alipayAfter).toMatchObject({
+      transferOutCents: 30_000,
+      transferInCents: 0,
+      balanceCents: 58_935 - 30_000,
+    });
+    expect(bankAfter).toMatchObject({
+      transferInCents: 30_000,
+      transferOutCents: 0,
+      balanceCents: 564_285 + 30_000,
+    });
+    expect(totalBalanceCents(after)).toBe(totalBalanceCents(before));
+  });
+
+  it('多笔转账按方向累加', () => {
+    const [flow] = computeAccountBalances({
+      accounts: [alipay],
+      transactions: [],
+      salaries: [],
+      transfers: [
+        transfer({ fromAccountId: alipay.id, toAccountId: bank.id, amountCents: 5_000 }),
+        transfer({ fromAccountId: bank.id, toAccountId: alipay.id, amountCents: 1_200 }),
+        transfer({ fromAccountId: alipay.id, toAccountId: wechat.id, amountCents: 800 }),
+      ],
+    });
+
+    expect(flow?.transferInCents).toBe(1_200);
+    expect(flow?.transferOutCents).toBe(5_800);
+    expect(flow?.balanceCents).toBe(58_935 + 1_200 - 5_800);
+  });
+
+  it('省略 transfers 时行为与改动前完全一致（加法式扩展）', () => {
+    const omitted = computeAccountBalances({
+      accounts: [alipay],
+      transactions: [txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 1_000 })],
+      salaries: [{ accountId: alipay.id, amountCents: 2_000 }],
+    });
+    const emptyList = computeAccountBalances({
+      accounts: [alipay],
+      transactions: [txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 1_000 })],
+      salaries: [{ accountId: alipay.id, amountCents: 2_000 }],
+      transfers: [],
+    });
+
+    expect(omitted).toEqual(emptyList);
+    expect(omitted[0]).toMatchObject({ transferInCents: 0, transferOutCents: 0 });
+  });
+
+  /**
+   * 转入方被软删除时，**活着的那一侧仍然记账**。
+   *
+   * 理由：钱确实离开了支付宝。让支付宝的余额假装没这回事，比"总额因为对方不在资产表里而下降"更糟。
+   * 这和"删除一个有余额的账户会让总额下降"是同一条规则，不是特例。
+   */
+  it('转账的对手方不在资产表里时，活着的一侧照常记账', () => {
+    const flows = computeAccountBalances({
+      accounts: [alipay],
+      transactions: [],
+      salaries: [],
+      transfers: [
+        transfer({ fromAccountId: alipay.id, toAccountId: 'acc-deleted', amountCents: 7_777 }),
+      ],
+    });
+
+    expect(flows[0]?.transferOutCents).toBe(7_777);
+    expect(flows[0]?.balanceCents).toBe(58_935 - 7_777);
+
+    // 反方向同理：从已删除账户转进来，活着的一侧余额增加。
+    const incoming = computeAccountBalances({
+      accounts: [alipay],
+      transactions: [],
+      salaries: [],
+      transfers: [
+        transfer({ fromAccountId: 'acc-deleted', toAccountId: alipay.id, amountCents: 1_000 }),
+      ],
+    });
+    expect(incoming[0]?.transferInCents).toBe(1_000);
+    expect(incoming[0]?.balanceCents).toBe(58_935 + 1_000);
+  });
+
+  it('与账单、退款、工资混在一起时各项各归其位', () => {
+    const [flow] = computeAccountBalances({
+      accounts: [alipay, bank],
+      transactions: [
+        txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 10_000 }),
+        txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 4_000, isRefund: true }),
+        txn({ accountId: alipay.id, type: TYPE_INCOME, amountCents: 500 }),
+      ],
+      salaries: [{ accountId: alipay.id, amountCents: 800_000 }],
+      transfers: [
+        transfer({ fromAccountId: alipay.id, toAccountId: bank.id, amountCents: 600_000 }),
+      ],
+    });
+
+    expect(flow).toMatchObject({
+      incomeCents: 500,
+      expenseCents: 6_000,
+      salaryCents: 800_000,
+      transferOutCents: 600_000,
+      transferInCents: 0,
+    });
+    // 58_935 + 500 + 800_000 + 0 − 6_000 − 600_000
+    expect(flow?.balanceCents).toBe(58_935 + 500 + 800_000 - 6_000 - 600_000);
   });
 });
