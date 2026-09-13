@@ -41,13 +41,19 @@ const visible = computed(() => offline.value || showRestored.value);
 </template>
 
 <style scoped>
+/*
+ * Warning, not danger: the component's own contract is that being offline is a normal state
+ * on a phone, and the red tier is for things that went wrong. The text token is the one
+ * that belongs to the fill — `--on-warning`, not `--on-accent` — so the pairing cannot come
+ * apart if a preset ever changes the accent's polarity.
+ */
 .banner {
   padding: 0.45rem 1rem;
   font-size: 0.8rem;
   line-height: 1.5;
   text-align: center;
-  color: var(--on-accent);
-  background: var(--danger);
+  color: var(--on-warning);
+  background: var(--warning);
   /*
    * Arrives from above, because that is where it lives on screen — a top bar rising from
    * below would read as content that had been pushed out of the way.
@@ -60,7 +66,8 @@ const visible = computed(() => offline.value || showRestored.value);
 }
 
 .banner.restored {
-  background: var(--ok, #3f9e6a);
+  color: var(--on-ok);
+  background: var(--ok);
 }
 
 b {

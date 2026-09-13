@@ -23,7 +23,26 @@ import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const THEME_SCRIPT = readFileSync(join(here, '..', 'theme-init.js'), 'utf8');
+
+/**
+ * The script with its comments removed.
+ *
+ * `theme-init.js` is documented at length — it is the one piece of JavaScript that runs
+ * before the bundle, and every line of it has a reason. But it is inlined into the head of
+ * every page load, where a kilobyte of explanation costs a phone real time and pushed the
+ * built `index.html` over the budget `check-pwa.mjs` enforces. The explanation stays in the
+ * source; the shipped copy is the code. The script contains no string literals with `/*` or
+ * `//` in them, which is what makes this simple strip safe.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
+}
+
+const THEME_SCRIPT = stripComments(readFileSync(join(here, '..', 'theme-init.js'), 'utf8'));
 
 const PLACEHOLDER = '<!--theme-init-->';
 

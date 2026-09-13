@@ -26,4 +26,5 @@ export * from './date-utils.js';
 export * from './budget-engine.js';
 export * from './recurring.js';
 export * from './csv.js';
+export * from './palette.js';
 export * from './seed-data.js';

@@ -44,7 +44,10 @@ if (manifest.status === 200) {
   check('name is the Chinese app name', typeof parsed.name === 'string' && parsed.name.length > 0, parsed.name);
   check('display is standalone', parsed.display === 'standalone');
   check('start_url is /', parsed.start_url === '/');
-  check('theme_color matches the app accent', parsed.theme_color === '#2f6f8f', parsed.theme_color);
+  // The toolbar takes the colour of the app's own top bar (`--surface`), not the accent —
+  // see `packages/web/src/composables/useTheme.ts`. The build audit pins it to the token.
+  check('theme_color matches the light surface', parsed.theme_color === '#ffffff', parsed.theme_color);
+  check('background_color matches the light page background', parsed.background_color === '#f6f7f9', parsed.background_color);
 }
 
 // ── service worker ───────────────────────────────────────────────────────────

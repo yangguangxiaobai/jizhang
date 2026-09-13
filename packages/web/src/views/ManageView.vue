@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Master-data management: categories, accounts and tags.
  *
@@ -11,11 +11,13 @@
  *   * tags have no table (the name is the identity), so renaming or deleting a tag
  *     rewrites every referencing transaction on the server.
  */
+import { CATEGORY_PALETTE, paletteSlot } from '@jizhang/shared';
 import { computed, onMounted, ref } from 'vue';
 import { api } from '../api/client.js';
 import type { Account, Category, TagCount } from '../api/client.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
+import { categoryCssColor } from '../utils/category-color.js';
 import { formatCents, formatYuan, parseYuanToCents } from '../utils/money.js';
 
 type Tab = 'categories' | 'accounts' | 'tags';
@@ -36,11 +38,17 @@ const categoryDraft = ref<{
   color: number;
 } | null>(null);
 
-/** A small curated palette. `color` is stored as an ARGB integer. */
-const PALETTE = [
-  0xffb8786f, 0xff8a7764, 0xffb0835e, 0xffaa7e82, 0xff8d7890, 0xff847d74,
-  0xff60806e, 0xff66888a, 0xff7a6f9b, 0xff9b7a5f, 0xff5f7a9b, 0xff9b5f6f,
-].map((c) => c >>> 0);
+/**
+ * The picker offers the shared palette, and nothing else: `color` is stored as the slot's
+ * ARGB integer, which is what lets the charts render it as a theme-aware token. The swatch
+ * itself is drawn with the token too, so the picker shows the colour the category will have
+ * in the theme the user is looking at, and each button is named ("颜色：蓝") rather than
+ * announced as a hex string.
+ */
+const PALETTE = CATEGORY_PALETTE;
+
+/** A new category starts in the "other" slot, like the seeded 其他. */
+const DEFAULT_COLOR = paletteSlot(6).argb;
 
 /** Semantic icon names the seed data uses; the UI shows a matching emoji. */
 const ICONS: { id: string; glyph: string; label: string }[] = [
@@ -60,8 +68,12 @@ function iconGlyph(id: string): string {
   return ICONS.find((i) => i.id === id)?.glyph ?? '📦';
 }
 
-function colorHex(color: number): string {
-  return `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
+/**
+ * Whether a draft holds a given swatch. Both sides are forced unsigned: a colour that
+ * arrived from the API as the signed form of the same integer must still light up.
+ */
+function isChosen(color: number, swatch: number): boolean {
+  return color >>> 0 === swatch >>> 0;
 }
 
 const expenseCategories = computed(() =>
@@ -81,7 +93,7 @@ function startCategoryCreate(type: number): void {
     name: '',
     type,
     icon: 'other',
-    color: PALETTE[5] as number,
+    color: DEFAULT_COLOR,
   };
   errorMessage.value = null;
 }
@@ -376,15 +388,15 @@ async function deleteTag(tag: TagCount): Promise<void> {
         <legend>颜色</legend>
         <div class="color-grid">
           <button
-            v-for="color in PALETTE"
-            :key="color"
+            v-for="entry in PALETTE"
+            :key="entry.slot"
             type="button"
             class="swatch"
-            :class="{ active: (categoryDraft.color >>> 0) === color }"
-            :style="{ background: colorHex(color) }"
-            :aria-label="`颜色 ${colorHex(color)}`"
-            :aria-pressed="(categoryDraft.color >>> 0) === color"
-            @click="categoryDraft.color = color"
+            :class="{ active: isChosen(categoryDraft.color, entry.argb) }"
+            :style="{ background: `var(--cat-${entry.slot})` }"
+            :aria-label="`颜色：${entry.name}`"
+            :aria-pressed="isChosen(categoryDraft.color, entry.argb)"
+            @click="categoryDraft.color = entry.argb"
           />
         </div>
       </fieldset>
@@ -409,7 +421,7 @@ async function deleteTag(tag: TagCount): Promise<void> {
 
         <ul>
           <li v-for="(category, index) in group.items" :key="category.id">
-            <span class="glyph" :style="{ background: colorHex(category.color) }">
+            <span class="glyph" :style="{ background: categoryCssColor(category.color) }">
               {{ iconGlyph(category.icon) }}
             </span>
             <span class="name">
@@ -719,6 +731,10 @@ select {
 }
 
 .link {
+  /* Both axes. `min-height` alone let the two-character 新建 links measure 43.2px wide,
+     which the static audit accepts (the declaration is there) but a real finger does not
+     get; the browser suite measured the box and failed at 43.9px. */
+  min-width: 44px;
   min-height: 44px;
   padding: 0 0.5rem;
   font: inherit;

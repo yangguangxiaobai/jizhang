@@ -20,6 +20,7 @@
  * a test (`charts_data_test.dart:416`); so does `test/stats.test.ts`.
  */
 import {
+  FALLBACK_CATEGORY_COLOR,
   NATURAL_MONTH,
   computeCarryoverPool,
   computeModuleViews,
@@ -191,7 +192,8 @@ export class StatsService {
         return {
           categoryId,
           categoryName: info?.name ?? categoryId,
-          color: info?.color ?? 0xff847d74,
+          // A hard-deleted category still has transactions; it renders in the "other" slot.
+          color: info?.color ?? FALLBACK_CATEGORY_COLOR,
           amountCents,
           ratio: totalCents === 0 ? 0 : amountCents / totalCents,
         };

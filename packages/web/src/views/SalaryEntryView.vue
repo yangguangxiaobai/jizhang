@@ -341,7 +341,7 @@ h2 {
 }
 
 .balance.ok {
-  color: var(--ok, #3f9e6a);
+  color: var(--ok);
 }
 
 .balance.bad {

@@ -1,5 +1,5 @@
 /**
- * Renders the theme and app lock in headless Chrome (T16).
+ * Renders the theme and verifies removal of the legacy app lock in headless Chrome.
  *
  * Three things here can only be checked in a browser:
  *
@@ -8,7 +8,7 @@
  *   * that the contrast of key text against its background is adequate — computed from the
  *     real rendered colours rather than eyeballed, because "looks fine" is how a dark theme
  *     ships with unreadable muted text;
- *   * that the lock screen really replaces the app and shows nothing about the ledger.
+ *   * that legacy PIN storage cannot lock users out after the lock feature was removed.
  *
  * It resets the container first so the seeded state is known.
  *
@@ -23,7 +23,7 @@ const OUT_PNG = process.argv[2] ?? 'theme.png';
 const ORIGIN = process.argv[3] ?? 'http://127.0.0.1:8081';
 const BASE = `${ORIGIN}/api/v1`;
 
-const { check, failures, finish } = makeChecker();
+const { check, finish } = makeChecker();
 
 // Known baseline: this script asserts on specific balances and on "no pending items".
 try {
@@ -316,150 +316,19 @@ try {
   );
   await chooseTheme('深色');
 
-  // ── AC7–AC11 the app lock ────────────────────────────────────────────────
-  console.log('\n[AC7-AC11 app lock]');
-  await browser.navigateAndWait('/settings', ['应用锁']);
-
-  /**
-   * Types into an input the way a user does, then waits for Vue to re-render.
-   *
-   * The wait is not decoration: `v-model` updates the ref asynchronously, so clicking the
-   * submit button in the same tick finds it still `disabled` and nothing happens — which
-   * looks exactly like "the PIN was wrong".
-   */
-  async function typeInto(selectorIndex, value) {
-    await browser.evaluate(`(() => {
-      const inputs = [...document.querySelectorAll('.field input[type=password]')];
-      const el = inputs[${selectorIndex}];
-      if (el === undefined) return false;
-      el.value = ${JSON.stringify(value)};
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      return true;
-    })()`);
-    await new Promise((resolve) => setTimeout(resolve, 350));
-  }
-
-  async function clickByText(text) {
-    const clicked = await browser.evaluate(`(() => {
-      const button = [...document.querySelectorAll('button')].find((b) => (b.innerText || '').includes(${JSON.stringify(text)}));
-      if (button === undefined) return false;
-      button.click();
-      return true;
-    })()`);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    return clicked;
-  }
-
-  await typeInto(0, '1234');
-  await typeInto(1, '1234');
-
-  const submitEnabled = await browser.evaluate(`(() => {
-    const inputs = [...document.querySelectorAll('.field input[type=password]')];
-    void inputs;
-    const button = [...document.querySelectorAll('button')].find((b) => (b.innerText || '').includes('启用应用锁'));
-    return button === undefined ? 'no-button' : !button.disabled;
-  })()`);
-  check('the enable button is live once both fields are filled', submitEnabled === true, `-> ${submitEnabled}`);
-
-  check('the enable button was clickable', await clickByText('启用应用锁'));
-
-  const pinStored = await browser.evaluate("window.localStorage.getItem('jizhang.pin')");
-  check('AC7 the PIN was set', typeof pinStored === 'string' && pinStored.length > 0, `-> ${String(pinStored).slice(0, 40)}`);
-  check(
-    'AC11 the PIN is stored hashed with a salt, never in plain text',
-    typeof pinStored === 'string' && pinStored.includes('salt') && pinStored.includes('hash') && !pinStored.includes('1234'),
-    `-> ${String(pinStored).slice(0, 60)}…`,
-  );
-
-  // A RELOAD is the cold start: the unlocked flag lives in sessionStorage, and the page
-  // must ask for the PIN again.
-  await browser.send('Page.reload');
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-  const lockedDom = (await browser.evaluate('document.body.innerText')) ?? '';
-
-  check(
-    'AC7 a reload shows the lock screen, not the app',
-    lockedDom.includes('已锁定') && !lockedDom.includes('外观'),
-    `-> ${lockedDom.replace(/\n/g, ' | ').slice(0, 120)}`,
-  );
-  check('AC7 the PIN field is present', lockedDom.includes('输入 PIN'));
-  // The lock is worthless if the thing it hides is behind it.
-  for (const leak of ['概览', '本周期预算', '餐饮', '账本']) {
-    check(`AC8 the lock screen does not show「${leak}」`, !lockedDom.includes(leak), `-> ${lockedDom.slice(0, 60)}`);
-  }
-  check('AC8 no balance figure is visible', !/¥\s?-?\d/.test(lockedDom), `-> ${lockedDom.slice(0, 60)}`);
-  check(
-    'AC11 the lock screen states the PIN is not encryption',
-    lockedDom.includes('不是加密保护'),
-    `-> ${lockedDom.replace(/\n/g, ' | ').slice(0, 160)}`,
-  );
-
-  /** Types into the lock screen's single field (no `.field` wrapper class reliance). */
-  async function typePin(value) {
-    await browser.evaluate(`(() => {
-      const input = document.querySelector('input[type=password]');
-      if (input === null) return false;
-      input.value = ${JSON.stringify(value)};
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      return true;
-    })()`);
-    await new Promise((resolve) => setTimeout(resolve, 350));
-  }
-
-  // A wrong PIN must not unlock, and must say so.
-  await typePin('9999');
-  const wrongReady = await browser.evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find((b) => (b.innerText || '').includes('解锁'));
-    return button === undefined ? 'no-button' : !button.disabled;
-  })()`);
-  check('the unlock button is live with a wrong PIN typed', wrongReady === true, `-> ${wrongReady}`);
-  check('the unlock button was clickable', await clickByText('解锁'));
-  // Hashing is async (`crypto.subtle.digest`), so the error renders a turn after the click.
-  await new Promise((resolve) => setTimeout(resolve, 900));
-  const afterWrong = (await browser.evaluate('document.body.innerText')) ?? '';
-  check('AC8 a wrong PIN does not unlock', afterWrong.includes('已锁定'), `-> ${afterWrong.replace(/\n/g, ' | ').slice(0, 80)}`);
-  check('AC8 and it explains the failure', afterWrong.includes('不正确'), `-> ${afterWrong.replace(/\n/g, ' | ').slice(0, 120)}`);
-
-  // Measured layout of the lock screen: a PIN field is exactly where a 16px regression and a
-  // sub-44px button would hide.
-  console.log('\n[lock screen layout]');
+  // A stored PIN from an older release must be inert after the feature is removed.
+  console.log('\n[legacy lock removal]');
+  await browser.navigateAndWait('/settings', ['外观', '修改密码']);
+  await browser.evaluate(`localStorage.setItem('jizhang.pin', JSON.stringify({ salt: 'legacy-salt', hash: 'legacy-hash' }))`);
+  await browser.navigateAndWait('/settings', ['外观', '修改密码']);
+  const settingsText = (await browser.evaluate('document.body.innerText')) ?? '';
+  check('legacy PIN storage does not hide the settings page', settingsText.includes('外观'));
+  check('PIN setup and lock controls are absent', !/应用锁|输入 PIN|忘记 PIN|立即锁定/.test(settingsText));
+  check('account password controls are retained', settingsText.includes('修改密码'));
   await browser.usePhoneViewport();
-  const lockMetrics = await browser.measureLayout();
-  check(
-    'AC12 no control on the lock screen is shorter than 44px',
-    lockMetrics.smallTargets.length === 0,
-    lockMetrics.smallTargets.map((t) => `${t.tag}:${t.text}=${t.h}px`).join(' | '),
-  );
-  check(
-    'AC13 the lock screen does not scroll horizontally at 375px',
-    lockMetrics.docWidth <= 375,
-    `-> ${lockMetrics.docWidth}`,
-  );
-
-  // The right PIN unlocks.
-  await typePin('1234');
-  check('the unlock button was clickable with the right PIN', await clickByText('解锁'));
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  const unlockedDom = (await browser.evaluate('document.body.innerText')) ?? '';
-  check(
-    'AC7 the correct PIN unlocks and the app appears',
-    !unlockedDom.includes('已锁定') && unlockedDom.length > 0,
-    `-> ${unlockedDom.replace(/\n/g, ' | ').slice(0, 100)}`,
-  );
-
-  // ── AC9 the forgot-PIN path is not a dead end ────────────────────────────
-  console.log('\n[AC9 forgot PIN]');
-  // Auto-accept the confirmation so the path can be walked without a dialog handler.
-  await browser.send('Page.reload');
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-  await browser.evaluate('window.confirm = () => true');
-  const forgotClicked = await clickByText('忘记 PIN');
-  check('the forgot-PIN control is present and clickable', forgotClicked);
-  const afterForgot = (await browser.evaluate('document.body.innerText')) ?? '';
-  check('AC9 forgetting the PIN clears the lock', !afterForgot.includes('已锁定'), `-> ${afterForgot.replace(/\n/g, ' | ').slice(0, 80)}`);
-  check('AC9 and leaves the app usable', afterForgot.includes('概览') || afterForgot.includes('账单'), `-> ${afterForgot.replace(/\n/g, ' | ').slice(0, 80)}`);
-  const clearedPin = await browser.evaluate("window.localStorage.getItem('jizhang.pin')");
-  check('AC9 the stored PIN is gone', clearedPin === null, `-> ${clearedPin}`);
+  const metrics = await browser.measureLayout();
+  check('settings controls are at least 44px', metrics.smallTargets.length === 0);
+  check('settings do not scroll horizontally at 375px', metrics.docWidth <= 375);
 
   await browser.screenshot(OUT_PNG);
   console.log(`\nscreenshot written to ${OUT_PNG}`);
@@ -468,4 +337,3 @@ try {
 }
 
 finish('THEME RENDER');
-process.exitCode = failures === 0 ? 0 : 1;

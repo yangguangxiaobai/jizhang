@@ -8,6 +8,7 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBudgetStore } from '../stores/budget.js';
+import { budgetTone, budgetToneLabel } from '../utils/budget-tone.js';
 import { formatMonthLabel, formatYuan } from '../utils/money.js';
 
 const budget = useBudgetStore();
@@ -118,7 +119,7 @@ const historyLoading = computed(
       numbers under the same layout, and "why is my budget wrong" is the obvious next
       thought.
     -->
-    <p v-if="budget.viewingHistory" class="history-note" role="status">
+    <p v-if="budget.viewingHistory" class="history-note notice notice-accent" role="status">
       正在查看历史周期 {{ periodLabel(budget.selectedPeriodStart ?? 0) }}，数据不会随新账单变化。
     </p>
 
@@ -177,8 +178,17 @@ const historyLoading = computed(
         </p>
       </section>
 
-      <section v-if="budget.overBudgetModules.length > 0" class="alert">
-        有 {{ budget.overBudgetModules.length }} 个模块超支
+      <!--
+        Two tiers of the same warning, each with its own count: over is what has already
+        happened, near-limit is what is about to. Both are stated in words; the tint and the
+        edge only repeat them.
+      -->
+      <section v-if="budget.overBudgetModules.length > 0" class="alert notice notice-danger">
+        有 {{ budget.overBudgetModules.length }} 个模块已超支
+      </section>
+
+      <section v-if="budget.nearLimitModules.length > 0" class="alert notice notice-warning">
+        有 {{ budget.nearLimitModules.length }} 个模块接近上限（已用超过 80%）
       </section>
 
       <ul class="modules">
@@ -206,17 +216,33 @@ const historyLoading = computed(
             :aria-valuenow="usedPercent(module.spentCents, module.budgetCents)"
             aria-valuemin="0"
             aria-valuemax="100"
-            :aria-label="`${module.categoryName} 已用比例`"
+            :aria-label="
+              module.budgetCents > 0
+                ? `${module.categoryName} 已用比例`
+                : `${module.categoryName} 未分配预算`
+            "
           >
             <span
               class="fill"
-              :class="{ over: module.spentCents > module.budgetCents }"
+              :class="budgetTone(module.spentCents, module.budgetCents)"
               :style="{ '--fill': barRatio(module.spentCents, module.budgetCents) }"
             />
           </div>
 
-          <small class="percent">
-            已用 {{ usedPercent(module.spentCents, module.budgetCents) }}%
+          <small class="percent" :class="budgetTone(module.spentCents, module.budgetCents)">
+            <!--
+              No budget means no percentage. `spent / 0` is not a share of anything, so
+              "已用 100%" was a figure the client invented — and this app's rule is that the
+              client renders money, never computes it. The module is still `over` (money went
+              out against nothing), which the tone word says in words.
+            -->
+            <template v-if="module.budgetCents > 0">
+              已用 {{ usedPercent(module.spentCents, module.budgetCents) }}%
+            </template>
+            <template v-else>未分配预算</template>
+            <template v-if="budgetToneLabel(budgetTone(module.spentCents, module.budgetCents))">
+              · {{ budgetToneLabel(budgetTone(module.spentCents, module.budgetCents)) }}
+            </template>
           </small>
         </li>
       </ul>
@@ -286,16 +312,10 @@ const historyLoading = computed(
   cursor: pointer;
 }
 
-/* A past cycle announces itself; the same layout shows different numbers otherwise. */
+/* A past cycle announces itself; the same layout shows different numbers otherwise. The
+   colours come from `.notice` in main.css; this rule only places it. */
 .history-note {
-  padding: 0.6rem 0.85rem;
   margin: 0 0 1rem;
-  font-size: 0.85rem;
-  color: var(--fg);
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  border-left-width: 4px;
-  border-radius: 0.6rem;
 }
 
 .summary .row {
@@ -356,13 +376,7 @@ const historyLoading = computed(
 }
 
 .alert {
-  padding: 0.6rem 0.85rem;
   margin-bottom: 1rem;
-  font-size: 0.85rem;
-  color: var(--danger);
-  background: var(--surface);
-  border: 1px solid var(--danger);
-  border-radius: 0.6rem;
 }
 
 .modules {
@@ -437,6 +451,15 @@ const historyLoading = computed(
   }
 }
 
+/*
+ * Three tones, one bar. The class is the tone name from `utils/budget-tone.ts`, and the
+ * percentage line below the bar carries the same class so the word and the colour change
+ * together. Each fill is measured against the track (`--bg`) at 3:1 by `check-color.mjs`.
+ */
+.fill.warning {
+  background: var(--warning);
+}
+
 .fill.over {
   background: var(--danger);
 }
@@ -446,6 +469,14 @@ const historyLoading = computed(
   margin-top: 0.3rem;
   font-size: 0.72rem;
   color: var(--muted);
+}
+
+.percent.warning {
+  color: var(--warning);
+}
+
+.percent.over {
+  color: var(--danger);
 }
 
 .actions {

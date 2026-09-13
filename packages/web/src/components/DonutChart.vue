@@ -107,13 +107,17 @@ function percent(ratio: number): string {
       :style="{ '--pivot': `${CENTER}px` }"
     >
       <circle :cx="CENTER" :cy="CENTER" :r="RADIUS" class="track" />
+      <!--
+        `fill` is a style, not an attribute: a slice colour is usually `var(--cat-N)` so it
+        can follow the theme, and an SVG presentation attribute cannot hold a `var()` — it
+        is parsed as an attribute, not as CSS, and the shape silently paints black.
+      -->
       <path
         v-for="(arc, index) in arcs"
         :key="arc.label"
         :d="arc.path"
-        :fill="arc.color"
         class="slice"
-        :style="{ '--i': index }"
+        :style="{ '--i': index, fill: arc.color }"
       >
         <title>{{ arc.label }} {{ percent(arc.ratio) }}</title>
       </path>
@@ -169,6 +173,15 @@ svg {
 }
 
 .slice {
+  /*
+   * A hairline of the card's own surface between neighbouring slices. Two adjacent hues
+   * that a colour-vision deficiency pulls together are still two shapes when there is a
+   * gap between them, which is why the palette audit may accept a near pair here and not
+   * in a chart without one. 1.5 user units on a 120-unit box is about 2px on screen.
+   */
+  stroke: var(--surface);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
   animation: arc-in var(--dur-slow) var(--ease-out) backwards;
   animation-delay: min(var(--stagger) * var(--i, 0), calc(var(--stagger) * 6));
 }

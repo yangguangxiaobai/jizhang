@@ -243,7 +243,7 @@ function signedAmount(item: Transaction): string {
 }
 
 .income {
-  color: var(--ok, #3f9e6a);
+  color: var(--ok);
 }
 
 .filters {
@@ -394,6 +394,7 @@ li:last-child {
   padding: 0.05rem 0.35rem;
   font-size: 0.7rem;
   color: var(--accent);
+  background: var(--accent-subtle);
   border: 1px solid var(--accent);
   border-radius: 0.35rem;
 }
@@ -430,7 +431,7 @@ li:last-child {
 
 .amount.income,
 .amount.refund {
-  color: var(--ok, #3f9e6a);
+  color: var(--ok);
 }
 
 .delete {

@@ -23,6 +23,7 @@ import type { Transaction } from '../api/client.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useRecurringStore } from '../stores/recurring.js';
+import { budgetTone } from '../utils/budget-tone.js';
 import { formatDayLabel, formatMonthLabel, formatYuan } from '../utils/money.js';
 
 /** How many recent rows the dashboard shows, matching the reference dashboard. */
@@ -91,19 +92,34 @@ const budgetPercent = computed(() => {
   return Math.round((overview.totalSpentCents / overview.totalBudgetCents) * 100);
 });
 
+/** The tone of the whole-cycle bar, from the same rule the budget page applies per module. */
+const cycleTone = computed(() => {
+  const overview = budget.overview;
+  if (overview === null) return 'normal';
+  return budgetTone(overview.totalSpentCents, overview.totalBudgetCents);
+});
+
 /**
- * One sentence describing what is wrong with the cycle, or `null` when nothing is.
+ * One sentence describing what is wrong with the cycle, or `null` when nothing is, with the
+ * tone it should be shown in.
  *
  * Assembled as a single string rather than as sibling conditional fragments in the
  * template: concatenating fragments produced a dangling leading comma whenever only
  * the pool was negative, which read as a broken sentence on screen.
+ *
+ * Overspending and borrowing are the danger tier; a module that is merely close to its
+ * limit is the warning tier, and is only mentioned when nothing worse is.
  */
-const budgetAlert = computed(() => {
+const budgetAlert = computed<{ text: string; tone: 'warning' | 'danger' } | null>(() => {
   const overspent = budget.overBudgetModules.length;
+  const nearLimit = budget.nearLimitModules.length;
   const borrowed = budget.poolIsNegative;
-  if (overspent > 0 && borrowed) return `有 ${overspent} 个模块超支，已从结余池借用`;
-  if (overspent > 0) return `有 ${overspent} 个模块超支`;
-  if (borrowed) return '结余池已被透支，本周期支出超过了预算';
+  if (overspent > 0 && borrowed) {
+    return { text: `有 ${overspent} 个模块超支，已从结余池借用`, tone: 'danger' };
+  }
+  if (overspent > 0) return { text: `有 ${overspent} 个模块超支`, tone: 'danger' };
+  if (borrowed) return { text: '结余池已被透支，本周期支出超过了预算', tone: 'danger' };
+  if (nearLimit > 0) return { text: `有 ${nearLimit} 个模块接近上限`, tone: 'warning' };
   return null;
 });
 
@@ -191,14 +207,16 @@ function isRefund(item: Transaction): boolean {
         >
           <span
             class="fill"
-            :class="{ over: budgetPercent > 100 }"
+            :class="cycleTone"
             :style="{ '--fill': Math.min(1, budgetPercent / 100) }"
           />
         </div>
         <p class="hint">
           {{ formatYuan(budget.overview.totalSpentCents) }} / {{ formatYuan(budget.overview.totalBudgetCents) }} 已用
         </p>
-        <p v-if="budgetAlert !== null" class="alert">{{ budgetAlert }}</p>
+        <p v-if="budgetAlert !== null" class="alert notice" :class="`notice-${budgetAlert.tone}`">
+          {{ budgetAlert.text }}
+        </p>
       </template>
 
       <template v-else>
@@ -384,6 +402,10 @@ h2 {
   }
 }
 
+.fill.warning {
+  background: var(--warning);
+}
+
 .fill.over {
   background: var(--danger);
 }
@@ -395,10 +417,10 @@ h2 {
   color: var(--muted);
 }
 
+/* Colours from `.notice` in main.css; this only places it under the figures. */
 .alert {
-  margin: 0.4rem 0 0;
+  margin: 0.6rem 0 0;
   font-size: 0.8rem;
-  color: var(--danger);
 }
 
 .ghost {

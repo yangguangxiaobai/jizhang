@@ -13,6 +13,7 @@ import type { CategoryShareResult, MonthlyTrendPoint, PoolTrendResult } from '..
 import BarChart from '../components/BarChart.vue';
 import DonutChart from '../components/DonutChart.vue';
 import type { Slice } from '../components/DonutChart.vue';
+import { categoryCssColor } from '../utils/category-color.js';
 import { formatYuan, startOfMonth, startOfNextMonth } from '../utils/money.js';
 
 type WindowKind = 'thisMonth' | 'last30' | 'last3Months';
@@ -82,7 +83,8 @@ const positiveSlices = computed<Slice[]>(() =>
     .map((item) => ({
       label: item.categoryName,
       value: item.amountCents,
-      color: `#${(item.color & 0xffffff).toString(16).padStart(6, '0')}`,
+      // A palette token, so the slice follows the theme; a custom colour passes through.
+      color: categoryCssColor(item.color),
     })),
 );
 

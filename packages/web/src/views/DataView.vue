@@ -164,7 +164,7 @@ function clearImport(): void {
       </div>
     </template>
 
-    <p v-if="importResult !== null" class="result" role="status">
+    <p v-if="importResult !== null" class="result notice notice-ok" role="status">
       导入完成：新增 {{ importResult.inserted }} 条，跳过 {{ importResult.skipped }} 条（已存在），
       共读取 {{ importResult.total }} 条。
     </p>
@@ -269,15 +269,10 @@ input[type='file'] {
   line-height: 1.6;
 }
 
+/* A completed import is a confirmation: the `ok` notice from main.css, placed here. */
 .result {
   margin: 0.75rem 0 0;
-  padding: 0.6rem 0.85rem;
   font-size: 0.82rem;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--accent);
-  border-left-width: 4px;
-  border-radius: 0.6rem;
 }
 
 .actions {

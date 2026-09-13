@@ -9,6 +9,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { TYPE_EXPENSE, TYPE_INCOME, api } from '../api/client.js';
 import type { Account, Category, TagCount } from '../api/client.js';
+import { categoryCssColor } from '../utils/category-color.js';
 
 export const useMetaStore = defineStore('meta', () => {
   const categories = ref<Category[]>([]);
@@ -47,13 +48,11 @@ export const useMetaStore = defineStore('meta', () => {
     return accountById.value.get(id)?.name ?? id;
   }
 
-  /** CSS colour for a category; the DB stores an ARGB integer. */
+  /** CSS colour for a category; a theme-aware token when the stored colour is a palette slot. */
   function categoryColor(id: string): string {
     const color = categoryById.value.get(id)?.color;
     if (color === undefined) return 'var(--muted)';
-    // Drop the alpha byte: ARGB integer → #rrggbb.
-    const rgb = color & 0xffffff;
-    return `#${rgb.toString(16).padStart(6, '0')}`;
+    return categoryCssColor(color);
   }
 
   async function load(force = false): Promise<void> {

@@ -12,7 +12,14 @@
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#2f6f8f" />
+    <!--
+      The status bar / toolbar colour is the app's own top bar (`--surface`), one value per
+      system theme so the very first paint matches without JavaScript. `useTheme.ts` then
+      keeps them in step with an explicit preference. Both values are asserted against
+      `styles/main.css` by `scripts/check-color.mjs`.
+    -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1e2127" media="(prefers-color-scheme: dark)" />
     <meta
       name="description"
       content="信封预算法个人记账，自建服务器部署，可添加到主屏幕离线打开。"

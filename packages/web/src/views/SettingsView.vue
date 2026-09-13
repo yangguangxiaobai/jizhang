@@ -5,26 +5,21 @@
  * Changing the password invalidates every session server-side (T3 AC7), so this
  * view sends the user back to login rather than leaving them on a dead cookie.
  */
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../api/client.js';
 import {
-  clearPin,
-  lockNow,
-  MAX_PIN_LENGTH,
-  MIN_PIN_LENGTH,
-  pinLengthIsValid,
-  refreshLock,
-  setPin,
-  useLock,
-} from '../composables/useLock.js';
-import { setThemePreference, useTheme, type ThemePreference } from '../composables/useTheme.js';
+  setAccentPreset,
+  setThemePreference,
+  useTheme,
+  type AccentPreset,
+  type ThemePreference,
+} from '../composables/useTheme.js';
 import { useAuthStore } from '../stores/auth.js';
 
 const auth = useAuthStore();
 const router = useRouter();
-const { preference: themePreference } = useTheme();
-const { hasPin } = useLock();
+const { preference: themePreference, accent: accentPreset } = useTheme();
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: '跟随系统' },
@@ -32,37 +27,12 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'dark', label: '深色' },
 ];
 
-// ── app lock ─────────────────────────────────────────────────────────────────
-const pinDraft = ref('');
-const pinConfirm = ref('');
-const pinMessage = ref<string | null>(null);
-const pinError = ref<string | null>(null);
-
-const pinReady = computed(
-  () => pinLengthIsValid(pinDraft.value) && pinDraft.value === pinConfirm.value,
-);
-
-async function savePin(): Promise<void> {
-  pinError.value = null;
-  pinMessage.value = null;
-  if (!pinReady.value) {
-    pinError.value = `请输入 ${MIN_PIN_LENGTH}-${MAX_PIN_LENGTH} 位数字，且两次输入一致。`;
-    return;
-  }
-  await setPin(pinDraft.value);
-  pinDraft.value = '';
-  pinConfirm.value = '';
-  pinMessage.value = 'PIN 已设置。刷新页面后需要输入 PIN 才能查看账目。';
-}
-
-function removePin(): void {
-  pinError.value = null;
-  pinMessage.value = null;
-  if (!window.confirm('关闭应用锁？\n\n关闭后打开应用不再需要 PIN。')) return;
-  clearPin();
-  refreshLock();
-  pinMessage.value = '应用锁已关闭。';
-}
+/** The labels are what `scripts/render-color.mjs` clicks; keep them in step. */
+const ACCENT_OPTIONS: { value: AccentPreset; label: string }[] = [
+  { value: 'titanium', label: '钛蓝' },
+  { value: 'forest', label: '森林绿' },
+  { value: 'mono', label: '极简黑白' },
+];
 
 const currentPassword = ref('');
 const newPassword = ref('');
@@ -147,7 +117,7 @@ async function signOut(): Promise<void> {
   <section class="card">
     <h2>外观</h2>
     <p class="hint">默认跟随系统的深浅色设置。</p>
-    <div class="segmented">
+    <div class="segmented" role="group" aria-label="深浅色">
       <button
         v-for="option in THEME_OPTIONS"
         :key="option.value"
@@ -159,50 +129,20 @@ async function signOut(): Promise<void> {
         {{ option.label }}
       </button>
     </div>
-  </section>
 
-  <section class="card">
-    <h2>应用锁</h2>
-    <p class="hint">
-      PIN 用于在本机遮挡账目，例如把手机递给别人时。它
-      <strong>不是加密保护</strong>：数据仍由登录密码与服务端会话保护。
-    </p>
-
-    <template v-if="hasPin">
-      <div class="actions">
-        <button type="button" class="ghost" @click="lockNow">立即锁定</button>
-        <button type="button" class="ghost danger" @click="removePin">关闭应用锁</button>
-      </div>
-    </template>
-
-    <label class="field">
-      <span>{{ hasPin ? '设置新 PIN' : '设置 PIN' }}</span>
-      <input
-        v-model="pinDraft"
-        type="password"
-        inputmode="numeric"
-        autocomplete="new-password"
-        :maxlength="MAX_PIN_LENGTH"
-        :placeholder="`${MIN_PIN_LENGTH}-${MAX_PIN_LENGTH} 位数字`"
-      />
-    </label>
-    <label class="field">
-      <span>确认 PIN</span>
-      <input
-        v-model="pinConfirm"
-        type="password"
-        inputmode="numeric"
-        autocomplete="new-password"
-        :maxlength="MAX_PIN_LENGTH"
-      />
-    </label>
-
-    <button type="button" :disabled="!pinReady" @click="savePin">
-      {{ hasPin ? '更新 PIN' : '启用应用锁' }}
-    </button>
-
-    <p v-if="pinError !== null" class="error" role="alert">{{ pinError }}</p>
-    <p v-if="pinMessage !== null" class="ok" role="status">{{ pinMessage }}</p>
+    <p class="hint accent-hint">主色决定按钮、当前标签和进度条的颜色；深浅色下各有一套。</p>
+    <div class="segmented" role="group" aria-label="主色">
+      <button
+        v-for="option in ACCENT_OPTIONS"
+        :key="option.value"
+        type="button"
+        :class="{ active: accentPreset === option.value }"
+        :aria-pressed="accentPreset === option.value"
+        @click="setAccentPreset(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
   </section>
 
   <section class="card">
@@ -304,32 +244,7 @@ h2 {
   font-size: 1rem;
 }
 
-/* ── theme + app lock ─────────────────────────────────────────────────────── */
-.field {
-  display: grid;
-  gap: 0.3rem;
-  margin-bottom: 0.75rem;
-}
-
-.field > span {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-/* 16px minimum: below it, iOS Safari zooms the page on focus. */
-.field input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 0.7rem;
-  font: inherit;
-  font-size: 16px;
-  letter-spacing: 0.2em;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-}
-
+/* Theme controls remain independent of account authentication. */
 .segmented {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -353,24 +268,9 @@ h2 {
   border-color: var(--accent);
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
-}
-
-.actions button {
-  min-height: 44px;
-  font: inherit;
-  font-weight: 600;
-  border-radius: 0.55rem;
-  cursor: pointer;
-}
-
-.ghost.danger {
-  color: var(--danger);
-  border-color: var(--danger);
+/* A second control in the same card: spaced from the first as a new paragraph would be. */
+.accent-hint {
+  margin-top: 0.85rem;
 }
 
 /*
@@ -497,7 +397,7 @@ button:disabled {
 
 .ok {
   margin: 0;
-  color: var(--ok, #3f9e6a);
+  color: var(--ok);
   font-size: 0.85rem;
 }
 </style>

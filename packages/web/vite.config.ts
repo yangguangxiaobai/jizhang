@@ -49,9 +49,11 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',
-        // Must match --bg / --accent in src/styles/main.css.
-        background_color: '#f7f5f1',
-        theme_color: '#2f6f8f',
+        // Both are asserted against `src/styles/main.css` by `scripts/check-color.mjs`:
+        // the splash is the page background, and the toolbar is the top bar's surface (see
+        // `composables/useTheme.ts` for why the surface rather than the accent).
+        background_color: '#f6f7f9',
+        theme_color: '#ffffff',
         icons: [
           { src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/pwa-512x512.png', sizes: '512x512', type: 'image/png' },

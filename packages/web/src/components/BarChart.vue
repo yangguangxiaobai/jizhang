@@ -218,7 +218,7 @@ function shortLabel(label: string): string {
 }
 
 .bar.income {
-  fill: var(--ok, #3f9e6a);
+  fill: var(--ok);
 }
 
 .bar.expense {
@@ -257,7 +257,7 @@ function shortLabel(label: string): string {
 }
 
 .swatch.income {
-  background: var(--ok, #3f9e6a);
+  background: var(--ok);
 }
 
 .swatch.expense {

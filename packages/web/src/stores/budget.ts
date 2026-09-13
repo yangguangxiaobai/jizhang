@@ -14,6 +14,7 @@ import type {
   SalaryRecord,
   TemplateModule,
 } from '../api/client.js';
+import { budgetTone } from '../utils/budget-tone.js';
 
 export const useBudgetStore = defineStore('budget', () => {
   const overview = ref<BudgetOverview | null>(null);
@@ -56,6 +57,16 @@ export const useBudgetStore = defineStore('budget', () => {
   const overBudgetModules = computed(() =>
     (displayedOverview.value?.modules ?? []).filter(
       (module) => module.spentCents > module.budgetCents,
+    ),
+  );
+
+  /**
+   * Modules in the warning band: nearly spent but not over. Same source as the list above
+   * (the server's module views), so the two sections can never disagree about a module.
+   */
+  const nearLimitModules = computed(() =>
+    (displayedOverview.value?.modules ?? []).filter(
+      (module) => budgetTone(module.spentCents, module.budgetCents) === 'warning',
     ),
   );
 
@@ -276,6 +287,7 @@ export const useBudgetStore = defineStore('budget', () => {
     loading,
     errorMessage,
     overBudgetModules,
+    nearLimitModules,
     poolIsNegative,
     usedRatio,
     defaultTemplate,
