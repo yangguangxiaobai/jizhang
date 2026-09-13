@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Create or edit one transaction.
  *
@@ -9,6 +9,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { TYPE_EXPENSE, TYPE_INCOME, api } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
+import { useBalanceStore } from '../stores/balances.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useTransactionsStore } from '../stores/transactions.js';
 import {
@@ -21,6 +22,7 @@ import {
 const route = useRoute();
 const router = useRouter();
 const meta = useMetaStore();
+const balances = useBalanceStore();
 const list = useTransactionsStore();
 
 const id = computed(() => {
@@ -143,7 +145,7 @@ async function save(): Promise<void> {
     } else {
       await api.transactions.create(payload);
     }
-    await Promise.all([list.load(), meta.refreshTags()]);
+    await Promise.all([list.load(), meta.refreshTags(), balances.load(true)]);
     await router.push({ name: 'transactions' });
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);

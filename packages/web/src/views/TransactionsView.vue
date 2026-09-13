@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Transaction list: month switcher, filters, grouped rows, per-month subtotals.
  *
@@ -6,15 +6,18 @@
  * expense figure instead of appearing as income.
  */
 import { computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { TYPE_EXPENSE, TYPE_INCOME } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
+import { useBalanceStore } from '../stores/balances.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useTransactionsStore } from '../stores/transactions.js';
 import { formatDayLabel, formatYuan } from '../utils/money.js';
 
 const store = useTransactionsStore();
+const balances = useBalanceStore();
 const meta = useMetaStore();
+const route = useRoute();
 const router = useRouter();
 
 const monthLabel = computed(() => {
@@ -22,7 +25,19 @@ const monthLabel = computed(() => {
   return `${date.getFullYear()}年${date.getMonth() + 1}月`;
 });
 
+/** When the list is narrowed to one account, its name — otherwise `null`. */
+const accountFilterName = computed(() => {
+  const id = store.filters.accountId;
+  return id === undefined ? null : meta.accountName(id);
+});
+
 onMounted(async () => {
+  // A drill-down from 我的 › 账户 arrives as `?accountId=…`. Seeding the filter BEFORE the
+  // first load means the page never paints an unfiltered list and then jumps.
+  const requested = route.query.accountId;
+  if (typeof requested === 'string' && requested !== '') {
+    store.filters.accountId = requested;
+  }
   await Promise.all([meta.load(), store.load()]);
 });
 
@@ -48,6 +63,8 @@ async function remove(item: Transaction): Promise<void> {
   const label = item.note.trim() === '' ? '这笔账单' : `“${item.note}”`;
   if (!window.confirm(`删除${label}？`)) return;
   await store.remove(item.id);
+  // Deleting a bill takes its money out of its account.
+  await balances.load(true);
 }
 
 /** Signed amount for display: expenses negative, refunds positive (a refund is a credit). */
@@ -78,6 +95,16 @@ function signedAmount(item: Transaction): string {
       <strong>{{ store.total }}</strong>
     </div>
   </section>
+
+  <!--
+    A balance is all-time but this list is a month view, so a drill-down lands on one
+    month of that account rather than everything. Saying so is the difference between a
+    useful filter and a number the user cannot reconcile.
+  -->
+  <p v-if="accountFilterName !== null" class="account-note">
+    <span>正在按「{{ accountFilterName }}」筛选 · 仅显示{{ monthLabel }}的账单</span>
+    <button type="button" class="link" @click="clearFilters">清除筛选</button>
+  </p>
 
   <details class="filters" :open="store.hasActiveFilters">
     <summary>筛选</summary>
@@ -244,6 +271,33 @@ function signedAmount(item: Transaction): string {
 
 .income {
   color: var(--ok);
+}
+
+.account-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+}
+
+.account-note .link {
+  /* 44px minimum touch target. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.5rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 
 .filters {

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Record a salary — the action that starts a budget cycle.
  *
@@ -12,6 +12,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../api/client.js';
 import type { AllocationItem } from '../api/client.js';
+import { useBalanceStore } from '../stores/balances.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
 import {
@@ -23,6 +24,7 @@ import {
 } from '../utils/money.js';
 
 const budget = useBudgetStore();
+const balances = useBalanceStore();
 const meta = useMetaStore();
 const router = useRouter();
 
@@ -30,6 +32,8 @@ const amountText = ref('');
 const dateText = ref(toDateInputValue(Date.now()));
 const note = ref('');
 const templateId = ref('');
+/** Which account receives the money. Required by the server; preselected like a new bill. */
+const accountId = ref('');
 /** Per-category overrides, keyed by categoryId, as yuan strings. */
 const overrides = ref<Record<string, string>>({});
 const saving = ref(false);
@@ -80,6 +84,9 @@ const hasOverride = computed(() =>
 onMounted(async () => {
   await Promise.all([budget.loadAll(), meta.load()]);
   templateId.value = budget.defaultTemplate?.id ?? '';
+  // The same helper the bill editor uses, so "which account is preselected" cannot give two
+  // different answers on two screens.
+  accountId.value = meta.defaultAccountId() ?? '';
 });
 
 // A changed template or amount invalidates manual edits, which would otherwise
@@ -109,6 +116,10 @@ async function save(): Promise<void> {
     errorMessage.value = '请选择有效日期。';
     return;
   }
+  if (accountId.value === '') {
+    errorMessage.value = '请选择收款账户。';
+    return;
+  }
   if (!isBalanced.value) {
     errorMessage.value =
       differenceCents.value > 0
@@ -123,12 +134,14 @@ async function save(): Promise<void> {
       amountCents: total,
       date,
       note: note.value.trim(),
+      accountId: accountId.value,
       templateId: template.value?.id,
       // Always send the effective amounts: the preview is the contract, and the
       // server re-checks that they add up.
       allocations: effectiveAmounts.value,
     });
-    await Promise.all([budget.loadOverview(), budget.loadSalaries()]);
+    // The account's balance just changed, so the cached one on the home screen is stale.
+    await Promise.all([budget.loadOverview(), budget.loadSalaries(), balances.load(true)]);
     await router.push({ name: 'budget' });
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
@@ -157,6 +170,14 @@ async function save(): Promise<void> {
     <label class="field">
       <span>发薪日</span>
       <input v-model="dateText" type="date" required />
+    </label>
+
+    <!-- Asked before "how is it split": where the money landed is the plainer question. -->
+    <label class="field">
+      <span>收款账户</span>
+      <select v-model="accountId" required>
+        <option v-for="a in meta.accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
+      </select>
     </label>
 
     <label class="field">

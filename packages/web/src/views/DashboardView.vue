@@ -20,6 +20,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api, TYPE_EXPENSE } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
+import { useBalanceStore } from '../stores/balances.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useRecurringStore } from '../stores/recurring.js';
@@ -30,6 +31,7 @@ import { formatDayLabel, formatMonthLabel, formatYuan } from '../utils/money.js'
 const RECENT_LIMIT = 5;
 
 const budget = useBudgetStore();
+const balances = useBalanceStore();
 const meta = useMetaStore();
 const recurring = useRecurringStore();
 const router = useRouter();
@@ -71,6 +73,11 @@ onMounted(async () => {
   // this generates any due occurrences and loads the count for the reminder card. The
   // store swallows its own errors, so a failure here leaves the rest of the page intact.
   await recurring.generateAndReload();
+
+  // Balances are loaded the same defensive way, and forced: this page is one of only two
+  // that shows the total, so a stale cache would be a wrong number on the first screen the
+  // user sees. The card simply does not render if this fails — see the template.
+  await balances.load(true);
 });
 
 /** Label straight off the server's own month key, so the header cannot drift. */
@@ -158,6 +165,35 @@ function isRefund(item: Transaction): boolean {
   <p v-else-if="errorMessage !== null" class="error" role="alert">{{ errorMessage }}</p>
 
   <template v-else>
+    <!--
+      The asset card answers a different question from the summary below it: the summary is
+      this month's FLOW (earned, spent, left over) while this is the STOCK of money that
+      exists right now. They are deliberately separate blocks with separate headings, because
+      putting a total beside "结余" is how the two get read as the same number.
+
+      Rendered only once the server's figures have arrived. A failed load shows the error
+      rather than a card: printing ¥0.00 would be reporting a number that was never computed.
+    -->
+    <section v-if="balances.loaded" class="card asset">
+      <h2>总余额</h2>
+      <strong class="asset-total" :class="{ negative: balances.totalBalanceCents < 0 }">
+        {{ formatYuan(balances.totalBalanceCents) }}
+      </strong>
+
+      <ul v-if="balances.items.length > 0" class="asset-rows">
+        <li v-for="item in balances.items" :key="item.accountId">
+          <span class="asset-name">{{ item.name }}</span>
+          <span class="asset-amount" :class="{ negative: item.balanceCents < 0 }">
+            {{ formatYuan(item.balanceCents) }}
+          </span>
+        </li>
+      </ul>
+    </section>
+
+    <p v-else-if="balances.errorMessage !== null" class="error" role="alert">
+      总余额读取失败：{{ balances.errorMessage }}
+    </p>
+
     <section class="summary card">
       <h2>{{ monthLabel }}</h2>
       <div class="figures">
@@ -285,6 +321,48 @@ h2 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
+}
+
+/*
+ * The asset card. The total is the largest number in the app on purpose: it is the one
+ * figure the user came to check, and everything else on this screen is a detail of it.
+ */
+.asset-total {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1.8rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.asset-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.asset-rows li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 1.6rem;
+}
+
+.asset-name {
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-amount {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .figure {

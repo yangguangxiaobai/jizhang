@@ -32,7 +32,7 @@ console.log(`browser: ${browser.browserVersion}`);
 
 try {
   // ── the dashboard renders its own content ──────────────────────────────────
-  const markers = ['概览', '收入', '支出', '结余', '最近账单'];
+  const markers = ['概览', '收入', '支出', '结余', '最近账单', '总余额'];
   const dom = await browser.navigateAndWait('/', markers);
 
   console.log('\n[dashboard render]');
@@ -49,6 +49,49 @@ try {
   for (const label of ['首页', '账单', '预算', '记一笔', '统计', '我的']) {
     check(`the tab bar shows「${label}」`, dom.includes(label));
   }
+
+  // ── the asset card shows the server's number, not a locally computed one ───
+  //
+  // The comparison is done by round-tripping the RENDERED text back to cents rather than by
+  // formatting the expected value here: re-formatting in the test would be a second
+  // implementation of `formatYuan`, and it would happily agree with a wrong page.
+  console.log('\n[asset card]');
+  const assetCard = await browser.evaluate(`
+    (() => {
+      const total = document.querySelector('.asset-total');
+      const rows = [...document.querySelectorAll('.asset-rows li')].map((li) => ({
+        name: li.querySelector('.asset-name')?.textContent?.trim() ?? '',
+        amount: li.querySelector('.asset-amount')?.textContent?.trim() ?? '',
+      }));
+      return { total: total ? total.textContent.trim() : null, rows };
+    })()
+  `);
+  const liveBalances = await browser.evaluate(
+    `fetch('/api/v1/accounts/balances').then((r) => r.json())`,
+  );
+
+  /** `"¥6,281.32"` → cents, exactly. */
+  const toCents = (text) => Math.round(Number(String(text).replace(/[^0-9.-]/g, '')) * 100);
+
+  check('the asset card rendered a total', typeof assetCard?.total === 'string' && assetCard.total !== '', `-> ${assetCard?.total}`);
+  check(
+    'the rendered total is the server total',
+    toCents(assetCard?.total) === liveBalances?.totalBalanceCents,
+    `-> rendered ${assetCard?.total} vs server ${liveBalances?.totalBalanceCents}`,
+  );
+  check(
+    'there is one row per account',
+    assetCard?.rows?.length === liveBalances?.items?.length,
+    `-> ${assetCard?.rows?.length} rows vs ${liveBalances?.items?.length} accounts`,
+  );
+  check(
+    'every row carries its own account name and exact balance',
+    (liveBalances?.items ?? []).every((item) => {
+      const row = (assetCard?.rows ?? []).find((candidate) => candidate.name === item.name);
+      return row !== undefined && toCents(row.amount) === item.balanceCents;
+    }),
+    `-> ${JSON.stringify(assetCard?.rows)} vs ${JSON.stringify(liveBalances?.items)}`,
+  );
 
   console.log('\n--- rendered text ---');
   console.log(dom.split('\n').filter((line) => line.trim() !== '').join(' | '));
@@ -117,10 +160,12 @@ try {
     '[...document.querySelectorAll("input, button")].filter((el) => !el.disabled).length',
   );
   check('the offline view has interactive controls', offlineControls >= 3, `-> ${offlineControls}`);
-  // The load-bearing one: a stale balance must never be presented as current.
+  // The load-bearing one: a stale balance must never be presented as current. The asset
+  // card is the newest way to get that wrong, so it is named explicitly — its figures come
+  // from a second request that could resolve before the server goes away.
   check(
     'no accounting figure is rendered as if it were current',
-    !/概览/.test(offlineDom),
+    !/概览/.test(offlineDom) && !/总余额/.test(offlineDom),
     `-> ${offlineDom.replace(/\n/g, ' | ').slice(0, 160)}`,
   );
 

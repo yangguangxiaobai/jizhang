@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Salary records: what each pay cheque was allocated to, and the ability to delete
  * one (which removes its budget cycle from the overview).
@@ -7,11 +7,13 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../api/client.js';
 import type { SalaryDetail } from '../api/client.js';
+import { useBalanceStore } from '../stores/balances.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
 import { formatDayLabel, formatYuan } from '../utils/money.js';
 
 const budget = useBudgetStore();
+const balances = useBalanceStore();
 const meta = useMetaStore();
 const router = useRouter();
 
@@ -46,6 +48,8 @@ async function remove(id: string, amountCents: number): Promise<void> {
   busyId.value = id;
   try {
     await budget.deleteSalary(id);
+    // The money has left its account, so the cached balance is now wrong.
+    await balances.load(true);
   } finally {
     busyId.value = null;
   }
@@ -80,6 +84,10 @@ async function remove(id: string, amountCents: number): Promise<void> {
       </div>
 
       <p v-if="record.note" class="note">{{ record.note }}</p>
+
+      <!-- The account is on the collapsed row, not inside the detail: "which card did this
+           land on" is a fact about the record itself, not about its allocation. -->
+      <p class="account">收款账户：{{ meta.accountName(record.accountId) }}</p>
 
       <p v-if="busyId === record.id && expanded[record.id] === undefined" class="muted">
         加载中…
@@ -174,6 +182,12 @@ async function remove(id: string, amountCents: number): Promise<void> {
 .note {
   margin: 0 0 0.4rem;
   font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.account {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 

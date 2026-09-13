@@ -13,8 +13,10 @@
  */
 import { CATEGORY_PALETTE, paletteSlot } from '@jizhang/shared';
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { api } from '../api/client.js';
 import type { Account, Category, TagCount } from '../api/client.js';
+import { useBalanceStore } from '../stores/balances.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
 import { categoryCssColor } from '../utils/category-color.js';
@@ -24,6 +26,8 @@ type Tab = 'categories' | 'accounts' | 'tags';
 
 const meta = useMetaStore();
 const budget = useBudgetStore();
+const balances = useBalanceStore();
+const router = useRouter();
 
 const tab = ref<Tab>('categories');
 const busy = ref(false);
@@ -84,8 +88,24 @@ const incomeCategories = computed(() =>
 );
 
 onMounted(async () => {
-  await meta.load(true);
+  await Promise.all([meta.load(true), balances.load(true)]);
 });
+
+/** The account's balance in cents, or `null` while the balance load has not landed. */
+function accountBalanceCents(account: Account): number | null {
+  return balances.balanceOf(account.id) ?? null;
+}
+
+/** `—` rather than `¥0.00` while unknown: an unloaded figure is not a zero. */
+function accountBalanceText(account: Account): string {
+  const cents = accountBalanceCents(account);
+  return cents === null ? '—' : formatYuan(cents);
+}
+
+/** Opens the ledger filtered to one account. Reuses the existing `transactions` route. */
+function openAccountLedger(account: Account): void {
+  void router.push({ name: 'transactions', query: { accountId: account.id } });
+}
 
 function startCategoryCreate(type: number): void {
   categoryDraft.value = {
@@ -243,7 +263,7 @@ async function saveAccount(): Promise<void> {
       });
     }
     accountDraft.value = null;
-    await meta.load(true);
+    await Promise.all([meta.load(true), balances.load(true)]);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -256,14 +276,18 @@ async function deleteAccount(account: Account): Promise<void> {
   errorMessage.value = null;
   try {
     const usage = await api.accounts.usage(account.id);
-    const warning =
-      usage.transactions > 0
-        ? `\n有 ${usage.transactions} 笔账单属于该账户。`
-        : '';
-    if (!window.confirm(`删除账户「${account.name}」？${warning}`)) return;
+    const rows = usage.transactions > 0 ? `\n有 ${usage.transactions} 笔账单属于该账户。` : '';
+    // Deleting an account takes its balance out of the total (a soft-deleted account is
+    // absent from the balance sheet). Say the amount, or the drop is a surprise.
+    const cents = balances.balanceOf(account.id);
+    const leaving =
+      cents === undefined || cents === 0
+        ? ''
+        : `\n它的余额 ${formatYuan(cents)} 将从总余额中移除（历史账单保留）。`;
+    if (!window.confirm(`删除账户「${account.name}」？${rows}${leaving}`)) return;
 
     await api.accounts.remove(account.id);
-    await meta.load(true);
+    await Promise.all([meta.load(true), balances.load(true)]);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -275,7 +299,7 @@ async function moveAccount(id: string, dir: -1 | 1): Promise<void> {
   busy.value = true;
   try {
     await api.accounts.move(id, dir);
-    await meta.load(true);
+    await Promise.all([meta.load(true), balances.load(true)]);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -497,19 +521,42 @@ async function deleteTag(tag: TagCount): Promise<void> {
     <template v-else>
       <header class="group-head">
         <h2>账户</h2>
-        <button type="button" class="link" @click="startAccountCreate">新建</button>
+        <div class="group-head-actions">
+          <span v-if="balances.loaded" class="running-total">
+            总余额 {{ formatYuan(balances.totalBalanceCents) }}
+          </span>
+          <button type="button" class="link" @click="startAccountCreate">新建</button>
+        </div>
       </header>
 
       <ul>
         <li v-for="(account, index) in meta.accounts" :key="account.id">
-          <span class="name">
-            {{ account.name }}
-            <span class="muted small">{{ ACCOUNT_TYPES[account.type] }}</span>
-            <span v-if="account.isBuiltin" class="badge">内建</span>
-            <span class="muted small">
-              初始 {{ formatYuan(account.initialBalanceCents) }}
+          <!--
+            The whole block is the tap target: it opens the ledger filtered to this account.
+            A balance the user cannot follow to its bills is only half an answer, and this
+            reuses the existing filtered list rather than adding a second one.
+          -->
+          <button
+            type="button"
+            class="name account-link"
+            :aria-label="`查看「${account.name}」的账单`"
+            @click="openAccountLedger(account)"
+          >
+            <span class="account-label">
+              <span>{{ account.name }}</span>
+              <span class="muted small">{{ ACCOUNT_TYPES[account.type] }}</span>
+              <span v-if="account.isBuiltin" class="badge">内建</span>
+              <span class="muted small">
+                初始 {{ formatYuan(account.initialBalanceCents) }}
+              </span>
             </span>
-          </span>
+            <span
+              class="account-balance"
+              :class="{ negative: (accountBalanceCents(account) ?? 0) < 0 }"
+            >
+              {{ accountBalanceText(account) }}
+            </span>
+          </button>
           <span class="row-actions">
             <button
               type="button"
@@ -786,6 +833,54 @@ li:last-child {
   gap: 0.35rem;
   min-width: 0;
   font-size: 0.92rem;
+}
+
+.group-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.running-total {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The account row is a button, so it needs the tap minimum and the button reset that
+ * `.name` (also used by category rows, which are not interactive) does not carry.
+ */
+.account-link {
+  min-height: 44px;
+  padding: 0;
+  justify-content: space-between;
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.account-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.account-balance {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-balance.negative {
+  color: var(--danger);
 }
 
 .small {

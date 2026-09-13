@@ -14,11 +14,13 @@ import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { TYPE_EXPENSE } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
+import { useBalanceStore } from '../stores/balances.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useTrashStore } from '../stores/trash.js';
 import { formatDayLabel, formatYuan } from '../utils/money.js';
 
 const trash = useTrashStore();
+const balances = useBalanceStore();
 const meta = useMetaStore();
 const router = useRouter();
 
@@ -55,6 +57,8 @@ const totalLabel = computed(() => `${trash.total} 笔已删除账单`);
 
 async function restoreOne(item: Transaction): Promise<void> {
   await trash.restoreOne(item.id);
+  // Restoring puts the money back into its account, so the cached balance is stale.
+  await balances.load(true);
 }
 
 async function purgeOne(item: Transaction): Promise<void> {
@@ -62,11 +66,13 @@ async function purgeOne(item: Transaction): Promise<void> {
   // The wording has to carry the consequence: this is the one irreversible action here.
   if (!window.confirm(`彻底删除「${label}」？\n\n该账单将被永久删除，此操作不可撤销。`)) return;
   await trash.purgeOne(item.id);
+  await balances.load(true);
 }
 
 async function restoreAll(): Promise<void> {
   if (!window.confirm(`恢复全部 ${trash.total} 笔账单？\n\n它们会回到账单列表并重新计入统计。`)) return;
   await trash.restoreAll();
+  await balances.load(true);
 }
 
 async function purgeAll(): Promise<void> {
@@ -78,6 +84,7 @@ async function purgeAll(): Promise<void> {
     return;
   }
   await trash.purgeAll();
+  await balances.load(true);
 }
 </script>
 

@@ -350,6 +350,8 @@ export interface SalaryRecord {
   readonly amountCents: number;
   readonly date: number;
   readonly note: string;
+  /** The account that received the money. Always present — the server requires it. */
+  readonly accountId: string;
   readonly updatedAt: number;
 }
 
@@ -382,8 +384,36 @@ export interface SalaryInput {
   readonly amountCents: number;
   readonly date: number;
   readonly note?: string;
+  /** Required by the server: a salary has to land in an account. */
+  readonly accountId: string;
   readonly templateId?: string;
   readonly allocations?: AllocationItem[];
+}
+
+/**
+ * One account's balance, as computed by the server.
+ *
+ * Every field is a server figure — the client formats them and never adds them up. In
+ * particular `balanceCents` is NOT `initialBalanceCents - expenseCents + …` computed here:
+ * that would be a second implementation of the refund rule.
+ */
+export interface AccountBalance {
+  readonly accountId: string;
+  readonly name: string;
+  readonly type: number;
+  readonly initialBalanceCents: number;
+  /** Income transactions in. Refunds are excluded — they are not income. */
+  readonly incomeCents: number;
+  /** NET expense out, refunds already subtracted; may be negative. */
+  readonly expenseCents: number;
+  /** Salaries received into this account. */
+  readonly salaryCents: number;
+  readonly balanceCents: number;
+}
+
+export interface AccountBalancesResult {
+  readonly items: AccountBalance[];
+  readonly totalBalanceCents: number;
 }
 
 export interface CategoryShareItem {
@@ -500,6 +530,11 @@ export const api = {
   },
   accounts: {
     list: () => request<{ items: Account[] }>('/api/v1/accounts'),
+    /**
+     * Balances are a separate call from the account list on purpose: the list is master
+     * data (cached for the session) while a balance changes with every bill.
+     */
+    balances: () => request<AccountBalancesResult>('/api/v1/accounts/balances'),
     create: (input: {
       name: string;
       type: number;

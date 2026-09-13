@@ -66,6 +66,11 @@ async function salary(page, amount, date = dateInput(), template = '手机工资
   await page.goto('/salary/new');
   await page.getByLabel('工资金额（元）').fill(amount);
   await page.getByLabel('发薪日').fill(date);
+  // The receiving account is required by the server, so the form must offer it and
+  // preselect one — otherwise saving would 400 and the flow below would break.
+  const accountField = page.getByLabel('收款账户');
+  await expect(accountField).toBeVisible();
+  await expect(accountField).not.toHaveValue('');
   if (template !== undefined) await page.getByLabel('分配模板').selectOption({ label: template });
   await expect(page.locator('.balance')).toContainText('与工资一致');
   await assertPhoneLayout(page);
@@ -211,6 +216,17 @@ test('server outage is visible, draft survives, and retry saves exactly once', a
 test('phone routes, installation hint and light/dark layouts remain usable', async ({ page, ledger }, testInfo) => {
   await login(page, ledger);
   await expect(page.getByRole('complementary').filter({ hasText: '添加到主屏幕' })).toBeVisible();
+
+  // The home screen's asset card: the total is the first figure a user looks for, and it
+  // must be the server's own number rather than a blank or a fabricated zero.
+  await page.goto('/');
+  const assetTotal = page.locator('.asset-total');
+  await expect(assetTotal).toBeVisible();
+  const liveTotal = await json(page, '/accounts/balances');
+  const cents = Math.round(Number((await assetTotal.innerText()).replace(/[^0-9.-]/g, '')) * 100);
+  expect(cents).toBe(liveTotal.totalBalanceCents);
+  await expect(page.locator('.asset-rows > li')).toHaveCount(liveTotal.items.length);
+
   for (const width of [375, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
     for (const route of ['/', '/transactions', '/budget', '/salary/new', '/templates', '/stats', '/manage', '/data', '/settings']) {
