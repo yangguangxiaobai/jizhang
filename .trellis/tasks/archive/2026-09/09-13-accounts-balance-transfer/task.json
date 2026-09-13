@@ -1,0 +1,29 @@
+{
+  "id": "accounts-balance-transfer",
+  "name": "accounts-balance-transfer",
+  "title": "账户余额与转账",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "quiz",
+  "assignee": "quiz",
+  "createdAt": "2026-09-13",
+  "completedAt": "2026-09-13",
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-13-account-balance",
+    "09-13-account-transfer"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
