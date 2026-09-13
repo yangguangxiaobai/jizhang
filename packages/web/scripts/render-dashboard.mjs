@@ -59,11 +59,16 @@ try {
   const assetCard = await browser.evaluate(`
     (() => {
       const total = document.querySelector('.asset-total');
+      const split = document.querySelector('.asset-split');
       const rows = [...document.querySelectorAll('.asset-rows li')].map((li) => ({
         name: li.querySelector('.asset-name')?.textContent?.trim() ?? '',
         amount: li.querySelector('.asset-amount')?.textContent?.trim() ?? '',
       }));
-      return { total: total ? total.textContent.trim() : null, rows };
+      return {
+        total: total ? total.textContent.trim() : null,
+        split: split ? split.textContent.replace(/\\s+/g, ' ').trim() : null,
+        rows,
+      };
     })()
   `);
   const liveBalances = await browser.evaluate(
@@ -75,7 +80,7 @@ try {
 
   check('the asset card rendered a total', typeof assetCard?.total === 'string' && assetCard.total !== '', `-> ${assetCard?.total}`);
   check(
-    'the rendered total is the server total',
+    'the rendered total is the server total (the NET)',
     toCents(assetCard?.total) === liveBalances?.totalBalanceCents,
     `-> rendered ${assetCard?.total} vs server ${liveBalances?.totalBalanceCents}`,
   );
@@ -92,6 +97,32 @@ try {
     }),
     `-> ${JSON.stringify(assetCard?.rows)} vs ${JSON.stringify(liveBalances?.items)}`,
   );
+
+  // ── the assets/liabilities split appears exactly when it is needed ────────
+  //
+  // Self-adapting rather than forced: whichever state the ledger happens to be in, the line's
+  // presence must match the server's own answer, and when it is there its three numbers must be
+  // the server's three numbers. A user with no debt must not be given two ¥0.00 to read.
+  console.log('\n[assets vs liabilities]');
+  const owes = (liveBalances?.totalLiabilitiesCents ?? 0) > 0;
+  check(
+    owes
+      ? 'the breakdown is shown when something is owed'
+      : 'the breakdown is NOT shown when nothing is owed',
+    owes ? typeof assetCard?.split === 'string' : assetCard?.split === null,
+    `-> owes ${owes}, split ${JSON.stringify(assetCard?.split)}`,
+  );
+  if (owes) {
+    const parts = String(assetCard?.split ?? '').match(/[-¥0-9.,]+/g) ?? [];
+    check(
+      'the breakdown carries assets, liabilities and the net',
+      parts.length === 3 &&
+        toCents(parts[0]) === liveBalances.totalAssetsCents &&
+        toCents(parts[1]) === liveBalances.totalLiabilitiesCents &&
+        toCents(parts[2]) === liveBalances.totalBalanceCents,
+      `-> rendered ${JSON.stringify(parts)} vs server ${liveBalances.totalAssetsCents}/${liveBalances.totalLiabilitiesCents}/${liveBalances.totalBalanceCents}`,
+    );
+  }
 
   console.log('\n--- rendered text ---');
   console.log(dom.split('\n').filter((line) => line.trim() !== '').join(' | '));

@@ -180,6 +180,21 @@ function isRefund(item: Transaction): boolean {
         {{ formatYuan(balances.totalBalanceCents) }}
       </strong>
 
+      <!--
+        The breakdown appears only when something is owed. A credit card, 抖音月付 or 花呗 is
+        just an account with a negative balance, so the headline number already nets it out —
+        which means buying a coffee on 抖音月付 makes 总余额 drop, and that reads as a bug
+        unless the screen says why. Users with no debts see exactly what they saw before: no
+        extra line, and no pair of ¥0.00 to scroll past.
+      -->
+      <p v-if="balances.hasLiabilities" class="asset-split">
+        <span>资产 {{ formatYuan(balances.totalAssetsCents) }}</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span>欠款 {{ formatYuan(balances.totalLiabilitiesCents) }}</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span>净 {{ formatYuan(balances.totalBalanceCents) }}</span>
+      </p>
+
       <ul v-if="balances.items.length > 0" class="asset-rows">
         <li v-for="item in balances.items" :key="item.accountId">
           <span class="asset-name">{{ item.name }}</span>
@@ -349,6 +364,26 @@ h2 {
   padding: 0;
   display: grid;
   gap: 0.3rem;
+}
+
+/*
+ * The assets/liabilities split. Wraps rather than shrinking, because at 375px the three
+ * figures plus their labels do not fit on one line and a squeezed number is worse than a
+ * second line.
+ */
+.asset-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.asset-split .sep {
+  color: var(--border);
 }
 
 .asset-rows li {

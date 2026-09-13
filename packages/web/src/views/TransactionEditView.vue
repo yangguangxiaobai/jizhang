@@ -217,6 +217,9 @@ async function remove(): Promise<void> {
       <select v-model="accountId" required>
         <option v-for="a in meta.accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
       </select>
+      <small v-if="isRefund">
+        选这笔钱<strong>实际进到</strong>的账户，可以和当初付款的账户不同。
+      </small>
     </label>
 
     <label class="field">
@@ -264,7 +267,7 @@ async function remove(): Promise<void> {
 
     <label v-if="type === TYPE_EXPENSE" class="field checkbox">
       <input v-model="isRefund" type="checkbox" />
-      <span>这是退款（从净支出中扣减，不计入收入）</span>
+      <span>这是退款 / 别人还我钱（从净支出中扣减，不计入收入）</span>
     </label>
 
     <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>

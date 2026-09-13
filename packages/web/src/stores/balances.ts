@@ -21,9 +21,16 @@ import type { AccountBalance } from '../api/client.js';
 export const useBalanceStore = defineStore('balances', () => {
   const items = ref<AccountBalance[]>([]);
   const totalBalanceCents = ref(0);
+  /** Money on hand. Equals `totalBalanceCents` when nothing is owed. */
+  const totalAssetsCents = ref(0);
+  /** Money owed, as a positive magnitude. */
+  const totalLiabilitiesCents = ref(0);
   const loaded = ref(false);
   const loading = ref(false);
   const errorMessage = ref<string | null>(null);
+
+  /** True when at least one account is in the red, i.e. the split is worth showing. */
+  const hasLiabilities = computed(() => totalLiabilitiesCents.value > 0);
 
   /** `accountId` → balance, for the management screen's rows. */
   const balanceById = computed(() => {
@@ -50,6 +57,8 @@ export const useBalanceStore = defineStore('balances', () => {
       const result = await api.accounts.balances();
       items.value = result.items;
       totalBalanceCents.value = result.totalBalanceCents;
+      totalAssetsCents.value = result.totalAssetsCents;
+      totalLiabilitiesCents.value = result.totalLiabilitiesCents;
       loaded.value = true;
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : String(error);
@@ -61,6 +70,9 @@ export const useBalanceStore = defineStore('balances', () => {
   return {
     items,
     totalBalanceCents,
+    totalAssetsCents,
+    totalLiabilitiesCents,
+    hasLiabilities,
     loaded,
     loading,
     errorMessage,

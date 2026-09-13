@@ -448,7 +448,12 @@ export interface TransferListResult {
 
 export interface AccountBalancesResult {
   readonly items: AccountBalance[];
+  /** The net: what you have minus what you owe. May be negative. */
   readonly totalBalanceCents: number;
+  /** Money on hand: the sum of the positive balances. */
+  readonly totalAssetsCents: number;
+  /** Money owed, as a positive magnitude — so a screen never renders "欠款 −¥1,234". */
+  readonly totalLiabilitiesCents: number;
 }
 
 export interface CategoryShareItem {
