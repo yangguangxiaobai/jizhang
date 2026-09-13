@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeAccountBalances,
+  computeBalanceSheet,
   ledgerFlowCents,
   totalBalanceCents,
   transferFlowCents,
@@ -225,6 +226,73 @@ describe('totalBalanceCents', () => {
 
   it('空列表是 0', () => {
     expect(totalBalanceCents([])).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 资产 / 欠款 / 净额
+// ---------------------------------------------------------------------------
+
+describe('computeBalanceSheet', () => {
+  const cash: AccountLike = { id: 'acc-cash', initialBalanceCents: 100_000 };
+  const empty: AccountLike = { id: 'acc-empty', initialBalanceCents: 0 };
+  const card: AccountLike = { id: 'acc-card', initialBalanceCents: -30_000 };
+
+  function sheet(accounts: readonly AccountLike[]) {
+    return computeBalanceSheet(
+      computeAccountBalances({ accounts, transactions: [], salaries: [] }),
+    );
+  }
+
+  it('正余额算资产，负余额算欠款（欠款报正数），零余额两者都不算', () => {
+    expect(sheet([cash, empty, card])).toEqual({
+      assetsCents: 100_000,
+      // 报成正的 300，界面才不用显示「欠款 −¥300」。
+      liabilitiesCents: 30_000,
+      netCents: 70_000,
+    });
+  });
+
+  it('没有欠款时净额等于资产', () => {
+    expect(sheet([cash])).toEqual({
+      assetsCents: 100_000,
+      liabilitiesCents: 0,
+      netCents: 100_000,
+    });
+  });
+
+  it('欠款超过资产时净额为负', () => {
+    expect(sheet([card])).toEqual({
+      assetsCents: 0,
+      liabilitiesCents: 30_000,
+      netCents: -30_000,
+    });
+  });
+
+  it('净额与 totalBalanceCents 完全一致（同一个实现，不是两份）', () => {
+    const flows = computeAccountBalances({
+      accounts: [cash, empty, card],
+      transactions: [
+        txn({ accountId: cash.id, type: TYPE_EXPENSE, amountCents: 10_000 }),
+        txn({ accountId: card.id, type: TYPE_EXPENSE, amountCents: 5_000 }),
+      ],
+      salaries: [{ accountId: cash.id, amountCents: 1_000 }],
+    });
+
+    const parts = computeBalanceSheet(flows);
+    expect(parts.netCents).toBe(totalBalanceCents(flows));
+    expect(parts.assetsCents - parts.liabilitiesCents).toBe(totalBalanceCents(flows));
+    // 余额被花成负数时，它就从资产那一侧挪到欠款那一侧。
+    expect(parts.liabilitiesCents).toBe(35_000);
+    expect(parts.assetsCents).toBe(91_000);
+  });
+
+  it('空列表三个数都是 0', () => {
+    expect(computeBalanceSheet([])).toEqual({
+      assetsCents: 0,
+      liabilitiesCents: 0,
+      netCents: 0,
+    });
   });
 });
 

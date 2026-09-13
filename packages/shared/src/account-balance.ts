@@ -226,11 +226,55 @@ export function computeAccountBalances(input: AccountBalanceInput): AccountFlow[
 }
 
 /**
- * The balance sheet total.
+ * The balance sheet, split into what the user *has* and what the user *owes*.
  *
- * Summed from the per-account flows rather than recomputed over the raw rows, so the figure
- * on the home screen can never disagree with the rows printed under it.
+ * A credit card, 抖音月付, 花呗, or an overdrawn current account is modelled the same way as
+ * everything else — an account with a **negative** balance — so the split needs no flag on the
+ * account and no new user decision. The sign is the whole rule:
+ *
+ * - a positive balance is money you have (`assetsCents`);
+ * - a negative balance is money you owe, reported as a **positive magnitude**
+ *   (`liabilitiesCents`) so a screen never has to render "欠款 −¥1,234";
+ * - a zero balance is neither.
+ *
+ * The sign rather than the account's `type` is deliberate: a user who files 抖音月付 under
+ * "其他" (a perfectly reasonable thing to do) still gets a correct answer, and a credit card
+ * the user has overpaid counts as an asset — which it is, the bank owes them.
+ *
+ * `netCents` is the same figure `totalBalanceCents` has always returned, so nothing that only
+ * wants "the total" has to care about this split.
+ */
+export interface BalanceSheet {
+  /** Money on hand: the sum of the positive account balances. */
+  readonly assetsCents: number;
+  /** Money owed, as a positive magnitude: the sum of the negative balances, negated. */
+  readonly liabilitiesCents: number;
+  /** `assets − liabilities`. May be negative when the debts exceed the money. */
+  readonly netCents: number;
+}
+
+/**
+ * Splits a set of account flows into assets, liabilities and the net.
+ *
+ * Summed from the per-account flows rather than recomputed over the raw rows, so the figures on
+ * the home screen can never disagree with the rows printed under them.
+ */
+export function computeBalanceSheet(items: readonly AccountFlow[]): BalanceSheet {
+  let assetsCents = 0;
+  let liabilitiesCents = 0;
+  for (const item of items) {
+    if (item.balanceCents > 0) assetsCents += item.balanceCents;
+    else if (item.balanceCents < 0) liabilitiesCents += -item.balanceCents;
+  }
+  return { assetsCents, liabilitiesCents, netCents: assetsCents - liabilitiesCents };
+}
+
+/**
+ * The balance-sheet total, i.e. the net (`assets − liabilities`).
+ *
+ * Kept as its own name because "the total" is what most callers want and what the tests assert;
+ * the arithmetic lives in `computeBalanceSheet` so there is exactly one implementation.
  */
 export function totalBalanceCents(items: readonly AccountFlow[]): number {
-  return items.reduce((sum, item) => sum + item.balanceCents, 0);
+  return computeBalanceSheet(items).netCents;
 }
