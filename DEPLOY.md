@@ -84,17 +84,21 @@ cp .env.example .env
 chmod 600 .env          # 收紧权限
 ```
 
-**`.env` 里不要放明文密码。** 只需要：
+**`.env` 里不要放明文密码。** 需要这几项：
 
 ```
 JIZHANG_USERNAME=admin
+JIZHANG_PASSWORD_HASH=placeholder-required-to-boot-but-never-read
 SESSION_TTL_DAYS=30
+LOG_LEVEL=info
 TRUST_PROXY=true
 ```
 
-> `JIZHANG_PASSWORD_HASH` 在启动校验里是必需项，但它的**值没有任何作用**（`config.passwordHash`
-> 被读进来后无人使用）。**不要手工填哈希**——真正用于登录的凭据在数据库的 `users` 表里，
-> 只有下面这条命令会写它：
+⚠️ **`JIZHANG_PASSWORD_HASH` 必须存在，否则容器起不来**——它在 `config.ts` 的 `REQUIRED`
+列表里，缺失时服务打印配置错误并退出 1，容器会一直在 `Restarting`。但它的**值不参与任何逻辑**
+（`config.passwordHash` 被读进配置后无人使用），所以随便填一个占位串即可。
+
+> 真正用于登录的凭据在数据库的 `users` 表里，只有下面这条命令会写它：
 >
 > ```bash
 > docker compose exec -it jizhang node packages/server/dist/cli.js set-password
@@ -371,32 +375,90 @@ curl -fsS http://127.0.0.1:8081/api/v1/health
 
 ## 6. 更新与回滚
 
+> 下面每条命令都是 2026-09-13 那次真实升级（账户余额 + 转账，迁移 003/004）里跑过的，
+> 不是示意。当时的结果：`migrationsApplied: [3,4]`，自动备份落在 `/data/backups/`。
+
 ### 更新
 
+**不要用 `tar -czf` 包 `docker save` 的输出。** 那会得到「tar 里套 tar」，而 `gunzip -c x.tar.gz | docker load`
+会去读外层 tar 然后失败或挂住——2026-09-13 就是这么把机器搞停过一次。`docker save` 出来的已经是一个
+OCI 归档，里面的层本身就是压缩的，**再压一遍没有收益**。
+
 ```bash
+# ── 本地：构建、打标签、导出（不压缩）
+
+docker compose build
+docker tag jizhang:latest jizhang:2026-09-13-2          # 用日期或 commit 短哈希，别用 latest
+docker save -o jizhang.tar jizhang:2026-09-13-2
+
+# 确认是 OCI 归档而不是套娃：应看到 manifest.json / blobs/sha256/…，且没有 *.tar
+tar -tf jizhang.tar | head -5
+tar -tf jizhang.tar | grep -c '\.tar$'                  # 必须是 0
+
+sha256sum jizhang.tar                                   # 记下来，传完在服务器上核对
+```
+
+```bash
+# ── 服务器：核对、加载、切标签
+
+# 0. 先看内存和 swap。swap 为 0 且 available 很低时，先清理构建缓存：
+docker builder prune -f
+free -m && df -h /
+
+# 1. 传上来之后先验完整性（这一步能省掉一整轮"到底哪里坏了"）
+sha256sum -c <<< "<本地算出的哈希>  /root/jizhang.tar"
+
+# 2. 从磁盘加载，不要用管道
+docker load -i /root/jizhang.tar
+
+# 3. 改 compose 的 tag，然后重建
 cd /opt/jizhang
-# 1. 先备份
-./scripts/backup.sh /opt/jizhang/backups 30
-
-# 2. 拉新镜像并改 compose 里的 tag
-docker compose pull          # 或 docker load < 新的 tar.gz
-# 编辑 docker-compose.yml: image: jizhang:2026-10-01
+cp -n docker-compose.yml docker-compose.yml.bak-$(date +%F)
+sed -i 's|^    image: jizhang:.*$|    image: jizhang:2026-09-13-2|' docker-compose.yml
 docker compose up -d
+```
 
-# 3. 看日志确认迁移执行了
-docker compose logs --tail=50
+**验证（不要只看容器起来了）**：
+
+```bash
+docker compose ps                                     # 必须 (healthy)
+docker compose logs jizhang --since 3m | grep 'sqlite ready'
+#   → 期望看到 "migrationsApplied":[3,4] 和 "backupPath":"/data/backups/jizhang-….db"
+#     这两个字段就是「迁移跑了」和「迁移前有备份」的证据。
+docker exec jizhang node -e "
+const D=require('/app/packages/server/node_modules/better-sqlite3');
+const db=new D(process.env.DATA_DIR+'/jizhang.db',{readonly:true});
+console.log(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version').all());
+console.log(db.prepare('SELECT name,initial_balance_cents FROM accounts WHERE deleted=0').all());
+"
+curl -s -o /dev/null -w '%{http_code}\n' https://你的域名/api/v1/health     # 200
+```
+
+**升级后要确认前端也换了**。镜像里烤的是构建期的 `packages/web/dist`，只重启容器不会有新前端。
+SPA 是按路由分包的，所以要**在所有 chunk 里**找标记，只在 `index-*.js` 里找会误判：
+
+```bash
+docker exec jizhang sh -c 'ls /app/public/assets/*.js | wc -l'
+docker exec jizhang sh -c "grep -l 'asset-total' /app/public/assets/*.js"   # 新页面所在的 chunk
 ```
 
 ### 回滚
 
+镜像级回滚，秒级，不动数据库：
+
 ```bash
-# 改回旧 tag 即可。迁移是「只增不改」的，旧代码能读新库。
-# 编辑 docker-compose.yml: image: jizhang:2026-09-11
+cd /opt/jizhang
+sed -i 's|^    image: jizhang:.*$|    image: jizhang:2026-09-13|' docker-compose.yml
 docker compose up -d
 ```
 
-数据库迁移**只增不改**：回滚代码后旧库仍可读（新列都有默认值）。迁移执行前会自动
-在 `/data/backups/` 留一份快照。
+**回滚前不要把旧镜像删掉**——保留它才有这条路。`docker load` 新镜像不会覆盖旧 tag，所以旧的会自然留着；
+`docker image prune -a` 会把它删掉，别随手跑。
+
+数据库迁移**只增不改**：003 只加了一列（带常量默认值），004 只加了一张表。旧代码不认识它们也能正常读写，
+所以代码回滚不需要降级迁移。
+
+真要恢复数据库（不是回滚代码）才需要动 `/data`，那走 §5.4 的恢复流程，并且**必须停服**。
 
 ---
 
