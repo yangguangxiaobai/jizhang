@@ -60,6 +60,8 @@ interface BalanceItem {
 interface BalancesBody {
   readonly items: BalanceItem[];
   readonly totalBalanceCents: number;
+  readonly totalAssetsCents: number;
+  readonly totalLiabilitiesCents: number;
 }
 
 async function balances(): Promise<BalancesBody> {
@@ -473,5 +475,230 @@ describe('余额与既有口径一致', () => {
     const first = await balances();
     const second = await balances();
     expect(second).toEqual(first);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 两个真实场景：信用账户还款，以及群收款/垫付
+// ---------------------------------------------------------------------------
+
+/**
+ * 信用卡/抖音月付这类**信用账户**：额度是负的资产。
+ *
+ * 这套用例存在的意义是把「还款不是支出」变成可执行的事实。如果还款被记成一笔支出，消费会被
+ * 重复计一次（买的时候一次、还的时候又一次），而这是这类记账里最容易犯、也最难自己发现的错。
+ */
+describe('信用账户与还款', () => {
+  it('买的时候按分类记支出，欠款就是账户余额的负数', async () => {
+    const credit = await createAccount('抖音月付', -50_000);
+
+    const before = await monthlyTrend();
+    await addTransaction({
+      type: 0,
+      amountCents: 10_000,
+      categoryId: FOOD,
+      date: dayIn(0, 5),
+      accountId: credit,
+    });
+    const after = await monthlyTrend();
+
+    // 支出在**买的那一刻**就进了分类与预算，而不是等到还款。
+    expect(after.netExpenseCents).toBe(before.netExpenseCents + 10_000);
+    // 欠款 = 账户余额的负数：原本欠 500，现在欠 600。
+    expect(balanceOf(await balances(), credit).balanceCents).toBe(-60_000);
+  });
+
+  it('还款是转账：欠款归零，但不会再多出一笔支出', async () => {
+    const credit = await createAccount('抖音月付', -50_000);
+    await addTransaction({
+      type: 0,
+      amountCents: 10_000,
+      categoryId: FOOD,
+      date: dayIn(0, 5),
+      accountId: credit,
+    });
+
+    const spendBeforeRepayment = await monthlyTrend();
+
+    // 从储蓄账户还掉全部 600 的欠款。
+    const repayment = await app.inject({
+      method: 'POST',
+      url: '/api/v1/transfers',
+      headers: authed(),
+      payload: {
+        fromAccountId: DEFAULT_ACCOUNT,
+        toAccountId: credit,
+        amountCents: 60_000,
+        date: dayIn(0, 6),
+        note: '还抖音月付',
+      },
+    });
+    expect(repayment.statusCode, repayment.body).toBe(201);
+
+    const body = await balances();
+    // 信用账户归零，储蓄账户少了 600。
+    expect(balanceOf(body, credit).balanceCents).toBe(0);
+    expect(balanceOf(body, DEFAULT_ACCOUNT).balanceCents).toBe(-60_000);
+
+    // 关键：还款**没有**产生新的支出。总支出仍然只是那 100。
+    const spendAfterRepayment = await monthlyTrend();
+    expect(spendAfterRepayment.netExpenseCents).toBe(spendBeforeRepayment.netExpenseCents);
+    expect(spendAfterRepayment.netExpenseCents).toBe(10_000);
+  });
+
+  /**
+   * 首页那张卡要回答三件事：我有多少、我欠多少、净下来多少。欠款报**正数**，界面才不用显示
+   * 「欠款 −¥1,234」。
+   */
+  it('总额拆成资产与欠款，欠款报正数（首页卡片用这三项）', async () => {
+    const bank = await createAccount('上海银行', 564_285);
+    const credit = await createAccount('抖音月付', -50_000);
+
+    const body = await balances();
+    expect(body.totalAssetsCents).toBe(564_285);
+    expect(body.totalLiabilitiesCents).toBe(50_000);
+    expect(body.totalBalanceCents).toBe(564_285 - 50_000);
+    // 净额必须等于两个部分之差——同一次计算里出来的，不能各算各的。
+    expect(body.totalAssetsCents - body.totalLiabilitiesCents).toBe(body.totalBalanceCents);
+    // 而这两项也正好是按账户余额的正负分出来的。
+    expect(body.items.find((item) => item.accountId === bank)?.balanceCents).toBe(564_285);
+    expect(body.items.find((item) => item.accountId === credit)?.balanceCents).toBe(-50_000);
+  });
+
+  it('没有欠款时资产等于净额、欠款为 0', async () => {
+    await createAccount('上海银行', 100_000);
+    const body = await balances();
+
+    expect(body.totalLiabilitiesCents).toBe(0);
+    expect(body.totalAssetsCents).toBe(body.totalBalanceCents);
+    expect(body.totalAssetsCents).toBe(100_000);
+    // 余额恰好为 0 的账户（seeded 默认账户）既不算资产也不算欠款。
+    expect(body.items).toHaveLength(2);
+  });
+
+  it('欠款超过资产时净额为负，但两项各自仍是正数', async () => {
+    await createAccount('上海银行', 10_000);
+    await createAccount('信用卡', -60_000);
+    const body = await balances();
+
+    expect(body.totalAssetsCents).toBe(10_000);
+    expect(body.totalLiabilitiesCents).toBe(60_000);
+    expect(body.totalBalanceCents).toBe(-50_000);
+  });
+
+  it('两个信用账户各自独立还款（抖音和信用卡分开还）', async () => {
+    const douyin = await createAccount('抖音月付', -30_000);
+    const card = await createAccount('信用卡', -20_000);
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/transfers',
+      headers: authed(),
+      payload: {
+        fromAccountId: DEFAULT_ACCOUNT,
+        toAccountId: douyin,
+        amountCents: 30_000,
+        date: dayIn(0, 6),
+        note: '还抖音',
+      },
+    });
+    // 只还了抖音，信用卡的欠款原样保留。
+    const mid = await balances();
+    expect(balanceOf(mid, douyin).balanceCents).toBe(0);
+    expect(balanceOf(mid, card).balanceCents).toBe(-20_000);
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/transfers',
+      headers: authed(),
+      payload: {
+        fromAccountId: DEFAULT_ACCOUNT,
+        toAccountId: card,
+        amountCents: 20_000,
+        date: dayIn(0, 7),
+        note: '还信用卡',
+      },
+    });
+    const end = await balances();
+    expect(balanceOf(end, card).balanceCents).toBe(0);
+    // 全程只有两笔还款（转账），没有任何收入或支出，所以总额就是两张卡的**初始欠款之和**：
+    // −300 + −200。写成这个算式而不是一个算好的字面量——本文件里我已经因为手算期望值错过一次。
+    expect(end.totalBalanceCents).toBe(-30_000 + -20_000);
+    expect(balanceOf(end, DEFAULT_ACCOUNT).balanceCents).toBe(-30_000 - 20_000);
+  });
+});
+
+/**
+ * 群收款 / 垫付：你先把钱付了，之后别人把各自那份还给你。
+ *
+ * 机制上就是**退款**——一笔负的支出，永远不是收入。这条用例额外钉住一件不那么显然的事：
+ * **钱回到哪个账户与原来从哪个账户付的可以不同**。你把 18.70 从微信付了，朋友用支付宝转你 15，
+ * 那么这一行的账户要选**支付宝**，三个数字才会同时对。
+ */
+describe('群收款/垫付', () => {
+  it('别人还你钱：净支出降到自己那份，且不算收入', async () => {
+    const alipay = await createAccount('支付宝', 0);
+
+    // 你先垫付 18.70，从默认账户出。
+    await addTransaction({
+      type: 0,
+      amountCents: 1_870,
+      categoryId: FOOD,
+      date: dayIn(0, 5),
+      note: '帮同事买午饭',
+    });
+    // 朋友把 15.00 还到**支付宝**（未必是你付款的那个账户）。
+    await addTransaction({
+      type: 0,
+      amountCents: 1_500,
+      categoryId: FOOD,
+      date: dayIn(0, 6),
+      note: '群收款',
+      isRefund: true,
+      accountId: alipay,
+    });
+
+    const trend = await monthlyTrend();
+    // 你自己的那份 = 18.70 − 15.00 = 3.70，分类与预算按这个数算。
+    expect(trend.netExpenseCents).toBe(370);
+    // 别人还的钱**不是收入**——这一条与上一条来自同一个函数，必须同时成立。
+    expect(trend.incomeCents).toBe(0);
+
+    const body = await balances();
+    // 付钱的账户确实少了 18.70（对它来说钱真的出去了）。
+    expect(balanceOf(body, DEFAULT_ACCOUNT).balanceCents).toBe(-1_870);
+    // 收钱的账户确实多了 15.00。
+    expect(balanceOf(body, alipay).balanceCents).toBe(1_500);
+    // 净资产减少的是你自己的那份。
+    expect(body.totalBalanceCents).toBe(-370);
+  });
+
+  it('只收回一部分也成立（部分群收款）', async () => {
+    await addTransaction({
+      type: 0,
+      amountCents: 10_000,
+      categoryId: FOOD,
+      date: dayIn(0, 5),
+      note: '垫付聚餐',
+    });
+    await addTransaction({
+      type: 0,
+      amountCents: 2_500,
+      categoryId: FOOD,
+      date: dayIn(0, 6),
+      note: '收回一份',
+      isRefund: true,
+    });
+    await addTransaction({
+      type: 0,
+      amountCents: 2_500,
+      categoryId: FOOD,
+      date: dayIn(0, 7),
+      note: '又收回一份',
+      isRefund: true,
+    });
+
+    expect((await monthlyTrend()).netExpenseCents).toBe(5_000);
+    expect((await monthlyTrend()).incomeCents).toBe(0);
   });
 });

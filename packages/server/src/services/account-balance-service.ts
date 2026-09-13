@@ -17,7 +17,7 @@
  */
 import {
   computeAccountBalances,
-  totalBalanceCents,
+  computeBalanceSheet,
   type AccountFlow,
   type AccountFlowTransaction,
   type SalaryReceipt,
@@ -43,7 +43,12 @@ export interface AccountBalanceDto {
 
 export interface AccountBalancesResult {
   readonly items: AccountBalanceDto[];
+  /** The net: `totalAssetsCents − totalLiabilitiesCents`. May be negative. */
   readonly totalBalanceCents: number;
+  /** Money on hand: the sum of the positive balances. */
+  readonly totalAssetsCents: number;
+  /** Money owed, as a positive magnitude: the sum of the negative balances, negated. */
+  readonly totalLiabilitiesCents: number;
 }
 
 interface AccountRow {
@@ -165,6 +170,14 @@ export class AccountBalanceService {
       return { ...flow, name: row.name, type: row.type };
     });
 
-    return { items, totalBalanceCents: totalBalanceCents(flows) };
+    // One call produces all three figures, so the net and its two parts cannot drift apart.
+    const sheet = computeBalanceSheet(flows);
+
+    return {
+      items,
+      totalBalanceCents: sheet.netCents,
+      totalAssetsCents: sheet.assetsCents,
+      totalLiabilitiesCents: sheet.liabilitiesCents,
+    };
   }
 }
