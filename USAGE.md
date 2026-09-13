@@ -23,7 +23,7 @@
 用部署时设置的**用户名**和**密码**登录。密码忘了自己改不了,需要部署的人在服务器上执行:
 
 ```bash
-docker compose exec jizhang node packages/server/dist/cli.js set-password
+docker compose exec -it jizhang node packages/server/dist/cli.js set-password
 ```
 
 登录状态默认保持 30 天,不用每次输密码。在「我的 → 账号」里可以退出登录;在「我的 → 修改密码」

@@ -117,7 +117,7 @@ curl -fsS http://127.0.0.1:8081/api/v1/health
 浏览器打开 <http://127.0.0.1:8081/> 应看到登录页。首次登录前需要设置密码:
 
 ```bash
-docker compose exec jizhang node packages/server/dist/cli.js set-password
+docker compose exec -it jizhang node packages/server/dist/cli.js set-password
 ```
 
 ```bash

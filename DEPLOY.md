@@ -92,15 +92,18 @@ SESSION_TTL_DAYS=30
 TRUST_PROXY=true
 ```
 
-> `JIZHANG_PASSWORD_HASH` 在启动校验里是必需项，但**不要手工填哈希**。用下面的
-> 一次性命令设置密码，它会写入数据库并清空所有旧会话：
+> `JIZHANG_PASSWORD_HASH` 在启动校验里是必需项，但它的**值没有任何作用**（`config.passwordHash`
+> 被读进来后无人使用）。**不要手工填哈希**——真正用于登录的凭据在数据库的 `users` 表里，
+> 只有下面这条命令会写它：
 >
 > ```bash
-> docker compose run --rm -it jizhang node packages/server/cli.js set-password
+> docker compose exec -it jizhang node packages/server/dist/cli.js set-password
 > ```
 >
-> 注意：这条命令需要交互式终端（它会关闭回显读密码）。在 `docker compose run`
-> 里加 `-it`。
+> 注意两点，都会直接导致「密码设了但登不进去」：
+> 1. **必须带 `-it`**。它关掉回显读密码，没有 TTY 就报错退出；`docker compose exec` 不加 `-t`
+>    同样不行。
+> 2. **路径是 `packages/server/dist/cli.js`**（镜像里只有编译产物，没有 `src/`）。
 
 启动：
 
@@ -197,7 +200,76 @@ Caddy 会自动申请证书，并自动下发 `X-Forwarded-*`，所以不用手�
 caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 ```
 
-### 4.4 改完立刻做的事
+### 4.4 如果反代跑在**容器里**（先分清你属于哪种）
+
+上面的 `reverse_proxy 127.0.0.1:8081` 只在 **Caddy 直接跑在宿主机上**时成立。如果 Caddy 是个
+容器，**它够不到宿主机的 `127.0.0.1:8081`**：容器里的 `host.docker.internal` 解析到的是 docker
+网桥地址（如 `172.17.0.1`），那个地址到达的是宿主的 `docker0` 接口，**不是宿主回环**。这正是
+很多「端口明明通了、反代就是 502」的根因。
+
+先确认自己属于哪种，以及 jizhang 该用哪个上游：
+
+```bash
+docker ps --filter name=caddy --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
+docker network ls
+docker inspect caddy --format '{{json .NetworkSettings.Networks}}' | tr ',' '\n'
+docker inspect caddy --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+```
+
+三种可行接法，**按推荐度排序**：
+
+**① 让 jizhang 加入 Caddy 所在的网络（推荐，端口完全不暴露）**
+
+在 jizhang 的 `docker-compose.yml` 里把发布端口去掉，改成加入那个外部网络：
+
+```yaml
+services:
+  jizhang:
+    # 不再写 ports: —— 没有宿主机端口，也就没有公网暴露面
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: <上一步查到的 caddy 所在网络名>
+```
+
+Caddyfile 里写**容器名**，不用 `host.docker.internal`：
+
+```
+jz.example.com {
+    reverse_proxy jizhang:8081
+}
+```
+
+> 前提：Caddy 与 jizhang 在同一个 network 上。若 Caddy 用的是它自己 compose 默认创建的网络，
+> 上面的 `name:` 就是那个（通常是 `<目录名>_default`）。
+
+**② 把 Caddy 接进 jizhang 的网络（不改动现有 compose）**
+
+如果不想动 jizhang 的 compose，也可以反过来把**正在运行**的 Caddy 挂到 jizhang 网络上——
+`docker network connect` 是热操作，不需要重启 Caddy：
+
+```bash
+docker network connect <jizhang 的网络名> caddy
+```
+
+**③ 绑 0.0.0.0（能用，但不推荐）**
+
+把 jizhang 的端口从 `127.0.0.1:8081:8081` 改成 `8081:8081`，Caddy 用
+`reverse_proxy host.docker.internal:8081`。代价是**端口直接暴露在公网**上，绕过 TLS——能不用
+就不用。
+
+不论哪种，改完都要：
+
+```bash
+# 在容器里校验并 reload（路径用前面 .Mounts 查到的那条）
+docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+docker exec caddy caddy reload   --config /etc/caddy/Caddyfile
+```
+
+### 4.5 改完立刻做的事
 
 ```bash
 # 1. 本应用能打开
@@ -356,7 +428,7 @@ docker compose up -d
 | 容器起不来，日志说配置错误 | 缺少 `JIZHANG_USERNAME` 或 `JIZHANG_PASSWORD_HASH`。启动校验会**一次列出所有缺失项**，按提示补 `.env` |
 | 502 Bad Gateway | 容器没在跑，或端口没对上。`docker compose ps`、`curl 127.0.0.1:8081/api/v1/health` |
 | **登录成功但立刻跳回登录页** | 反代没下发 `X-Forwarded-Proto`，Fastify 认为是 http，于是不下发 `Secure` Cookie。补上 `proxy_set_header X-Forwarded-Proto $scheme;` |
-| 登录一直 401 | 账户还没设置：`docker compose run --rm -it jizhang node packages/server/cli.js set-password` |
+| 登录一直 401 | 账户还没设置：`docker compose exec -it jizhang node packages/server/dist/cli.js set-password`。用 `docker compose logs jizhang \| grep 'login rejected'` 看 `reason`：`no-user` = 还没建账户，`wrong-password` = 密码不对 |
 | 「需要联网才能记账」但网络正常 | 反代超时或后端挂了。看 `docker compose logs` |
 | 数据好像丢了 | 大概率是在 WAL 模式下直接 `cp` 了 `.db`。用 `.backup` 重新取快照 |
 | 改了代码但页面没变 | Service Worker 缓存。刷新两次；`sw.js` 用 `autoUpdate`，第二次加载会切到新版 |
