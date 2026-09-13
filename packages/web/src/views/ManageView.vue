@@ -525,6 +525,9 @@ async function deleteTag(tag: TagCount): Promise<void> {
           <span v-if="balances.loaded" class="running-total">
             总余额 {{ formatYuan(balances.totalBalanceCents) }}
           </span>
+          <button type="button" class="link" @click="router.push({ name: 'transfers' })">
+            转账
+          </button>
           <button type="button" class="link" @click="startAccountCreate">新建</button>
         </div>
       </header>

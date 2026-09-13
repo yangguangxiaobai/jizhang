@@ -103,7 +103,21 @@ function signedAmount(item: Transaction): string {
   -->
   <p v-if="accountFilterName !== null" class="account-note">
     <span>正在按「{{ accountFilterName }}」筛选 · 仅显示{{ monthLabel }}的账单</span>
-    <button type="button" class="link" @click="clearFilters">清除筛选</button>
+    <span class="account-note-actions">
+      <!--
+        Transfers are not bills, so the ledger never lists them — but they *do* move this
+        account's balance. Without this link a user who arrived by tapping an account would
+        conclude the money appeared out of nowhere.
+      -->
+      <button
+        type="button"
+        class="link"
+        @click="router.push({ name: 'transfers', query: { accountId: store.filters.accountId } })"
+      >
+        该账户的转账
+      </button>
+      <button type="button" class="link" @click="clearFilters">清除筛选</button>
+    </span>
   </p>
 
   <details class="filters" :open="store.hasActiveFilters">
@@ -298,6 +312,13 @@ function signedAmount(item: Transaction): string {
   background: none;
   border: 0;
   cursor: pointer;
+}
+
+.account-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
 }
 
 .filters {

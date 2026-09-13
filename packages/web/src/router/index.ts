@@ -87,6 +87,26 @@ const routes = [
         meta: { title: '回收站', nav: 'settings' },
       },
       {
+        path: 'transfers',
+        name: 'transfers',
+        component: () => import('../views/TransfersView.vue'),
+        // Reached from the home asset card and from 我的 › 账户. `nav: 'dashboard'` keeps the
+        // 首页 tab lit, which is where the balance these rows move is displayed.
+        meta: { title: '转账', nav: 'dashboard' },
+      },
+      {
+        path: 'transfers/new',
+        name: 'transfer-new',
+        component: () => import('../views/TransferEditView.vue'),
+        meta: { title: '记一笔转账', nav: 'dashboard' },
+      },
+      {
+        path: 'transfers/:id/edit',
+        name: 'transfer-edit',
+        component: () => import('../views/TransferEditView.vue'),
+        meta: { title: '编辑转账', nav: 'dashboard' },
+      },
+      {
         path: 'recurring',
         name: 'recurring-rules',
         component: () => import('../views/RecurringRulesView.vue'),

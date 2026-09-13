@@ -229,7 +229,7 @@ test('phone routes, installation hint and light/dark layouts remain usable', asy
 
   for (const width of [375, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const route of ['/', '/transactions', '/budget', '/salary/new', '/templates', '/stats', '/manage', '/data', '/settings']) {
+    for (const route of ['/', '/transactions', '/budget', '/salary/new', '/templates', '/stats', '/manage', '/data', '/settings', '/trash', '/transfers', '/transfers/new']) {
       await page.goto(route);
       await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible();
       await expect(page.locator('main')).not.toContainText('加载中');

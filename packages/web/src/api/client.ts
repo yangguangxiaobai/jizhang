@@ -408,7 +408,42 @@ export interface AccountBalance {
   readonly expenseCents: number;
   /** Salaries received into this account. */
   readonly salaryCents: number;
+  /** Transfers received into this account. */
+  readonly transferInCents: number;
+  /** Transfers sent out of this account. */
+  readonly transferOutCents: number;
   readonly balanceCents: number;
+}
+
+/**
+ * A movement of money between two of the user's own accounts.
+ *
+ * Neither income nor expense: it changes two balances and nothing else. The amount is always
+ * positive and the direction is the `from`/`to` pair.
+ */
+export interface Transfer {
+  readonly id: string;
+  readonly fromAccountId: string;
+  readonly toAccountId: string;
+  readonly amountCents: number;
+  readonly date: number;
+  readonly note: string;
+  readonly updatedAt: number;
+}
+
+export interface TransferInput {
+  readonly fromAccountId: string;
+  readonly toAccountId: string;
+  readonly amountCents: number;
+  readonly date: number;
+  readonly note?: string;
+}
+
+export interface TransferListResult {
+  readonly items: Transfer[];
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
 }
 
 export interface AccountBalancesResult {
@@ -570,6 +605,17 @@ export const api = {
         `/api/v1/tags/${encodeURIComponent(name)}`,
         { method: 'DELETE' },
       ),
+  },
+  transfers: {
+    list: (query: TransactionListQuery = {}) =>
+      request<TransferListResult>('/api/v1/transfers', { query }),
+    get: (id: string) => request<Transfer>(`/api/v1/transfers/${id}`),
+    create: (input: TransferInput) =>
+      request<Transfer>('/api/v1/transfers', { method: 'POST', body: input }),
+    update: (id: string, changes: Partial<TransferInput>) =>
+      request<Transfer>(`/api/v1/transfers/${id}`, { method: 'PATCH', body: changes }),
+    remove: (id: string) =>
+      request<void>(`/api/v1/transfers/${id}`, { method: 'DELETE' }),
   },
   stats: {
     categoryShare: (from: number, to: number) =>

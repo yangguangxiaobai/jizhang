@@ -188,6 +188,14 @@ function isRefund(item: Transaction): boolean {
           </span>
         </li>
       </ul>
+
+      <!--
+        Moving money between accounts is the one action that belongs on this card rather than a
+        menu: it is the only thing a user does *to* the balances they are looking at.
+      -->
+      <button type="button" class="ghost" @click="router.push({ name: 'transfers' })">
+        转账
+      </button>
     </section>
 
     <p v-else-if="balances.errorMessage !== null" class="error" role="alert">
@@ -363,6 +371,21 @@ h2 {
   flex-shrink: 0;
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Sits under the account rows as the card's single action. */
+.asset .ghost {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.7rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  cursor: pointer;
 }
 
 .figure {
