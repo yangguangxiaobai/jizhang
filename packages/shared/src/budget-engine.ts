@@ -152,34 +152,28 @@ function mergeModules(
 }
 
 /**
- * 某分类在 `[start, end)` 内的净消费。
- * `end === null` 表示无上界。参考 `_spentBetween`,`:314-331`。
- *
- * ⚠️ 累加 `expenseContribution`（退款为负），不是 `amountCents`。
+ * One window, one accounting rule. Start with the salary snapshot, then include
+ * EVERY live expense category in that window. An expense outside the template is
+ * a zero-budget module, not money that may disappear from the overview or pool.
+ * Refunds use the same signed contribution as funded categories.
  */
-function spentBetween(
+function moduleViewsInWindow(
+  allocations: readonly BudgetAllocation[],
   transactions: readonly Transaction[],
-  categoryId: string,
   start: number,
   end: number | null,
-): number {
-  let spent = 0;
+): ModuleView[] {
+  const budgets = new Map(mergeModules(allocations).map(m => [m.categoryId, m.amountCents]));
+  const spent = new Map<string, number>();
   for (const txn of transactions) {
-    if (
-      txn.type === TYPE_EXPENSE &&
-      txn.deleted !== true &&
-      txn.categoryId === categoryId &&
-      inCycle(txn.date, start, end)
-    ) {
-      spent += expenseContribution(txn);
-    }
+    if (txn.deleted === true || txn.type !== TYPE_EXPENSE || !inCycle(txn.date, start, end)) continue;
+    if (!budgets.has(txn.categoryId)) budgets.set(txn.categoryId, 0);
+    spent.set(txn.categoryId, (spent.get(txn.categoryId) ?? 0) + expenseContribution(txn));
   }
-  return spent;
+  return [...budgets].map(([categoryId, budgetCents]) =>
+    makeModuleView(categoryId, budgetCents, spent.get(categoryId) ?? 0),
+  );
 }
-
-// ---------------------------------------------------------------------------
-// 周期区间
-// ---------------------------------------------------------------------------
 
 /**
  * 当前周期的区间 `[start, end)`；`end === null` 表示无上界。
@@ -274,17 +268,7 @@ export function computeModuleViews(
         ? null
         : nextPeriodStart(cycle.day, start);
 
-  const views: ModuleView[] = [];
-  for (const m of mergeModules(current.allocations)) {
-    const spent = spentBetween(
-      input.transactions,
-      m.categoryId,
-      start,
-      end,
-    );
-    views.push(makeModuleView(m.categoryId, m.amountCents, spent));
-  }
-  return views;
+  return moduleViewsInWindow(current.allocations, input.transactions, start, end);
 }
 
 // ---------------------------------------------------------------------------
@@ -371,14 +355,8 @@ export function computeCarryoverPool(
       cycle.kind === 'natural-month'
         ? group.start
         : periodStartOf(cycle.day, groupAnchor.date);
-    for (const module of mergeModules(group.allocations)) {
-      const spentInPeriod = spentBetween(
-        input.transactions,
-        module.categoryId,
-        start,
-        nextStart,
-      );
-      pool += module.amountCents - spentInPeriod;
+    for (const view of moduleViewsInWindow(group.allocations, input.transactions, start, nextStart)) {
+      pool += view.remainingCents;
     }
     nextStart = start;
   }
@@ -520,14 +498,8 @@ export function computePoolTrend(
             : periodStartOf(cycle.day, nextAnchor.date);
     }
 
-    for (const module of mergeModules(group.allocations)) {
-      const spentInPeriod = spentBetween(
-        input.transactions,
-        module.categoryId,
-        start,
-        end,
-      );
-      pool += module.amountCents - spentInPeriod;
+    for (const view of moduleViewsInWindow(group.allocations, input.transactions, start, end)) {
+      pool += view.remainingCents;
     }
   }
 

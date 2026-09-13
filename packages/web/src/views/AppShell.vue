@@ -5,35 +5,20 @@
  * Mobile-first layout. The bottom bar is padded with the iOS safe-area inset so it
  * is not swallowed by the home indicator, and every target is >= 44px tall.
  */
-import { computed, onMounted } from 'vue';
+import { computed } from 'vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
 import InstallHint from '../components/InstallHint.vue';
 import OfflineBanner from '../components/OfflineBanner.vue';
-import { refreshLock, useLock } from '../composables/useLock.js';
 import { useAuthStore } from '../stores/auth.js';
-import LockScreen from './LockScreen.vue';
 
 const auth = useAuthStore();
 const route = useRoute();
-const { locked } = useLock();
-
-// Recomputed on mount so a reload re-locks (the unlocked flag lives in sessionStorage and
-// is therefore gone). This is the whole "cold start requires the PIN" behaviour.
-onMounted(refreshLock);
-
 const title = computed(() => (route.meta['title'] as string | undefined) ?? '记账');
 const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? '');
 </script>
 
 <template>
-  <!--
-    The lock replaces the ENTIRE shell, not just the content: leaving the tab bar and header
-    visible would tell an onlooker nothing about the amounts but would still confirm the app
-    is signed in and where the user was.
-  -->
-  <LockScreen v-if="locked" />
-
-  <div v-else class="shell">
+  <div class="shell">
     <OfflineBanner />
 
     <header class="topbar">

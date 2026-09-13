@@ -33,3 +33,10 @@ pnpm-debug.log*
 
 # ── local scratch ────────────────────────────────────────────────────────────
 .tmp-*/
+
+# Isolated browser verification output
+test-results/
+playwright-report/
+# The browser suites' default screenshot names, written into the web package when no path
+# is passed. Generated, regenerable, and not source. (`public/` keeps the real PWA icons.)
+packages/web/*.png

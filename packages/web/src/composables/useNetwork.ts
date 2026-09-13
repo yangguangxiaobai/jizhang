@@ -9,7 +9,8 @@
  * server is reachable" — so it is combined with the request-level `OfflineError` that
  * `api/client.ts` throws when a fetch actually fails.
  */
-import { onMounted, onUnmounted, readonly, ref } from 'vue';
+import { computed, onMounted, readonly, ref } from 'vue';
+import type { Ref } from 'vue';
 
 const online = ref(typeof navigator === 'undefined' ? true : navigator.onLine);
 
@@ -55,27 +56,17 @@ export function markRequestSucceeded(): void {
 /**
  * Whether to show the offline banner: either the browser is offline, or the last
  * request failed for a network reason (captive portal, server down, DNS broken).
+ *
+ * Derived, not snapshotted. This previously copied both sources into a plain `ref`
+ * re-copied only on `online`/`offline` window events, with a comment claiming the
+ * template recomputed it — the template read the copy, so `markRequestFailed()` could
+ * never surface. That is precisely the self-hosted case worth covering: the phone is
+ * online, the VPS is not, and the only feedback was the form's own error. `iphone.spec`
+ * caught it by stopping the server and asserting the banner, not just the alert.
  */
-export function useOfflineBanner(): { readonly offline: ReturnType<typeof readonly<typeof online>> } {
+export function useOfflineBanner(): { readonly offline: Readonly<Ref<boolean>> } {
   attach();
-  const offline = ref(!online.value || lastRequestFailed.value);
-
-  const sync = (): void => {
-    offline.value = !online.value || lastRequestFailed.value;
-  };
-
-  onMounted(() => {
-    window.addEventListener('online', sync);
-    window.addEventListener('offline', sync);
-  });
-  onUnmounted(() => {
-    window.removeEventListener('online', sync);
-    window.removeEventListener('offline', sync);
-  });
-
-  // Recomputed on every render by the template reading it, so a plain ref is enough.
-  sync();
-  return { offline: readonly(offline) };
+  return { offline: computed(() => !online.value || lastRequestFailed.value) };
 }
 
 /** Whether the app is already running as an installed PWA. */

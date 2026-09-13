@@ -421,7 +421,7 @@ describe('AC6 deleting a salary removes its allocation', () => {
 // ---------------------------------------------------------------------------
 
 describe('salary update', () => {
-  it('editing the amount does NOT recompute a fine-tuned allocation', () => {
+  it('rejects an amount change without explicit balanced allocations and preserves manual tuning', () => {
     const created = salaries.create({
       amountCents: 1_000_000,
       date: AUG(5),
@@ -430,13 +430,44 @@ describe('salary update', () => {
         { categoryId: TRANSPORT, amountCents: 300_000 },
       ],
     });
+    expect(() => salaries.update(created.id, { amountCents: 2_000_000 })).toThrow(/allocation/i);
+    expect(salaries.getByIdOrThrow(created.id)).toEqual(created);
+  });
 
-    const before = created.allocations;
+  it('atomically updates salary amount, date and explicit allocations over the API', async () => {
+    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const date = new Date(2026, 8, 5).getTime();
+    const allocations = [{ categoryId: FOOD, amountCents: 1_500_000 }, { categoryId: TRANSPORT, amountCents: 500_000 }];
+    const response = await app.inject({ method: 'PATCH', url: `/api/v1/salaries/${created.id}`, headers: authed(), payload: { amountCents: 2_000_000, date, allocations } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().allocations).toEqual(allocations);
+    expect(salaries.getAllocationRow(created.id)?.date).toBe(date);
+    const overview = await get('/api/v1/budget/overview');
+    expect(overview.json().totalBudgetCents).toBe(2_000_000);
+    expect((await get('/api/v1/budget/periods')).json().periods).toEqual([date]);
+  });
 
-    const updated = salaries.update(created.id, { amountCents: 2_000_000 });
-    expect(updated.amountCents).toBe(2_000_000);
-    // The snapshot is deliberately untouched, so manual tuning survives.
-    expect(updated.allocations).toEqual(before);
+  it('rejects an unbalanced update without changing the salary, date, note or snapshot', async () => {
+    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5), note: 'original' });
+    const before = salaries.getAllocationRow(created.id);
+    const response = await app.inject({ method: 'PATCH', url: `/api/v1/salaries/${created.id}`, headers: authed(), payload: { amountCents: 2_000_000, date: AUG(20), note: 'changed', allocations: [{ categoryId: FOOD, amountCents: 1 }] } });
+    expect(response.statusCode).toBe(400);
+    expect(salaries.getByIdOrThrow(created.id)).toEqual(created);
+    expect(salaries.getAllocationRow(created.id)).toEqual(before);
+  });
+
+  it('moves the allocation date with the salary without recomputing manual amounts', () => {
+    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.update(created.id, { date: AUG(20) });
+    expect(salaries.getAllocationRow(created.id)?.date).toBe(AUG(20));
+    expect(salaries.getByIdOrThrow(created.id).allocations).toEqual(created.allocations);
+  });
+
+  it('rolls back the salary when the allocation write fails', () => {
+    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    db.exec("CREATE TRIGGER fail_allocation BEFORE UPDATE ON budget_allocations BEGIN SELECT RAISE(ABORT, 'allocation write failed'); END");
+    expect(() => salaries.update(created.id, { date: AUG(20) })).toThrow(/allocation write failed/);
+    expect(salaries.getByIdOrThrow(created.id)).toEqual(created);
   });
 
   it('replaces the allocation on explicit request', () => {

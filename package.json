@@ -18,10 +18,13 @@
     "format:check": "prettier --check .",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "test:iphone": "pnpm build && node node_modules/@playwright/test/cli.js test --config packages/web/playwright.config.mjs",
+    "test:iphone:only": "node node_modules/@playwright/test/cli.js test --config packages/web/playwright.config.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.13.1",
     "eslint": "^9.20.1",
     "eslint-config-prettier": "^10.0.1",

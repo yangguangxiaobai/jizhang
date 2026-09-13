@@ -121,7 +121,7 @@ export class SalaryService {
   }
 
   private requireAmount(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
       throw new ValidationError(
         'amountCents must be a positive integer number of cents.',
       );
@@ -265,7 +265,10 @@ export class SalaryService {
   ): ParsedAllocationItem[] {
     let items: ParsedAllocationItem[];
 
-    if (Array.isArray(raw) && raw.length > 0) {
+    if (raw !== undefined) {
+      if (!Array.isArray(raw) || raw.length === 0) {
+        throw new ValidationError('allocations must be a non-empty list of module amounts.');
+      }
       items = [];
       for (const entry of raw) {
         if (typeof entry !== 'object' || entry === null) {
@@ -277,7 +280,7 @@ export class SalaryService {
         if (typeof categoryId !== 'string' || categoryId.trim() === '') {
           throw new ValidationError('Each allocation needs a categoryId.');
         }
-        if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 0) {
+        if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount < 0) {
           throw new ValidationError(
             `Allocation for ${categoryId} must be a non-negative integer number of cents.`,
           );
@@ -324,10 +327,11 @@ export class SalaryService {
   }
 
   /**
-   * Updates the salary record only.
-   *
-   * The allocation is deliberately left alone: a user who fine-tuned their module
-   * amounts must not have that work silently recomputed.
+   * Salary and allocation are one accounting fact. Never accept a different
+   * salary amount while leaving its old budget behind, and never silently
+   * recompute a hand-tuned snapshot. The caller must supply a balanced allocation
+   * alongside an amount change. A date change moves the snapshot in the same
+   * transaction, otherwise income and budget would land in different cycles.
    */
   update(
     id: string,
@@ -335,65 +339,59 @@ export class SalaryService {
       readonly amountCents?: unknown;
       readonly date?: unknown;
       readonly note?: unknown;
+      readonly allocations?: unknown;
     },
   ): SalaryDetailDto {
-    this.getByIdOrThrow(id);
+    const current = this.getByIdOrThrow(id);
+    if (changes.amountCents === undefined && changes.date === undefined &&
+        changes.note === undefined && changes.allocations === undefined) return current;
 
-    const updates: string[] = [];
-    const params: (string | number)[] = [];
+    const amountCents = changes.amountCents === undefined
+      ? current.amountCents : this.requireAmount(changes.amountCents);
+    const date = changes.date === undefined ? current.date : this.requireDate(changes.date);
+    if (changes.note !== undefined && typeof changes.note !== 'string') {
+      throw new ValidationError('note must be a string.');
+    }
+    const note = changes.note === undefined ? current.note : changes.note;
+    if (amountCents !== current.amountCents && changes.allocations === undefined) {
+      throw new ValidationError('Changing the salary amount requires explicit allocations that add up to the new salary.');
+    }
+    const items = changes.allocations === undefined
+      ? undefined : this.resolveAllocations(changes.allocations, amountCents, undefined);
+    const nowMs = this.now();
 
-    if (changes.amountCents !== undefined) {
-      updates.push('amount_cents = ?');
-      params.push(this.requireAmount(changes.amountCents));
-    }
-    if (changes.date !== undefined) {
-      updates.push('date = ?');
-      params.push(this.requireDate(changes.date));
-    }
-    if (changes.note !== undefined) {
-      if (typeof changes.note !== 'string') {
-        throw new ValidationError('note must be a string.');
+    this.db.transaction(() => {
+      this.db.prepare('UPDATE salary_records SET amount_cents = ?, date = ?, note = ?, updated_at = ? WHERE id = ?')
+        .run(amountCents, date, note, nowMs, id);
+      if (items !== undefined) {
+        this.writeAllocation(id, date, items, nowMs);
+      } else if (date !== current.date) {
+        this.db.prepare('UPDATE budget_allocations SET date = ?, updated_at = ? WHERE salary_record_id = ?')
+          .run(date, nowMs, id);
       }
-      updates.push('note = ?');
-      params.push(changes.note);
-    }
-
-    if (updates.length === 0) return this.getByIdOrThrow(id);
-
-    updates.push('updated_at = ?');
-    params.push(this.now());
-    params.push(id);
-
-    this.db
-      .prepare(`UPDATE salary_records SET ${updates.join(', ')} WHERE id = ?`)
-      .run(...params);
-
+    })();
     return this.getByIdOrThrow(id);
   }
 
-  /** Replaces the allocation snapshot for an existing salary. */
+  /** All snapshot rewrites also synchronize their date with the salary. */
+  private writeAllocation(id: string, date: number, items: ParsedAllocationItem[], nowMs: number): void {
+    const existing = this.getAllocationRow(id);
+    if (existing === undefined) {
+      this.db.prepare(`INSERT INTO budget_allocations (id, salary_record_id, date, allocations_json, deleted, updated_at)
+        VALUES (?, ?, ?, ?, 0, ?)`)
+        .run(randomUUID(), id, date, JSON.stringify(items), nowMs);
+    } else {
+      this.db.prepare('UPDATE budget_allocations SET date = ?, allocations_json = ?, deleted = 0, updated_at = ? WHERE id = ?')
+        .run(date, JSON.stringify(items), nowMs, existing.id);
+    }
+  }
+
+  /** Replaces the allocation snapshot without silently changing the salary. */
   replaceAllocations(id: string, raw: unknown): SalaryDetailDto {
+    if (raw === undefined) throw new ValidationError('allocations are required.');
     const salary = this.getByIdOrThrow(id);
     const items = this.resolveAllocations(raw, salary.amountCents, undefined);
-
-    const existing = this.getAllocationRow(id);
-    const nowMs = this.now();
-
-    if (existing === undefined) {
-      this.db
-        .prepare(
-          `INSERT INTO budget_allocations (id, salary_record_id, date, allocations_json, deleted, updated_at)
-           VALUES (?, ?, ?, ?, 0, ?)`,
-        )
-        .run(randomUUID(), id, salary.date, JSON.stringify(items), nowMs);
-    } else {
-      this.db
-        .prepare(
-          'UPDATE budget_allocations SET allocations_json = ?, deleted = 0, updated_at = ? WHERE id = ?',
-        )
-        .run(JSON.stringify(items), nowMs, existing.id);
-    }
-
+    this.db.transaction(() => this.writeAllocation(id, salary.date, items, this.now()))();
     return this.getByIdOrThrow(id);
   }
 

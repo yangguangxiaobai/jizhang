@@ -113,7 +113,9 @@ async function serverIsUp(origin, attempts = 40) {
 export async function openBrowser({
   origin,
   profileDir,
-  port = 9222,
+  // Overridable so a suite can run while another Chrome holds 9222 — a leftover headless
+  // instance from an interrupted run, or a developer's own browser with debugging on.
+  port = Number(process.env.JIZHANG_CDP_PORT ?? 9222),
   username = process.env.JIZHANG_E2E_USER ?? 'admin',
   password = process.env.JIZHANG_E2E_PASSWORD ?? 'probe-password',
 }) {

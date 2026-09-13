@@ -15,7 +15,7 @@
     "check:color": "node scripts/check-color.mjs",
     "preview": "vite preview",
     "test": "node -e \"console.log('@jizhang/web: no unit tests yet (the backend carries the test suite; the PWA build is verified by scripts/check-pwa.mjs)')\"",
-    "lint": "eslint \"src/**/*.{ts,vue}\" \"vite.config.ts\" \"scripts/**/*.mjs\" --max-warnings 0",
+    "lint": "eslint \"src/**/*.{ts,vue}\" \"vite.config.ts\" \"scripts/**/*.mjs\" \"e2e/**/*.mjs\" \"playwright.config.mjs\" --max-warnings 0",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
