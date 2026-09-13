@@ -35,6 +35,7 @@ const EXPECTED_TABLES = [
   'sessions',
   'settings',
   'transactions',
+  'transfers',
   'users',
 ];
 
@@ -148,6 +149,43 @@ describe('migrations', () => {
     const accountId = columns.find((column) => column.name === 'account_id');
     expect(accountId?.notnull).toBe(1);
     expect(accountId?.dflt_value).toBe("'builtin-default-account'");
+  });
+
+  /**
+   * Migration 004 adds the transfers table. It is purely additive: an older database simply
+   * gains an empty table, and older code that does not know it exists is unaffected (which is
+   * what makes rollback safe without a down migration).
+   */
+  it('004 adds transfers with the indexes the account drill-down needs', () => {
+    runMigrations(db, null);
+
+    const columns = (
+      db.prepare('PRAGMA table_info(transfers)').all() as { name: string }[]
+    ).map((column) => column.name);
+    expect(columns).toEqual([
+      'id',
+      'from_account_id',
+      'to_account_id',
+      'amount_cents',
+      'date',
+      'note',
+      'deleted',
+      'updated_at',
+    ]);
+
+    const indexes = (
+      db.prepare('PRAGMA index_list(transfers)').all() as { name: string }[]
+    ).map((index) => index.name);
+    for (const expected of ['idx_transfer_date', 'idx_transfer_from', 'idx_transfer_to']) {
+      expect(indexes).toContain(expected);
+    }
+
+    // An account's balance is derived from live rows, so the index the balance query relies on
+    // has to be usable by SQLite rather than merely declared.
+    const plan = db
+      .prepare('EXPLAIN QUERY PLAN SELECT * FROM transfers WHERE deleted = 0')
+      .all() as { detail: string }[];
+    expect(plan.map((row) => row.detail).join(' ')).toContain('idx_transfer_date');
   });
 
   it('R2 re-running is a no-op that reports nothing pending', () => {

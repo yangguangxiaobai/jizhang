@@ -109,6 +109,10 @@ export async function resetToKnownState() {
     db.prepare('DELETE FROM transactions').run();
     db.prepare('DELETE FROM budget_allocations').run();
     db.prepare('DELETE FROM salary_records').run();
+    // Transfers move account balances, so a suite that inherited another suite's transfers
+    // would see balances it cannot explain. This is the same class of cross-suite leak the
+    // module comment above describes for the builtin category rename.
+    db.prepare('DELETE FROM transfers').run();
     db.prepare('DELETE FROM settings').run();
     // Recurring state must go too. Occurrences reference rules, so they go first.
     // Without this the recurring suite would inherit another suite's rules, and every

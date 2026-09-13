@@ -21,6 +21,7 @@ import {
   type AccountFlow,
   type AccountFlowTransaction,
   type SalaryReceipt,
+  type TransferLike,
 } from '@jizhang/shared';
 import type { Db } from '../db/index.js';
 
@@ -33,6 +34,10 @@ export interface AccountBalanceDto {
   readonly incomeCents: number;
   readonly expenseCents: number;
   readonly salaryCents: number;
+  /** Transfers received into this account. */
+  readonly transferInCents: number;
+  /** Transfers sent out of this account. */
+  readonly transferOutCents: number;
   readonly balanceCents: number;
 }
 
@@ -60,6 +65,12 @@ interface TransactionRow {
 
 interface SalaryRow {
   readonly account_id: string;
+  readonly amount_cents: number;
+}
+
+interface TransferRow {
+  readonly from_account_id: string;
+  readonly to_account_id: string;
   readonly amount_cents: number;
 }
 
@@ -99,6 +110,12 @@ export class AccountBalanceService {
       )
       .all() as SalaryRow[];
 
+    const transferRows = this.db
+      .prepare(
+        'SELECT from_account_id, to_account_id, amount_cents FROM transfers WHERE deleted = 0',
+      )
+      .all() as TransferRow[];
+
     const transactions: AccountFlowTransaction[] = transactionRows.map((row) => ({
       id: row.id,
       type: row.type,
@@ -114,6 +131,16 @@ export class AccountBalanceService {
       amountCents: row.amount_cents,
     }));
 
+    // No `date` reaches the shared function for a transfer, and that is not an omission: a
+    // balance is a point-in-time stock, and neither bills nor salaries are filtered by date
+    // either (see `computeAccountBalances`). Adding a window here would make the home total
+    // disagree with the rows listed under it.
+    const transfers: TransferLike[] = transferRows.map((row) => ({
+      fromAccountId: row.from_account_id,
+      toAccountId: row.to_account_id,
+      amountCents: row.amount_cents,
+    }));
+
     const flows = computeAccountBalances({
       accounts: accounts.map((row) => ({
         id: row.id,
@@ -121,6 +148,7 @@ export class AccountBalanceService {
       })),
       transactions,
       salaries,
+      transfers,
     });
 
     const byId = new Map<string, AccountFlow>();

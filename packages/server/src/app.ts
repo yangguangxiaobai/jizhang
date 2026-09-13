@@ -18,6 +18,7 @@ import { registerTrashRoutes } from './routes/trash.js';
 import { registerRecurringRoutes } from './routes/recurring.js';
 import { registerPortabilityRoutes } from './routes/portability.js';
 import { registerTransactionRoutes } from './routes/transactions.js';
+import { registerTransferRoutes } from './routes/transfers.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
 
@@ -152,6 +153,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         (instance) =>
           registerMasterDataRoutes(instance, { db, now: options.now }),
         (instance) => registerBudgetRoutes(instance, { db, now: options.now }),
+        // Must be in this array, not a sibling `app.register`: a hook and the routes it should
+        // protect have to share an encapsulation context, or the routes escape the guard
+        // silently (`plugins/auth.ts`, and `spec/backend/index.md` "the most expensive
+        // mistake"). Asserted endpoint-by-endpoint in `e2e-transfers.mjs`.
+        (instance) => registerTransferRoutes(instance, { db, now: options.now }),
         (instance) => registerStatsRoutes(instance, { db, now: options.now }),
         (instance) => registerTrashRoutes(instance, { db, now: options.now }),
         (instance) => registerRecurringRoutes(instance, { db, now: options.now }),
