@@ -71,6 +71,7 @@ check('AC5 the cycle mode is reported', emptyPeriods.json.cycle.kind === 'natura
 console.log('\n[build three cycles]');
 // Cycle A: budget 300,000 food + 200,000 transport, spends 200,000 food.
 const salaryA = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 500_000,
   date: dayIn(-2, 3),
   allocations: [
@@ -83,6 +84,7 @@ await addTxn({ type: 0, amountCents: 200_000, categoryId: FOOD, date: dayIn(-2, 
 
 // Cycle B: budget 400,000 food + 600,000 transport, spends 120,000 food.
 const salaryB = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 1_000_000,
   date: dayIn(-1, 5),
   allocations: [
@@ -95,6 +97,7 @@ await addTxn({ type: 0, amountCents: 120_000, categoryId: FOOD, date: dayIn(-1, 
 
 // Current cycle: budget 1,000,000 food.
 const salaryC = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 1_000_000,
   date: dayIn(0, 2),
   allocations: [{ categoryId: FOOD, amountCents: 1_000_000 }],

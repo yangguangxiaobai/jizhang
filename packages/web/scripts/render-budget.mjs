@@ -87,6 +87,7 @@ const post = async (path, body) =>
 
 // Two past cycles with distinct budgets, plus the current one.
 const oldest = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 500_000,
   date: dayIn(-2, 3),
   allocations: [
@@ -95,6 +96,7 @@ const oldest = await post('/salaries', {
   ],
 });
 const middle = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 1_000_000,
   date: dayIn(-1, 5),
   allocations: [
@@ -103,6 +105,7 @@ const middle = await post('/salaries', {
   ],
 });
 const current = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 2_000_000,
   date: dayIn(0, 2),
   allocations: [{ categoryId: FOOD, amountCents: 2_000_000 }],

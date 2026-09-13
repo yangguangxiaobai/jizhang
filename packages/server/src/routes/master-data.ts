@@ -7,6 +7,7 @@
  *   DELETE /api/v1/categories/:id        soft delete (builtins refuse)
  *   POST   /api/v1/categories/:id/move   `{dir:-1|1}` swap with the neighbour
  *   GET    /api/v1/accounts              list
+ *   GET    /api/v1/accounts/balances     every live account's balance + the total
  *   POST   /api/v1/accounts              create
  *   PATCH  /api/v1/accounts/:id          edit
  *   DELETE /api/v1/accounts/:id          soft delete (builtin + last-one refuse)
@@ -19,6 +20,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../db/index.js';
+import { AccountBalanceService } from '../services/account-balance-service.js';
 import {
   CATEGORY_TYPE_EXPENSE,
   CATEGORY_TYPE_INCOME,
@@ -67,6 +69,7 @@ export async function registerMasterDataRoutes(
   options: MasterDataRoutesOptions,
 ): Promise<void> {
   const service = new MasterDataService(options.db, options);
+  const balances = new AccountBalanceService(options.db);
 
   // ── categories ────────────────────────────────────────────────────────────
   app.get('/api/v1/categories', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -110,6 +113,20 @@ export async function registerMasterDataRoutes(
   app.get('/api/v1/accounts', async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({ items: service.listAccounts() });
   });
+
+  // A separate endpoint rather than extra fields on the list above: the account list is
+  // master data (stable, cached for the session by the client) while a balance changes with
+  // every bill. Folding them together would make one cached payload carry a number that goes
+  // stale, which is exactly the staleness the balances store exists to avoid.
+  //
+  // The path sits beside `PATCH`/`DELETE /accounts/:id`; there is no `GET /accounts/:id`, so
+  // the static segment is unambiguous.
+  app.get(
+    '/api/v1/accounts/balances',
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      return reply.send(balances.balances());
+    },
+  );
 
   app.post('/api/v1/accounts', async (request: FastifyRequest, reply: FastifyReply) => {
     const created = service.createAccount((request.body ?? {}) as Record<string, unknown>);

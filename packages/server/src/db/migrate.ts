@@ -16,6 +16,7 @@ import path from 'node:path';
 import type { Db } from './index.js';
 import { MIGRATION_001_INIT } from './migrations/001-init.js';
 import { MIGRATION_002_RECURRING } from './migrations/002-recurring.js';
+import { MIGRATION_003_SALARY_ACCOUNT } from './migrations/003-salary-account.js';
 
 export interface Migration {
   readonly version: number;
@@ -30,6 +31,7 @@ export interface Migration {
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'init', sql: MIGRATION_001_INIT },
   { version: 2, name: 'recurring', sql: MIGRATION_002_RECURRING },
+  { version: 3, name: 'salary-account', sql: MIGRATION_003_SALARY_ACCOUNT },
 ];
 
 interface AppliedRow {

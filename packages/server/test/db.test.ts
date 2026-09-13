@@ -91,6 +91,65 @@ describe('migrations', () => {
     }
   });
 
+  /**
+   * Migration 003 adds a NOT NULL column to a table that already has rows. The reason no
+   * backfill pass exists is that SQLite fills existing rows from the constant `DEFAULT`, so
+   * this test drives the real upgrade path: apply only migrations 1 and 2, record a salary
+   * the way the old code did, then migrate.
+   */
+  it('003 backfills account_id on pre-existing salary rows and makes it required', () => {
+    const init = MIGRATIONS.find((entry) => entry.version === 1);
+    const recurring = MIGRATIONS.find((entry) => entry.version === 2);
+    expect(init).toBeDefined();
+    expect(recurring).toBeDefined();
+    if (init === undefined || recurring === undefined) return;
+
+    // A database as it existed before 003: migrations 1 and 2 applied and recorded.
+    db.exec(init.sql);
+    db.exec(recurring.sql);
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS schema_migrations (
+         version    INTEGER PRIMARY KEY,
+         name       TEXT    NOT NULL,
+         applied_at INTEGER NOT NULL
+       )`,
+    );
+    const record = db.prepare(
+      'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+    );
+    record.run(1, init.name, 1);
+    record.run(2, recurring.name, 1);
+
+    db.prepare(
+      `INSERT INTO accounts (id, name, type, initial_balance_cents, sort_order, is_builtin, deleted, updated_at)
+       VALUES ('builtin-default-account', '默认账户', 0, 0, 0, 1, 0, 1)`,
+    ).run();
+    // No account_id column yet — exactly what the old code wrote.
+    db.prepare(
+      `INSERT INTO salary_records (id, amount_cents, date, note, deleted, updated_at)
+       VALUES ('old-salary', 500000, 1000, '记于 003 之前', 0, 1)`,
+    ).run();
+
+    runMigrations(db, null);
+
+    const preserved = db
+      .prepare('SELECT amount_cents, account_id FROM salary_records WHERE id = ?')
+      .get('old-salary') as { amount_cents: number; account_id: string };
+    // The money is untouched and the row lands on the account it was always implicitly
+    // associated with.
+    expect(preserved.amount_cents).toBe(500000);
+    expect(preserved.account_id).toBe('builtin-default-account');
+
+    const columns = db.prepare('PRAGMA table_info(salary_records)').all() as {
+      name: string;
+      notnull: number;
+      dflt_value: string | null;
+    }[];
+    const accountId = columns.find((column) => column.name === 'account_id');
+    expect(accountId?.notnull).toBe(1);
+    expect(accountId?.dflt_value).toBe("'builtin-default-account'");
+  });
+
   it('R2 re-running is a no-op that reports nothing pending', () => {
     const first = runMigrations(db, null);
     expect(first.applied.length).toBeGreaterThan(0);

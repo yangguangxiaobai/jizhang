@@ -266,6 +266,7 @@ check(
 console.log('\n[the budget follows a confirmation]');
 // Build a cycle covering the current period, then confirm an item dated inside it.
 const salary = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 1_000_000,
   date: monthStart(0) + 2 * 86_400_000,
   allocations: [{ categoryId: FOOD, amountCents: 1_000_000 }],

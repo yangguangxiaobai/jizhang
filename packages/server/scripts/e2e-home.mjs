@@ -111,6 +111,7 @@ await addTxn({ type: 0, amountCents: 999_999, categoryId: FOOD, date: dayIn(-1, 
 
 const salaryAmount = 1_000_000;
 const salaryResponse = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: salaryAmount,
   date: dayIn(0, 2),
   note: '本月工资',

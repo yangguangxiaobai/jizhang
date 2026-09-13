@@ -74,7 +74,11 @@ const dayIn = (day) => new Date(now.getFullYear(), now.getMonth(), day).getTime(
 await fetch(`${BASE}/salaries`, {
   method: 'POST',
   headers: jsonHeaders,
-  body: JSON.stringify({ amountCents: 1_000_000, date: dayIn(2) }),
+  body: JSON.stringify({
+    accountId: 'builtin-default-account',
+    amountCents: 1_000_000,
+    date: dayIn(2),
+  }),
 });
 for (const [amountCents, day] of [[15_000, 5], [3_000, 6]]) {
   await fetch(`${BASE}/transactions`, {

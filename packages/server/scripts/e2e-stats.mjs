@@ -139,6 +139,7 @@ const template = await post('/templates', {
 });
 const templateId = (await template.json()).id;
 const salary = await post('/salaries', {
+  accountId: ACCOUNT,
   amountCents: 100_000,
   date: dayIn(0, 2),
   note: '本周期工资',
@@ -204,7 +205,7 @@ check(
 
 // A salary in a prior month must land in that month's bucket, not the current one.
 const priorSalary = 777_000;
-await post('/salaries', { amountCents: priorSalary, date: dayIn(-1, 3), note: '上月工资' });
+await post('/salaries', { accountId: ACCOUNT, amountCents: priorSalary, date: dayIn(-1, 3), note: '上月工资' });
 const trendPrior = (await get('/stats/monthly-trend?months=6')).json.items;
 check(
   'a prior-month salary lands in its own bucket',

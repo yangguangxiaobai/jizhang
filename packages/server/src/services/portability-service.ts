@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Data portability: CSV export/import and the backup listing (T15).
  *
  * ## Why the file is CSV and not a database dump
@@ -49,7 +49,14 @@ export const TRANSACTION_COLUMNS = [
   'isRefund',
 ] as const;
 
-export const SALARY_COLUMNS = ['id', 'date', 'amount', 'note', 'allocations'] as const;
+/**
+ * The columns of the salaries export.
+ *
+ * `account` mirrors the transactions export: a salary now lands in an account, and a
+ * CSV-only backup that dropped that column would not be able to say where the money went.
+ * The file is export-only (there is no salary importer), so extending it is additive.
+ */
+export const SALARY_COLUMNS = ['id', 'date', 'amount', 'account', 'note', 'allocations'] as const;
 export const RECURRING_COLUMNS = [
   'id',
   'name',
@@ -206,10 +213,19 @@ export class PortabilityService {
   }
 
   exportSalariesCsv(): string {
+    const accounts = this.nameMap('accounts');
     const rows: CsvRow[] = [[...SALARY_COLUMNS]];
     const salaries = this.db
-      .prepare('SELECT id, amount_cents, date, note FROM salary_records WHERE deleted = 0 ORDER BY date, id')
-      .all() as { id: string; amount_cents: number; date: number; note: string }[];
+      .prepare(
+        'SELECT id, amount_cents, date, note, account_id FROM salary_records WHERE deleted = 0 ORDER BY date, id',
+      )
+      .all() as {
+      id: string;
+      amount_cents: number;
+      date: number;
+      note: string;
+      account_id: string;
+    }[];
 
     for (const salary of salaries) {
       const allocation = this.db
@@ -222,6 +238,9 @@ export class PortabilityService {
         salary.id,
         dateOnlyLabel(salary.date),
         formatCents(salary.amount_cents),
+        // Names, not ids: the file is meant to be read by a person, and a UUID cannot be
+        // checked by eye. Same rule as the transactions export.
+        accounts.get(salary.account_id) ?? salary.account_id,
         salary.note,
         allocation?.allocations_json ?? '',
       ]);

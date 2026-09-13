@@ -40,6 +40,8 @@ const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
 const SHOPPING = 'builtin-expense-shopping';
 const DEFAULT_TEMPLATE = 'builtin-default-template';
+/** Every salary must name the account that received it; these tests use the seeded one. */
+const ACCOUNT = 'builtin-default-account';
 
 let db: Db;
 let app: FastifyInstance;
@@ -148,7 +150,7 @@ describe('seeded template', () => {
 
 describe('AC1/AC3 allocation arithmetic', () => {
   it('AC1 10000 yuan over the 40/10/25/10/5/10 template', () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
     const byCategory = new Map(
       created.allocations.map((a) => [a.categoryId, a.amountCents]),
     );
@@ -162,7 +164,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
 
   it('AC3 the parts always add up to exactly the salary', () => {
     for (const amountCents of [1_000_000, 100_003, 101, 999_999, 7]) {
-      const created = salaries.create({ amountCents, date: AUG(5) });
+      const created = salaries.create({ accountId: ACCOUNT, amountCents, date: AUG(5) });
       const sum = created.allocations.reduce((total, a) => total + a.amountCents, 0);
       expect(sum, `salary ${amountCents}`).toBe(amountCents);
     }
@@ -181,6 +183,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
     );
 
     const created = salaries.create({
+      accountId: ACCOUNT,
       amountCents: 101,
       date: AUG(5),
       templateId: template.id,
@@ -201,6 +204,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
       true,
     );
     const created = salaries.create({
+      accountId: ACCOUNT,
       amountCents: 1_000_000,
       date: AUG(5),
       templateId: template.id,
@@ -210,6 +214,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
 
   it('AC2 an explicit allocation wins over the template', () => {
     const created = salaries.create({
+      accountId: ACCOUNT,
       amountCents: 1_000_000,
       date: AUG(5),
       allocations: [
@@ -230,6 +235,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
   it('rejects an explicit allocation that does not add up', () => {
     expect(() =>
       salaries.create({
+        accountId: ACCOUNT,
         amountCents: 1_000_000,
         date: AUG(5),
         allocations: [{ categoryId: FOOD, amountCents: 900_000 }],
@@ -238,6 +244,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
 
     expect(() =>
       salaries.create({
+        accountId: ACCOUNT,
         amountCents: 1_000_000,
         date: AUG(5),
         allocations: [{ categoryId: FOOD, amountCents: 1_100_000 }],
@@ -247,13 +254,14 @@ describe('AC1/AC3 allocation arithmetic', () => {
 
   it('rejects a non-integer or non-positive salary', () => {
     for (const amountCents of [1000.5, 0, -1000, '1000']) {
-      expect(() => salaries.create({ amountCents, date: AUG(5) }), String(amountCents)).toThrow();
+      expect(() => salaries.create({ accountId: ACCOUNT, amountCents, date: AUG(5) }), String(amountCents)).toThrow();
     }
   });
 
   it('rejects an allocation referencing an unknown category', () => {
     expect(() =>
       salaries.create({
+        accountId: ACCOUNT,
         amountCents: 100,
         date: AUG(5),
         allocations: [{ categoryId: 'nope', amountCents: 100 }],
@@ -262,7 +270,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
   });
 
   it('rejects a future salary date', () => {
-    expect(() => salaries.create({ amountCents: 100, date: NOW + 30 * 86_400_000 })).toThrow(
+    expect(() => salaries.create({ accountId: ACCOUNT, amountCents: 100, date: NOW + 30 * 86_400_000 })).toThrow(
       /future/,
     );
   });
@@ -381,7 +389,7 @@ describe('AC4/AC5 template validation', () => {
 
 describe('AC6 deleting a salary removes its allocation', () => {
   it('soft-deletes both rows', () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     salaries.softDelete(created.id);
 
@@ -399,7 +407,7 @@ describe('AC6 deleting a salary removes its allocation', () => {
   });
 
   it('leaves the budget overview empty after the only salary is deleted', async () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     const before = await get('/api/v1/budget/overview');
     expect(before.json().hasBudget).toBe(true);
@@ -423,6 +431,7 @@ describe('AC6 deleting a salary removes its allocation', () => {
 describe('salary update', () => {
   it('rejects an amount change without explicit balanced allocations and preserves manual tuning', () => {
     const created = salaries.create({
+      accountId: ACCOUNT,
       amountCents: 1_000_000,
       date: AUG(5),
       allocations: [
@@ -435,7 +444,7 @@ describe('salary update', () => {
   });
 
   it('atomically updates salary amount, date and explicit allocations over the API', async () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
     const date = new Date(2026, 8, 5).getTime();
     const allocations = [{ categoryId: FOOD, amountCents: 1_500_000 }, { categoryId: TRANSPORT, amountCents: 500_000 }];
     const response = await app.inject({ method: 'PATCH', url: `/api/v1/salaries/${created.id}`, headers: authed(), payload: { amountCents: 2_000_000, date, allocations } });
@@ -448,7 +457,7 @@ describe('salary update', () => {
   });
 
   it('rejects an unbalanced update without changing the salary, date, note or snapshot', async () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5), note: 'original' });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5), note: 'original' });
     const before = salaries.getAllocationRow(created.id);
     const response = await app.inject({ method: 'PATCH', url: `/api/v1/salaries/${created.id}`, headers: authed(), payload: { amountCents: 2_000_000, date: AUG(20), note: 'changed', allocations: [{ categoryId: FOOD, amountCents: 1 }] } });
     expect(response.statusCode).toBe(400);
@@ -457,21 +466,21 @@ describe('salary update', () => {
   });
 
   it('moves the allocation date with the salary without recomputing manual amounts', () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
     salaries.update(created.id, { date: AUG(20) });
     expect(salaries.getAllocationRow(created.id)?.date).toBe(AUG(20));
     expect(salaries.getByIdOrThrow(created.id).allocations).toEqual(created.allocations);
   });
 
   it('rolls back the salary when the allocation write fails', () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
     db.exec("CREATE TRIGGER fail_allocation BEFORE UPDATE ON budget_allocations BEGIN SELECT RAISE(ABORT, 'allocation write failed'); END");
     expect(() => salaries.update(created.id, { date: AUG(20) })).toThrow(/allocation write failed/);
     expect(salaries.getByIdOrThrow(created.id)).toEqual(created);
   });
 
   it('replaces the allocation on explicit request', () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     const replaced = salaries.replaceAllocations(created.id, [
       { categoryId: FOOD, amountCents: 1_000_000 },
@@ -481,7 +490,7 @@ describe('salary update', () => {
   });
 
   it('rejects a replacement that does not add up', () => {
-    const created = salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
     expect(() =>
       salaries.replaceAllocations(created.id, [{ categoryId: FOOD, amountCents: 1 }]),
     ).toThrow(/Undistributed/);
@@ -563,7 +572,7 @@ describe('AC11 budget overview', () => {
   });
 
   it('returns module views with names, totals and the pool', async () => {
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     const response = await get('/api/v1/budget/overview');
     const body = response.json();
@@ -580,7 +589,7 @@ describe('AC11 budget overview', () => {
   });
 
   it('subtracts a spent expense from the matching module', async () => {
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     await post('/api/v1/transactions', {
       type: 0,
@@ -597,7 +606,7 @@ describe('AC11 budget overview', () => {
   });
 
   it('a refund reduces the module spend instead of adding income', async () => {
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     await post('/api/v1/transactions', {
       type: 0,
@@ -622,7 +631,7 @@ describe('AC11 budget overview', () => {
   });
 
   it('an overspend makes the pool negative', async () => {
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     await post('/api/v1/transactions', {
       type: 0,
@@ -639,7 +648,7 @@ describe('AC11 budget overview', () => {
 
   it('honours the configured cycle start day', async () => {
     salaries.setCycleStartDay(10);
-    salaries.create({ amountCents: 1_000_000, date: AUG(15) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(15) });
 
     // Before the boundary: belongs to the previous cycle, so not counted.
     await post('/api/v1/transactions', {
@@ -665,8 +674,8 @@ describe('AC11 budget overview', () => {
   });
 
   it('two salaries in the same month merge their module budgets', async () => {
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
-    salaries.create({ amountCents: 500_000, date: AUG(20) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 500_000, date: AUG(20) });
 
     const body = (await get('/api/v1/budget/overview')).json();
     const food = body.modules.find((m: { categoryId: string }) => m.categoryId === FOOD);
@@ -707,8 +716,8 @@ const JUL = (day: number) => localDay(7, day);
 
 describe('T14 GET /api/v1/budget/periods', () => {
   it('AC5 lists every cycle, ascending, with the current one last', async () => {
-    salaries.create({ amountCents: 1_000_000, date: JUL(3) });
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: JUL(3) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     const body = (await get('/api/v1/budget/periods')).json();
 
@@ -733,8 +742,8 @@ describe('T14 GET /api/v1/budget/periods', () => {
   });
 
   it('AC5 the period list agrees with the pool-trend series', async () => {
-    salaries.create({ amountCents: 1_000_000, date: JUL(3) });
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: JUL(3) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     const periods = await listPeriods();
     const trend = (await get('/api/v1/stats/pool-trend')).json().points as {
@@ -756,6 +765,7 @@ describe('T14 budget overview for a historical cycle', () => {
   /** July: 300,000 food / 200,000 transport spending 200,000. August: 400,000 food. */
   async function twoCycles(): Promise<{ july: number; august: number }> {
     const july = await post('/api/v1/salaries', {
+      accountId: ACCOUNT,
       amountCents: 500_000,
       date: JUL(3),
       allocations: [
@@ -766,6 +776,7 @@ describe('T14 budget overview for a historical cycle', () => {
     expect(july.statusCode, july.body).toBe(201);
 
     const august = await post('/api/v1/salaries', {
+      accountId: ACCOUNT,
       amountCents: 1_000_000,
       date: AUG(5),
       allocations: [
@@ -822,8 +833,8 @@ describe('T14 budget overview for a historical cycle', () => {
   });
 
   it('AC2 an overspent historical module is reported negative, not clamped', async () => {
-    salaries.create({ amountCents: 500_000, date: JUL(3) });
-    salaries.create({ amountCents: 1_000_000, date: AUG(5) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 500_000, date: JUL(3) });
+    salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
     // Spend more than July's food budget.
     await post('/api/v1/transactions', {
       type: 0,
@@ -895,12 +906,14 @@ describe('T14 budget overview for a historical cycle', () => {
     // Cycle starts on the 15th: 7/15–8/14 and 8/15–9/14.
     salaries.setCycleStartDay(15);
     const previous = await post('/api/v1/salaries', {
+      accountId: ACCOUNT,
       amountCents: 500_000,
       date: new Date(2026, 6, 20).getTime(),
       allocations: [{ categoryId: FOOD, amountCents: 500_000 }],
     });
     expect(previous.statusCode, previous.body).toBe(201);
     const current = await post('/api/v1/salaries', {
+      accountId: ACCOUNT,
       amountCents: 500_000,
       date: new Date(2026, 7, 20).getTime(),
       allocations: [{ categoryId: FOOD, amountCents: 500_000 }],
@@ -964,7 +977,7 @@ describe('budget routes are protected', () => {
       method: 'POST',
       url: '/api/v1/salaries',
       headers: { Cookie: `${SESSION_COOKIE}=${cookie}` },
-      payload: { amountCents: 1000, date: AUG(5) },
+      payload: { accountId: ACCOUNT, amountCents: 1000, date: AUG(5) },
     });
     expect(response.statusCode).toBe(403);
   });

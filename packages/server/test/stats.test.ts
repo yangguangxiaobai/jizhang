@@ -65,7 +65,7 @@ async function recordSalary(amountCents: number, date: number): Promise<void> {
     method: 'POST',
     url: '/api/v1/salaries',
     headers: authed(),
-    payload: { amountCents, date },
+    payload: { accountId: ACCOUNT, amountCents, date },
   });
   expect(response.statusCode, JSON.stringify({ amountCents, date })).toBe(201);
 }
@@ -497,7 +497,7 @@ describe('pool trend', () => {
       method: 'POST',
       url: '/api/v1/salaries',
       headers: authed(),
-      payload: { amountCents: 1_000_000, date: dayIn(-2, 5) },
+      payload: { accountId: ACCOUNT, amountCents: 1_000_000, date: dayIn(-2, 5) },
     });
     expect(julySalary.statusCode).toBe(201);
 
@@ -508,7 +508,7 @@ describe('pool trend', () => {
       method: 'POST',
       url: '/api/v1/salaries',
       headers: authed(),
-      payload: { amountCents: 1_000_000, date: dayIn(0, 5) },
+      payload: { accountId: ACCOUNT, amountCents: 1_000_000, date: dayIn(0, 5) },
     });
     expect(septemberSalary.statusCode).toBe(201);
 
@@ -535,7 +535,7 @@ describe('pool trend', () => {
       method: 'POST',
       url: '/api/v1/salaries',
       headers: authed(),
-      payload: { amountCents: 100_000, date: dayIn(0, 2), templateId },
+      payload: { accountId: ACCOUNT, amountCents: 100_000, date: dayIn(0, 2), templateId },
     });
     expect(salary.statusCode).toBe(201);
     expect(salary.json().allocations).toEqual([
@@ -567,7 +567,7 @@ describe('pool trend', () => {
         method: 'POST',
         url: '/api/v1/salaries',
         headers: authed(),
-        payload: { amountCents: 500_000, date: dayIn(offset, 5) },
+        payload: { accountId: ACCOUNT, amountCents: 500_000, date: dayIn(offset, 5) },
       });
     }
     const body = await get('/api/v1/stats/pool-trend');

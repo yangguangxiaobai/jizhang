@@ -63,6 +63,7 @@ const transportModule = () => overview.modules.find((m) => m.categoryId === tran
 // ── AC3: recording a salary generates module budgets from the template ───────
 console.log(`\n[AC3] record a salary in ${label(M2)} -> module budgets appear`);
 const salary = await post('/salaries', {
+  accountId,
   amountCents: 1_000_000,
   date: dayIn(-2, 5),
   note: `${label(M2)} 工资`,
@@ -152,7 +153,7 @@ check('pool is negative from that borrow', overview.carryoverPoolCents === -150_
 
 // ── AC4: a new cycle closes the old one and its leftover enters the pool ─────
 console.log(`\n[AC4] start a new cycle in ${label(M1)} -> ${label(M2)} leftover moves to the pool`);
-await post('/salaries', { amountCents: 1_000_000, date: dayIn(-1, 5), note: `${label(M1)} 工资` });
+await post('/salaries', { accountId, amountCents: 1_000_000, date: dayIn(-1, 5), note: `${label(M1)} 工资` });
 overview = (await get('/budget/overview')).json;
 check('current cycle has no spending yet', foodModule()?.spentCents === 0, `-> ${foodModule()?.spentCents}`);
 
@@ -175,6 +176,7 @@ const singleTemplate = await single.json();
 check('created a single-module template', single.status === 201, `-> ${single.status}`);
 
 const octoberSalary = await post('/salaries', {
+  accountId,
   amountCents: 100_000,
   date: dayIn(0, 1),
   note: `${label(M0)} 工资`,

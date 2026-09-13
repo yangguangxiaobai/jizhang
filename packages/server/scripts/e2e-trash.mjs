@@ -132,7 +132,7 @@ console.log('\n[the budget follows the bin]');
 // One single-module cycle so the pool is unambiguous.
 const template = await post('/templates', { name: '单模块', modules: [{ categoryId: FOOD, ratio: 1 }] });
 const templateId = (await template.json()).id;
-await post('/salaries', { amountCents: 1_000_000, date: dayIn(2), note: '本月工资', templateId });
+await post('/salaries', { accountId: ACCOUNT, amountCents: 1_000_000, date: dayIn(2), note: '本月工资', templateId });
 
 const withAllLive = (await get('/budget/overview')).json;
 await softDelete(lunchId);

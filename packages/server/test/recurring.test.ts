@@ -383,7 +383,7 @@ describe('confirmation', () => {
       method: 'POST',
       url: '/api/v1/salaries',
       headers: authed(),
-      payload: { amountCents: 1_000_000, date: localDay(2026, 9, 2), templateId: undefined },
+      payload: { accountId: ACCOUNT, amountCents: 1_000_000, date: localDay(2026, 9, 2), templateId: undefined },
     });
     expect(salary.statusCode, salary.body).toBe(201);
 

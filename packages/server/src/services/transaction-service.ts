@@ -147,7 +147,12 @@ function requireType(value: unknown): number {
   return value;
 }
 
-function requireNonEmptyString(value: unknown, field: string): string {
+/**
+ * Requires a non-empty string. Exported because "a required reference is missing" is the
+ * same validation wherever it appears (a bill's category, a salary's account), and a second
+ * copy would eventually word the error differently for the same mistake.
+ */
+export function requireNonEmptyString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new ValidationError(`${field} is required.`);
   }
@@ -200,6 +205,24 @@ export interface TransactionServiceOptions {
   readonly now?: () => number;
 }
 
+/**
+ * Rejects a reference to an account that is missing or soft-deleted.
+ *
+ * Module-level and exported rather than a private method because three writers now need
+ * exactly this rule: a bill, a salary and a recurring rule. The project's convention is one
+ * implementation per rule (`spec/backend/quality-guidelines.md`: "One aggregation rule, one
+ * implementation"), and a second copy of this lookup is how a stale client would end up able
+ * to file money against an account the user has deleted.
+ */
+export function assertAccountUsable(db: Db, accountId: string): void {
+  const row = db
+    .prepare('SELECT 1 AS x FROM accounts WHERE id = ? AND deleted = 0')
+    .get(accountId) as { x: number } | undefined;
+  if (row === undefined) {
+    throw new ValidationError(`Unknown or deleted account: ${accountId}`);
+  }
+}
+
 export class TransactionService {
   private readonly db: Db;
   private readonly now: () => number;
@@ -219,13 +242,9 @@ export class TransactionService {
     }
   }
 
+  /** Delegates to the module-level rule so there is exactly one implementation. */
   private assertAccountUsable(accountId: string): void {
-    const row = this.db
-      .prepare('SELECT 1 AS x FROM accounts WHERE id = ? AND deleted = 0')
-      .get(accountId) as { x: number } | undefined;
-    if (row === undefined) {
-      throw new ValidationError(`Unknown or deleted account: ${accountId}`);
-    }
+    assertAccountUsable(this.db, accountId);
   }
 
   /**

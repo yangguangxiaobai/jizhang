@@ -20,7 +20,12 @@
 import { allocateSalaryCents } from '@jizhang/shared';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
-import { NotFoundError, ValidationError } from './transaction-service.js';
+import {
+  NotFoundError,
+  ValidationError,
+  assertAccountUsable,
+  requireNonEmptyString,
+} from './transaction-service.js';
 import { TemplateService } from './template-service.js';
 
 /** `settings` key holding the optional budget cycle start day. */
@@ -35,6 +40,7 @@ interface SalaryRow {
   readonly amount_cents: number;
   readonly date: number;
   readonly note: string;
+  readonly account_id: string;
   readonly deleted: number;
   readonly updated_at: number;
 }
@@ -58,6 +64,9 @@ export interface SalaryDto {
   readonly amountCents: number;
   readonly date: number;
   readonly note: string;
+  /** The account that received the money. Required: a salary with nowhere to land cannot
+   * take part in a balance. */
+  readonly accountId: string;
   readonly updatedAt: number;
 }
 
@@ -105,6 +114,7 @@ export interface CreateSalaryInput {
   readonly amountCents?: unknown;
   readonly date?: unknown;
   readonly note?: unknown;
+  readonly accountId?: unknown;
   readonly templateId?: unknown;
   readonly allocations?: unknown;
 }
@@ -146,6 +156,7 @@ export class SalaryService {
       amountCents: row.amount_cents,
       date: row.date,
       note: row.note,
+      accountId: row.account_id,
       updatedAt: row.updated_at,
     };
   }
@@ -220,6 +231,10 @@ export class SalaryService {
     const amountCents = this.requireAmount(input.amountCents);
     const date = this.requireDate(input.date);
     const note = typeof input.note === 'string' ? input.note : '';
+    // Required, not defaulted. Silently picking an account would put the money somewhere the
+    // user did not choose, and a wrong balance is harder to notice than a rejected form.
+    const accountId = requireNonEmptyString(input.accountId, 'accountId');
+    assertAccountUsable(this.db, accountId);
 
     const templateId =
       typeof input.templateId === 'string' && input.templateId.trim() !== ''
@@ -235,10 +250,10 @@ export class SalaryService {
     const run = this.db.transaction((): void => {
       this.db
         .prepare(
-          `INSERT INTO salary_records (id, amount_cents, date, note, deleted, updated_at)
-           VALUES (?, ?, ?, ?, 0, ?)`,
+          `INSERT INTO salary_records (id, amount_cents, date, note, account_id, deleted, updated_at)
+           VALUES (?, ?, ?, ?, ?, 0, ?)`,
         )
-        .run(salaryId, amountCents, date, note, nowMs);
+        .run(salaryId, amountCents, date, note, accountId, nowMs);
 
       this.db
         .prepare(
@@ -339,12 +354,14 @@ export class SalaryService {
       readonly amountCents?: unknown;
       readonly date?: unknown;
       readonly note?: unknown;
+      readonly accountId?: unknown;
       readonly allocations?: unknown;
     },
   ): SalaryDetailDto {
     const current = this.getByIdOrThrow(id);
     if (changes.amountCents === undefined && changes.date === undefined &&
-        changes.note === undefined && changes.allocations === undefined) return current;
+        changes.note === undefined && changes.accountId === undefined &&
+        changes.allocations === undefined) return current;
 
     const amountCents = changes.amountCents === undefined
       ? current.amountCents : this.requireAmount(changes.amountCents);
@@ -353,6 +370,13 @@ export class SalaryService {
       throw new ValidationError('note must be a string.');
     }
     const note = changes.note === undefined ? current.note : changes.note;
+    // Moving a salary to another account is a normal correction ("I filed it against the
+    // wrong card"), so it is allowed and needs no other field. The balance simply follows:
+    // both accounts are recomputed from the rows, so there is nothing to keep in sync.
+    const accountId = changes.accountId === undefined
+      ? current.accountId
+      : requireNonEmptyString(changes.accountId, 'accountId');
+    if (accountId !== current.accountId) assertAccountUsable(this.db, accountId);
     if (amountCents !== current.amountCents && changes.allocations === undefined) {
       throw new ValidationError('Changing the salary amount requires explicit allocations that add up to the new salary.');
     }
@@ -361,8 +385,8 @@ export class SalaryService {
     const nowMs = this.now();
 
     this.db.transaction(() => {
-      this.db.prepare('UPDATE salary_records SET amount_cents = ?, date = ?, note = ?, updated_at = ? WHERE id = ?')
-        .run(amountCents, date, note, nowMs, id);
+      this.db.prepare('UPDATE salary_records SET amount_cents = ?, date = ?, note = ?, account_id = ?, updated_at = ? WHERE id = ?')
+        .run(amountCents, date, note, accountId, nowMs, id);
       if (items !== undefined) {
         this.writeAllocation(id, date, items, nowMs);
       } else if (date !== current.date) {

@@ -84,6 +84,7 @@ const ACCOUNT = 'builtin-default-account';
 // One cycle with four envelopes, each in a different state: food at 85% (warning),
 // transport at 120% (over), housing at 30% and shopping at 10% (normal).
 const salary = await send('POST', '/salaries', {
+  accountId: ACCOUNT,
   amountCents: 1_000_000,
   date: dayIn(2),
   allocations: [

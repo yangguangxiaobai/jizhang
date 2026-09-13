@@ -152,6 +152,38 @@ const bankTxn = await send('POST', '/transactions', {
 });
 check('the new account is usable -> 201', bankTxn.status === 201, `-> ${bankTxn.status}`);
 
+// ── balances: the account's stored initial balance finally reaches a screen ──
+console.log('\n[account balances]');
+// `get` already returns parsed JSON in this suite.
+const balances = await get('/accounts/balances');
+const accountsLive = await get('/accounts');
+check(
+  'every live account has a row',
+  balances.items.length === accountsLive.items.length,
+  `-> ${balances.items.length} rows vs ${accountsLive.items.length} accounts`,
+);
+const bankBalance = balances.items.find((item) => item.accountId === bankAccount.id);
+check(
+  'the planted 100-cent bill came out of the initial balance',
+  bankBalance?.initialBalanceCents === 1_234_500 && bankBalance?.balanceCents === 1_234_400,
+  JSON.stringify(bankBalance),
+);
+check(
+  // The default account's seeded initial balance is 0 and it carries exactly one bill:
+  // the 25,000 猫粮 created above. (The later 100-cent attempt against a DELETED category is
+  // rejected with 400, so it never becomes a row — which is why this is not 25,100.)
+  'an account with no income shows minus its spending',
+  balances.items.find((item) => item.accountId === DEFAULT_ACCOUNT)?.balanceCents === -25_000,
+  JSON.stringify(balances.items),
+);
+check(
+  'the total is the sum of the rows',
+  balances.totalBalanceCents === balances.items.reduce((sum, item) => sum + item.balanceCents, 0),
+  `-> ${balances.totalBalanceCents}`,
+);
+// `bankBalance`, not `bank`, is read again below: the PATCH is the proof that the new
+// static path did not shadow `/accounts/:id`.
+
 const deleteDefault = await send('DELETE', `/accounts/${DEFAULT_ACCOUNT}`);
 check('the builtin default account cannot be deleted -> 400', deleteDefault.status === 400, `-> ${deleteDefault.status}`);
 

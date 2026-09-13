@@ -150,6 +150,26 @@ describe('export', () => {
     expect(service.exportTransactionsCsv()).toContain('午饭|公司');
   });
 
+  /**
+   * A salary now lands in an account, so the salaries export has to name it — otherwise a
+   * CSV-only backup could not say where the money went, which is the one thing this file
+   * exists to prevent (a fact going missing).
+   */
+  it('names the receiving account in the salaries export', () => {
+    db.prepare(
+      `INSERT INTO salary_records (id, amount_cents, date, note, account_id, deleted, updated_at)
+       VALUES ('s1', 1000000, ?, '九月工资', ?, 0, 1)`,
+    ).run(day(5), ACCOUNT);
+
+    const csv = service.exportSalariesCsv();
+    const header = (csv.replace('\uFEFF', '').split('\n')[0] ?? '').split(',');
+
+    expect(header).toEqual(['id', 'date', 'amount', 'account', 'note', 'allocations']);
+    expect(csv).toContain('默认账户');
+    expect(csv).toContain('10000.00');
+    expect(csv).not.toContain(ACCOUNT);
+  });
+
   it('omits soft-deleted bills', () => {
     const id = addTxn();
     db.prepare('UPDATE transactions SET deleted = 1 WHERE id = ?').run(id);
