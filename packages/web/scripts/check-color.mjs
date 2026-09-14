@@ -17,8 +17,8 @@
  *      a user" rule `check-motion.mjs` applies to the motion tokens;
  *   3. the hand-duplicated theme blocks agree: `:root` with `[data-theme='light']`, the
  *      system-dark block with `[data-theme='dark']`, and each preset's two dark blocks;
- *   4. every theme defines the same set of tokens, and a preset overrides only the accent
- *      rungs;
+ *   4. every theme defines the same set of tokens, and a preset overrides only the explicit
+ *      presentation allowlist (never financial-state or category colors);
  *   5. the contrast matrix, for every theme × preset: text pairs ≥ 4.5:1, fills ≥ 3:1,
  *      computed with the WCAG formula rather than judged from a screenshot;
  *   6. the category palette passes the data-viz gates in both themes — lightness band,
@@ -63,7 +63,10 @@ const NORMAL_FLOOR = 15;
 const THEMES = ['light', 'dark'];
 const PRESETS = ['titanium', 'forest', 'mono'];
 /** The rungs a preset is allowed to replace, and must replace all of. */
-const PRESET_TOKENS = ['--accent', '--on-accent', '--accent-subtle'];
+const PRESET_TOKENS = [
+  '--accent', '--on-accent', '--accent-subtle',
+  '--bg', '--surface-soft', '--hero', '--hero-decor',
+];
 const CATEGORY_SLOTS = 12;
 
 let failures = 0;
@@ -163,12 +166,15 @@ check('no component <style> contains a colour literal', literals.length === 0, `
 
 // ── 2. every colour token referenced is defined, every one defined is referenced ─
 console.log('\n[token wiring]');
-const rootRule = rules.find((rule) => rule.selector === ':root' && rule.media === null);
+// Comma groups let the settings swatch use the exact same declaration as its root palette.
+// These selectors contain no functional commas; match a complete list item, never a substring.
+const selects = (rule, selector) => rule.selector.split(',').some((item) => item.trim() === selector);
+const rootRule = rules.find((rule) => selects(rule, ':root') && rule.media === null);
 const rootDecls = rootRule === undefined ? new Map() : declarations(rootRule.body);
 const colourTokens = [...rootDecls].filter(([name, value]) => isColourToken(name, value)).map(([name]) => name);
 check(`:root defines colour tokens`, colourTokens.length > 0, `-> ${colourTokens.length}`);
 
-const COLOUR_NAME = /^--(?:bg|surface|border|fg|text|muted|accent|ok|warning|danger|on-[a-z]+|[a-z]+-subtle|cat-\d+)$/;
+const COLOUR_NAME = /^--(?:bg|surface(?:-[a-z]+)?|border|fg|text|muted|accent|ok|warning|danger|hero(?:-[a-z]+)?|on-[a-z]+|[a-z]+-subtle|cat-\d+)$/;
 const allSource = sourceFiles.map((path) => readFileSync(path, 'utf8')).join('\n');
 const captured = [...allSource.matchAll(/var\(\s*(--[a-z0-9-]+)/g)].map((m) => m[1]);
 const referenced = new Set(captured.filter((name) => !name.endsWith('-')));
@@ -189,7 +195,7 @@ check('every defined colour token is referenced', unusedTokens.length === 0, `${
 // ── 3 & 4. the theme blocks agree, and define the same tokens ───────────────
 console.log('\n[theme blocks]');
 const find = (selector, media) =>
-  rules.find((rule) => rule.selector === selector && rule.media === media);
+  rules.find((rule) => selects(rule, selector) && rule.media === media);
 const DARK_MEDIA = '(prefers-color-scheme: dark)';
 const blocks = {
   root: rootRule,
@@ -200,6 +206,15 @@ const blocks = {
 for (const [name, rule] of Object.entries(blocks)) {
   check(`the ${name} block exists`, rule !== undefined);
 }
+
+
+// Preview swatches must share the actual declarations, not repeat a second palette.
+for (const [name, selector] of [
+  ['root', '.theme-preview'],
+  ['light', "[data-theme='light'] .theme-preview"],
+  ['darkSystem', ":root:not([data-theme='light']) .theme-preview"],
+  ['darkExplicit', "[data-theme='dark'] .theme-preview"],
+]) check(name + ': preview shares the base palette', blocks[name] !== undefined && selects(blocks[name], selector));
 
 /** Colour declarations of a block, or an empty map when it is missing. */
 const colours = (rule) =>
@@ -235,8 +250,13 @@ for (const preset of PRESETS.filter((name) => name !== 'titanium')) {
   sameTokens(`preset ${preset}: the two dark blocks declare identical colours`, darkSystem, darkExplicit);
   for (const [label, rule] of [['light', light], ['dark', darkExplicit]]) {
     const names = [...colours(rule).keys()].sort().join(',');
-    check(`preset ${preset} (${label}) overrides exactly the accent rungs`, names === [...PRESET_TOKENS].sort().join(','), `-> ${names}`);
+    check(`preset ${preset} (${label}) overrides exactly the presentation allowlist`, names === [...PRESET_TOKENS].sort().join(','), `-> ${names}`);
   }
+  for (const [rule, selector] of [
+    [light, ".theme-preview[data-accent='" + preset + "']"],
+    [darkSystem, ":root:not([data-theme='light']) .theme-preview[data-accent='" + preset + "']"],
+    [darkExplicit, ":root[data-theme='dark'] .theme-preview[data-accent='" + preset + "']"],
+  ]) check(preset + ': preview shares its palette rule', rule !== undefined && selects(rule, selector));
   presetBlocks[preset] = { light, dark: darkExplicit };
 }
 
@@ -253,6 +273,10 @@ function resolve(theme, preset) {
 }
 
 const TEXT_PAIRS = [
+  ...['--fg', '--muted', '--accent', '--ok', '--warning', '--danger'].map((name) => [name, '--surface-soft']),
+  ['--on-hero', '--hero'],
+  ['--hero-muted', '--hero'],
+  ['--hero-danger', '--hero'],
   ['--fg', '--bg'],
   ['--fg', '--surface'],
   ['--muted', '--bg'],
@@ -279,6 +303,10 @@ const GRAPHIC_PAIRS = [
   ['--warning', '--bg'],
   ['--danger', '--bg'],
   ['--accent', '--surface'],
+  ['--accent', '--surface-soft'],
+  ['--accent', '--accent-subtle'],
+  ['--on-hero', '--hero'],
+  ['--hero-decor', '--hero'],
 ];
 
 let worstText = { ratio: Infinity };
@@ -427,7 +455,7 @@ check('useTheme.ts types exactly the presets the stylesheet defines', typePreset
 // ── report ───────────────────────────────────────────────────────────────────
 console.log('\n[manual, reported for the browser pass]');
 note(`${colourTokens.length} colour token(s): ${colourTokens.join(', ')}`);
-note('rendered colours, the presets and the budget tones are measured by scripts/render-color.mjs');
+note('isolated rendered-theme checks: e2e/theme.spec.mjs; legacy seeded-container checks: scripts/render-color.mjs');
 
 console.log(`\n${failures === 0 ? 'ALL COLOUR STATIC CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 if (failures > 0) process.exitCode = 1;

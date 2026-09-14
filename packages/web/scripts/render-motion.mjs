@@ -37,6 +37,7 @@
  * Usage: node scripts/render-motion.mjs <out.png> [base-url]
  */
 
+import { rgbToHex, toRgb } from './lib/color.mjs';
 import { execFileSync } from 'node:child_process';
 
 import { makeChecker, openBrowser } from './lib/browser.mjs';
@@ -382,53 +383,54 @@ try {
     `-> scale ${scaleOf(releasedTransform)}`,
   );
 
-  // ── 6. the active tab indicator and its follow-through ────────────────────
+  // ── 6. the active tab pill and its follow-through ─────────────────────────
   console.log('\n[tab indicator]');
   const indicator = await browser.evaluate(`(() => {
     const read = (selector) => {
       const el = document.querySelector(selector);
-      if (el === null) return null;
-      const after = getComputedStyle(el, '::after');
-      const glyph = el.querySelector('.glyph');
+      const glyph = el?.querySelector('.glyph');
+      if (glyph === null || glyph === undefined) return null;
+      const style = getComputedStyle(glyph);
+      const box = glyph.getBoundingClientRect();
       return {
-        opacity: Number(after.opacity),
-        transform: after.transform,
-        content: after.content,
-        glyphTransform: glyph === null ? 'none' : getComputedStyle(glyph).transform,
+        opacity: Number(style.opacity),
+        background: style.backgroundColor,
+        glyphTransform: style.transform,
+        weight: Number(getComputedStyle(el).fontWeight),
+        width: box.width,
+        height: box.height,
       };
     };
     return {
       active: read('.tabbar .tab.active:not(.primary)'),
-      inactive: read('.tabbar .tab:not(.active)'),
+      inactive: read('.tabbar .tab:not(.active):not(.primary)'),
+      tint: getComputedStyle(document.documentElement).getPropertyValue('--accent-subtle').trim(),
     };
   })()`);
-
-  const scaleX = (matrix) => {
-    if (typeof matrix !== 'string' || matrix === 'none') return 0;
-    const parts = matrix.match(/matrix\(([^)]+)\)/);
-    return parts === null ? 0 : Number(parts[1].split(',')[0]);
-  };
   check(
-    'the active tab has an indicator element',
-    indicator.active !== null && indicator.active.content !== 'none',
-    `-> content ${indicator.active?.content}`,
+    'the active tab has a visible pill',
+    indicator.active !== null && indicator.active.width > 0 && indicator.active.height > 0,
+    JSON.stringify(indicator.active),
   );
   check(
-    'the active indicator is fully drawn',
-    indicator.active !== null &&
-      indicator.active.opacity === 1 &&
-      Math.abs(scaleX(indicator.active.transform)) > 0.9,
-    `-> opacity ${indicator.active?.opacity} transform ${indicator.active?.transform}`,
+    'the active indicator is fully drawn in the preset tint',
+    indicator.active !== null && indicator.active.opacity === 1 &&
+      rgbToHex(toRgb(indicator.active.background)) === rgbToHex(toRgb(indicator.tint)),
+    indicator.active?.background,
   );
   check(
-    'an inactive tab has no indicator',
-    indicator.inactive !== null && indicator.inactive.opacity === 0,
-    `-> opacity ${indicator.inactive?.opacity}`,
+    'an inactive destination has no colored pill',
+    indicator.inactive !== null && ['rgba(0, 0, 0, 0)', 'transparent'].includes(indicator.inactive.background),
+    indicator.inactive?.background,
+  );
+  check(
+    'selection also has a text-weight cue',
+    indicator.active !== null && indicator.inactive !== null && indicator.active.weight > indicator.inactive.weight,
   );
   check(
     'the active tab glyph is lifted (follow-through)',
     indicator.active !== null && indicator.active.glyphTransform !== 'none',
-    `-> ${indicator.active?.glyphTransform}`,
+    indicator.active?.glyphTransform,
   );
 
   // ── 7. the charts animate, and the donut uses arcs ────────────────────────

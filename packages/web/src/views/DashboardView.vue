@@ -15,6 +15,7 @@
  * (`displayAmountCents`), and it does that through the shared contribution helpers so
  * the rule still has a single source.
  */
+import AppIcon from '../components/AppIcon.vue';
 import { incomeContribution, expenseContribution } from '@jizhang/shared';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -174,8 +175,11 @@ function isRefund(item: Transaction): boolean {
       Rendered only once the server's figures have arrived. A failed load shows the error
       rather than a card: printing ¥0.00 would be reporting a number that was never computed.
     -->
-    <section v-if="balances.loaded" class="card asset">
-      <h2>总余额</h2>
+    <section v-if="balances.loaded" class="theme-card card asset">
+      <div class="row section-head asset-head">
+        <h2><AppIcon name="wallet" /> 总余额</h2>
+        <span class="asset-caption">所有账户</span>
+      </div>
       <strong class="asset-total" :class="{ negative: balances.totalBalanceCents < 0 }">
         {{ formatYuan(balances.totalBalanceCents) }}
       </strong>
@@ -196,7 +200,7 @@ function isRefund(item: Transaction): boolean {
       </p>
 
       <ul v-if="balances.items.length > 0" class="asset-rows">
-        <li v-for="item in balances.items" :key="item.accountId">
+        <li class="row" v-for="item in balances.items" :key="item.accountId">
           <span class="asset-name">{{ item.name }}</span>
           <span class="asset-amount" :class="{ negative: item.balanceCents < 0 }">
             {{ formatYuan(item.balanceCents) }}
@@ -208,8 +212,8 @@ function isRefund(item: Transaction): boolean {
         Moving money between accounts is the one action that belongs on this card rather than a
         menu: it is the only thing a user does *to* the balances they are looking at.
       -->
-      <button type="button" class="ghost" @click="router.push({ name: 'transfers' })">
-        转账
+      <button type="button" class="theme-button ghost" @click="router.push({ name: 'transfers' })">
+        <AppIcon name="transfer" />转账<AppIcon class="action-arrow" name="arrow" />
       </button>
     </section>
 
@@ -217,8 +221,11 @@ function isRefund(item: Transaction): boolean {
       总余额读取失败：{{ balances.errorMessage }}
     </p>
 
-    <section class="summary card">
-      <h2>{{ monthLabel }}</h2>
+    <section class="theme-card summary card">
+      <div class="row section-head">
+        <h2>{{ monthLabel }}</h2>
+        <span class="label">月度收支</span>
+      </div>
       <div class="figures">
         <div class="figure">
           <span class="label">收入</span>
@@ -240,16 +247,23 @@ function isRefund(item: Transaction): boolean {
       The task that added it was explicit that a permanent "0 items" card would be worse
       than no card at all.
     -->
-    <section v-if="recurring.pendingCount > 0" class="pending-card" role="status">
+    <section v-if="recurring.pendingCount > 0" class="row pending-card" role="status">
       <div>
         <span class="label">待确认</span>
         <strong>{{ recurring.pendingCount }} 笔到期账单</strong>
       </div>
-      <button type="button" @click="router.push({ name: 'recurring-pending' })">去确认</button>
+      <button
+        class="theme-button"
+        type="button"
+        @click="router.push({ name: 'recurring-pending' })"
+      >
+        去确认
+      </button>
     </section>
 
-    <section class="card budget">
+    <section class="theme-card card budget">
       <template v-if="budget.overview?.hasBudget">
+        <h2>本周期预算</h2>
         <div class="row">
           <span class="label">本周期剩余</span>
           <strong :class="{ negative: budgetRemainingCents < 0 }">
@@ -271,7 +285,8 @@ function isRefund(item: Transaction): boolean {
           />
         </div>
         <p class="hint">
-          {{ formatYuan(budget.overview.totalSpentCents) }} / {{ formatYuan(budget.overview.totalBudgetCents) }} 已用
+          {{ formatYuan(budget.overview.totalSpentCents) }} /
+          {{ formatYuan(budget.overview.totalBudgetCents) }} 已用
         </p>
         <p v-if="budgetAlert !== null" class="alert notice" :class="`notice-${budgetAlert.tone}`">
           {{ budgetAlert.text }}
@@ -283,35 +298,40 @@ function isRefund(item: Transaction): boolean {
         <p class="hint">记一次工资，系统会按模板比例自动分配各模块预算。</p>
       </template>
 
-      <button type="button" class="ghost" @click="router.push({ name: 'budget' })">
-        {{ budget.overview?.hasBudget ? '查看预算' : '去记工资' }}
+      <button type="button" class="theme-button ghost" @click="router.push({ name: 'budget' })">
+        {{ budget.overview?.hasBudget ? '查看预算' : '去记工资' }}<AppIcon name="chevron" />
       </button>
     </section>
 
     <section class="recent">
-      <div class="section-head">
+      <div class="row section-head">
         <h2>最近账单</h2>
-        <button type="button" class="link" @click="router.push({ name: 'transactions' })">
-          查看全部
+        <button
+          type="button"
+          class="theme-button link"
+          @click="router.push({ name: 'transactions' })"
+        >
+          查看全部<AppIcon name="chevron" />
         </button>
       </div>
 
-      <p v-if="recent.length === 0" class="hint empty">
-        还没有账单，点底部「记一笔」记录第一笔。
-      </p>
+      <p v-if="recent.length === 0" class="hint empty">还没有账单，点底部「记一笔」记录第一笔。</p>
 
-      <ul v-else class="rows">
+      <ul v-else class="theme-card rows">
         <li v-for="item in recent" :key="item.id">
           <button
             type="button"
-            class="txn"
+            class="theme-button row txn"
             @click="router.push({ name: 'transaction-edit', params: { id: item.id } })"
           >
             <span class="txn-main">
               <span class="txn-title">{{ rowTitle(item) }}</span>
               <span class="txn-sub">{{ rowSubtitle(item) }}</span>
             </span>
-            <span class="txn-amount" :class="{ negative: displayAmountCents(item) < 0, refund: isRefund(item) }">
+            <span
+              class="txn-amount"
+              :class="{ negative: displayAmountCents(item) < 0, refund: isRefund(item) }"
+            >
               {{ formatYuan(displayAmountCents(item)) }}
             </span>
           </button>
@@ -322,202 +342,204 @@ function isRefund(item: Transaction): boolean {
 </template>
 
 <style scoped>
-.card {
-  padding: 0.9rem 1rem;
-  margin-bottom: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.7rem;
-}
-
-h2 {
-  margin: 0 0 0.6rem;
-  font-size: 0.95rem;
-}
-
-.label {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.figures {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-}
-
-/*
- * The asset card. The total is the largest number in the app on purpose: it is the one
- * figure the user came to check, and everything else on this screen is a detail of it.
- */
-.asset-total {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 1.8rem;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-
-.asset-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.3rem;
-}
-
-/*
- * The assets/liabilities split. Wraps rather than shrinking, because at 375px the three
- * figures plus their labels do not fit on one line and a squeezed number is worse than a
- * second line.
- */
-.asset-split {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.3rem;
-  margin: 0 0 0.5rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.asset-split .sep {
-  color: var(--border);
-}
-
-.asset-rows li {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-height: 1.6rem;
-}
-
-.asset-name {
-  font-size: 0.85rem;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.asset-amount {
-  flex-shrink: 0;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Sits under the account rows as the card's single action. */
-.asset .ghost {
-  width: 100%;
-  min-height: 44px;
-  margin-top: 0.7rem;
-  font: inherit;
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--fg);
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-  cursor: pointer;
-}
-
-.figure {
-  display: grid;
-  gap: 0.15rem;
-}
-
-.figure strong {
-  font-size: 1rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.income {
-  color: var(--ok);
-}
-
-.negative {
-  color: var(--danger);
-}
-
-/* The reminder that something needs a decision. */
-.pending-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.8rem 1rem;
-  margin-bottom: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  border-left-width: 4px;
-  border-radius: 0.7rem;
-  /* Raised above the cards around it: this is the one block on the page that is asking
-     for something, and depth is how the design says so without adding another colour. */
-  box-shadow: var(--lift-2);
-  /*
-   * And it is the only element in the app that overshoots. Everything else rises into
-   * place on `--ease-out`; this one arrives on `--ease-pop` and lands a hair past its
-   * size, which is the single deliberate exaggeration in the interface. It is reserved
-   * for the one card whose entire purpose is to be noticed — spend it anywhere else and
-   * it stops meaning anything.
-   *
-   * It overrides the generic arrival from `.view-slot > *` (a scoped component rule wins
-   * that tie) and keeps the same position in the sequence.
-   */
-  animation: pop-in var(--dur-base) var(--ease-pop) backwards;
-  animation-delay: calc(var(--stagger) * 2);
-}
-
-.pending-card strong {
-  font-size: 1.05rem;
-}
-
-.pending-card button {
-  flex-shrink: 0;
-  min-height: 44px;
-  padding: 0 1rem;
-  font: inherit;
-  font-weight: 600;
-  color: var(--on-accent);
-  background: var(--accent);
-  border: 0;
-  border-radius: 0.55rem;
-  cursor: pointer;
+.label,
+.asset-head h2,
+.asset-caption,
+.asset-split,
+.hint,
+.alert,
+.link,
+.txn-sub {
+  font-size: 0.8rem;
 }
 
 .row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 0.5rem;
   justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.card,
+.recent,
+.pending-card {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.label,
+.hint,
+.muted {
+  color: var(--muted);
+}
+
+.asset {
+  padding: 1.35rem 1.25rem 0.25rem;
+  color: var(--on-hero);
+  background: var(--hero);
+  border: 0;
+  box-shadow: var(--lift-1);
+}
+
+.asset-head .app-icon {
+  color: var(--hero-decor);
+}
+
+.section-head {
+  margin-bottom: 0.9rem;
+}
+
+.row h2 {
+  margin: 0;
+}
+
+.asset-head,
+.asset-name,
+.asset-split {
+  color: var(--hero-muted);
+}
+
+.asset-total {
+  display: block;
+  margin-bottom: 1.25rem;
+  font-size: clamp(2rem, 8.5vw, 2.65rem);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.asset-rows {
+  font-size: 0.85rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem 0;
+  display: grid;
+  gap: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--hero-muted) 24%, transparent);
+}
+
+.asset-rows li {
+  align-items: baseline;
+  gap: 0.3rem 0.75rem;
+}
+
+.asset-name {
+  flex: 1 1 7rem;
+  min-width: 0;
+}
+
+.asset-amount {
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
+}
+
+.asset-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+}
+
+.asset .negative {
+  color: var(--hero-danger);
+}
+
+.asset .ghost {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0;
+  padding-inline: 0;
+  color: var(--on-hero);
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--hero-muted) 24%, transparent);
+  border-radius: 0;
+}
+
+.asset .ghost:focus-visible {
+  outline-color: var(--on-hero);
+  outline-offset: -2px;
+}
+
+.action-arrow {
+  margin-left: auto;
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.figure {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+}
+
+.figure + .figure {
+  border-left: 1px solid var(--border);
+  padding-left: 0.6rem;
+}
+
+.income,
+.txn-amount.refund {
+  color: var(--ok);
+}
+
+.negative,
+.error {
+  color: var(--danger);
+}
+
+.pending-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  border-radius: var(--radius-card);
+  /* Only this decision card keeps the existing overshoot and higher elevation. */
+  box-shadow: var(--lift-2);
+  animation: pop-in var(--dur-base) var(--ease-pop) backwards;
+  animation-delay: calc(var(--stagger) * 2);
+}
+
+.pending-card button {
+  padding: 0 1rem;
+}
+
+.budget {
+  background: var(--surface-soft);
+}
+
+.budget .row {
+  margin-bottom: 0.85rem;
 }
 
 .row strong {
-  font-size: 1.1rem;
-  font-variant-numeric: tabular-nums;
+  font-size: 1.3rem;
 }
 
 .track {
-  height: 8px;
+  height: 6px;
   background: var(--bg);
   border-radius: 4px;
   overflow: hidden;
 }
 
-/*
- * The fill's width is expressed as a `transform: scaleX()` rather than as a `width`
- * percentage, and the reason is the animation: `width` is a layout property, so animating
- * it re-runs layout for the whole track on every frame. `scaleX` is handed to the
- * compositor and costs the main thread nothing. The track clips it, so the geometry on
- * screen is identical — this is the same bar, drawn a cheaper way.
- *
- * `--fill` is a unit interval rather than a percentage so the arithmetic lives in the
- * template (which the view already does for `budgetPercent`) and the stylesheet only
- * interpolates.
- */
+/* Preserve the compositor-only fill motion; width is never animated. */
 .fill {
   display: block;
   width: 100%;
@@ -527,8 +549,6 @@ h2 {
   transform: scaleX(var(--fill, 0));
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease-out);
-  /* Grows into place on arrival, so the length reads as a measurement rather than as a
-     bar that was simply always that long. */
   animation: fill-grow var(--dur-slow) var(--ease-out) backwards;
 }
 
@@ -547,52 +567,40 @@ h2 {
 }
 
 .hint {
-  margin: 0.4rem 0 0;
-  font-size: 0.78rem;
+  margin: 0.5rem 0 0;
   line-height: 1.6;
-  color: var(--muted);
 }
 
-/* Colours from `.notice` in main.css; this only places it under the figures. */
 .alert {
-  margin: 0.6rem 0 0;
-  font-size: 0.8rem;
+  margin: 0.65rem 0 0;
+}
+
+.ghost,
+.link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  background: none;
 }
 
 .ghost {
   width: 100%;
-  min-height: 44px;
-  margin-top: 0.7rem;
-  font: inherit;
+  margin-top: 0.8rem;
   font-weight: 600;
   color: var(--fg);
-  background: none;
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
-  cursor: pointer;
-}
-
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.section-head h2 {
-  margin: 0;
+  border-radius: var(--radius-control);
 }
 
 .link {
-  min-height: 44px;
-  padding: 0 0.5rem;
-  font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--accent);
-  background: none;
-  border: 0;
-  cursor: pointer;
+}
+
+.recent .section-head {
+  margin-bottom: 0.3rem;
 }
 
 .empty {
@@ -602,53 +610,42 @@ h2 {
 .rows {
   list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
+  padding: 0.15rem 0.9rem;
+}
+
+.rows li + li {
+  border-top: 1px solid var(--border);
 }
 
 .txn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.4rem 0.75rem;
   width: 100%;
-  min-height: 44px;
-  padding: 0.55rem 0.85rem;
-  font: inherit;
+  min-height: 64px;
+  font-weight: 400;
+  padding: 0.7rem 0;
   text-align: left;
   color: var(--fg);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.65rem;
-  cursor: pointer;
+  background: none;
 }
 
 .txn-main {
   display: grid;
-  gap: 0.15rem;
+  flex: 1 1 8rem;
+  gap: 0.2rem;
   min-width: 0;
 }
 
 .txn-title {
   font-size: 0.92rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .txn-sub {
-  font-size: 0.72rem;
   color: var(--muted);
 }
 
 .txn-amount {
-  flex-shrink: 0;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.txn-amount.refund {
-  color: var(--ok);
+  max-width: 100%;
+  margin-left: auto;
+  font-weight: 600;
 }
 </style>

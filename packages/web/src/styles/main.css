@@ -15,7 +15,9 @@
  *
  * ## The ladder
  *
- * Neutrals: `--bg` (the page), `--surface` (cards and bars), `--border`, `--fg`, `--muted`.
+ * Neutrals: `--bg` (the page), `--surface` (cards and bars), `--surface-soft`,
+ * `--border`, `--fg`, `--muted`. The balance card uses `--hero` with its own measured
+ * `--on-hero`, `--hero-muted` and `--hero-danger`; a dark accent is too light for that job.
  *
  * Four hues — `accent`, `ok`, `warning`, `danger` — each on the same three rungs:
  *
@@ -54,8 +56,17 @@
  * reordering the shared list, and the audit checks the two agree.
  */
 
-:root {
-  --bg: #f6f7f9;
+:root,
+.theme-preview {
+  --radius-card: 1.15rem;
+  --radius-control: 0.65rem;
+  --bg: #f7f5f0;
+  --surface-soft: #f4f7f8;
+  --hero: #244d60;
+  --hero-decor: #ecd0b1;
+  --on-hero: #ffffff;
+  --hero-muted: #d8e5e9;
+  --hero-danger: #ffd1ca;
   --surface: #ffffff;
   --border: #e2e5ea;
   --fg: #1c1f23;
@@ -64,7 +75,7 @@
   --muted: #5f6b7a;
 
   /* accent — the "钛蓝" preset. The colour of the app icon, so the launcher, the splash
-     and the buttons agree. The other presets override these three rungs only. */
+     and the buttons agree. Presets also coordinate the page, soft surface and balance card. */
   --accent: #2f6f8f;
   /* Text that sits ON `--accent`. A token rather than a literal `#fff`, because the dark
      accent is a light blue: white on it measures under 3:1. Every primary button in the app
@@ -163,8 +174,15 @@
  * win inside the same specificity band. The repetition is a drift hazard, so
  * `check-color.mjs` fails the build if this block and `:root` ever disagree.
  */
-[data-theme='light'] {
-  --bg: #f6f7f9;
+[data-theme='light'],
+[data-theme='light'] .theme-preview {
+  --bg: #f7f5f0;
+  --surface-soft: #f4f7f8;
+  --hero: #244d60;
+  --hero-decor: #ecd0b1;
+  --on-hero: #ffffff;
+  --hero-muted: #d8e5e9;
+  --hero-danger: #ffd1ca;
   --surface: #ffffff;
   --border: #e2e5ea;
   --fg: #1c1f23;
@@ -205,8 +223,15 @@
  * dark washes of their hue rather than pastels.
  */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #16181d;
+  :root:not([data-theme='light']),
+  :root:not([data-theme='light']) .theme-preview {
+    --bg: #131c22;
+    --surface-soft: #252e35;
+    --hero: #234353;
+    --hero-decor: #ecd0b1;
+    --on-hero: #ffffff;
+    --hero-muted: #d8e5e9;
+    --hero-danger: #ffd1ca;
     --surface: #1e2127;
     --border: #2f333b;
     --fg: #e8eaed;
@@ -243,8 +268,15 @@
 }
 
 /* Explicit dark wins over a light system. Same values as the media block; audited. */
-[data-theme='dark'] {
-  --bg: #16181d;
+[data-theme='dark'],
+[data-theme='dark'] .theme-preview {
+  --bg: #131c22;
+  --surface-soft: #252e35;
+  --hero: #234353;
+  --hero-decor: #ecd0b1;
+  --on-hero: #ffffff;
+  --hero-muted: #d8e5e9;
+  --hero-danger: #ffd1ca;
   --surface: #1e2127;
   --border: #2f333b;
   --fg: #e8eaed;
@@ -281,9 +313,13 @@
  * ── colour presets ───────────────────────────────────────────────────────────
  *
  * `data-accent` on <html>: absent is 钛蓝 (the values above), `forest` is 森林绿, `mono` is
- * 极简黑白. A preset replaces the three accent rungs and nothing else — the neutrals and the
- * three status hues are the same in every preset, so "warning" still means warning under a
- * green accent.
+ * 极简黑白. A preset coordinates the accent rungs, page, soft surface and balance-card
+ * colors. Ordinary surfaces and the three status hues stay shared, so "warning" still
+ * means warning under a green accent.
+ *
+ * Each palette rule also selects its decorative `.theme-preview` swatch. Those selectors
+ * are scoped to a child of the settings button, never the button or a view: miniatures
+ * share the real values without leaking their palette into text, focus rings or the page.
  *
  * Specificity, not source order, decides these. `:root[data-accent]` is (0,2,0), which beats
  * `:root` and `[data-theme='light']` at (0,1,0); the dark variants are (0,3,0), which beats
@@ -295,39 +331,69 @@
  * buttons, the active tab, the focus ring, the progress fill, the expense bars — becomes
  * black-on-white or white-on-black without any component knowing.
  */
-:root[data-accent='forest'] {
+:root[data-accent='forest'],
+.theme-preview[data-accent='forest'] {
+  --bg: #f2f5ef;
+  --surface-soft: #f4f7f3;
+  --hero: #294d3e;
+  --hero-decor: #ecd0b1;
   --accent: #2d6a4f;
   --on-accent: #ffffff;
   --accent-subtle: #e3f0e9;
 }
 
-:root[data-accent='mono'] {
+:root[data-accent='mono'],
+.theme-preview[data-accent='mono'] {
+  --bg: #f4f3f1;
+  --surface-soft: #f7f6f4;
+  --hero: #30343a;
+  --hero-decor: #d6dce0;
   --accent: #1c1f23;
   --on-accent: #ffffff;
   --accent-subtle: #e9ebee;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light'])[data-accent='forest'] {
+  :root:not([data-theme='light'])[data-accent='forest'],
+  :root:not([data-theme='light']) .theme-preview[data-accent='forest'] {
+    --bg: #151d18;
+    --surface-soft: #263029;
+    --hero: #264737;
+    --hero-decor: #ecd0b1;
     --accent: #74c69d;
     --on-accent: #10151c;
     --accent-subtle: #1d3328;
   }
 
-  :root:not([data-theme='light'])[data-accent='mono'] {
+  :root:not([data-theme='light'])[data-accent='mono'],
+  :root:not([data-theme='light']) .theme-preview[data-accent='mono'] {
+    --bg: #17191d;
+    --surface-soft: #292d33;
+    --hero: #32373f;
+    --hero-decor: #d6dce0;
     --accent: #e8eaed;
     --on-accent: #10151c;
     --accent-subtle: #2b2f36;
   }
 }
 
-:root[data-theme='dark'][data-accent='forest'] {
+:root[data-theme='dark'][data-accent='forest'],
+:root[data-theme='dark'] .theme-preview[data-accent='forest'] {
+  --bg: #151d18;
+  --surface-soft: #263029;
+  --hero: #264737;
+  --hero-decor: #ecd0b1;
   --accent: #74c69d;
   --on-accent: #10151c;
   --accent-subtle: #1d3328;
 }
 
-:root[data-theme='dark'][data-accent='mono'] {
+:root[data-theme='dark'][data-accent='mono'],
+:root[data-theme='dark'] .theme-preview[data-accent='mono'] {
+  --bg: #17191d;
+  --surface-soft: #292d33;
+  --hero: #32373f;
+  --hero-decor: #d6dce0;
   --accent: #e8eaed;
   --on-accent: #10151c;
   --accent-subtle: #2b2f36;
@@ -356,6 +422,26 @@ body {
   color: var(--fg);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
+}
+
+/* Opt-in presentation primitives, shared by the refreshed dashboard and settings only. */
+.theme-card {
+  padding: 1.1rem;
+  margin-bottom: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.theme-button {
+  min-height: 44px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-control);
+  cursor: pointer;
 }
 
 /*

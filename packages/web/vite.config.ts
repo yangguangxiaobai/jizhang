@@ -52,7 +52,7 @@ export default defineConfig({
         // Both are asserted against `src/styles/main.css` by `scripts/check-color.mjs`:
         // the splash is the page background, and the toolbar is the top bar's surface (see
         // `composables/useTheme.ts` for why the surface rather than the accent).
-        background_color: '#f6f7f9',
+        background_color: '#f7f5f0',
         theme_color: '#ffffff',
         icons: [
           { src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },

@@ -223,12 +223,12 @@ async function sample() {
   return browser.evaluate(`(${samplePage.toString()})()`);
 }
 
-/** Clicks a segmented button on the settings page by its label. */
+/** Clicks an appearance control by its accessible label, independent of its visual layout. */
 async function chooseOnSettings(label) {
   await browser.navigateAndWait('/settings', ['外观', label]);
   const clicked = await browser.evaluate(`(() => {
-    const buttons = [...document.querySelectorAll('.segmented button')];
-    const target = buttons.find((b) => (b.innerText || '').trim() === ${JSON.stringify(label)});
+    const buttons = [...document.querySelectorAll('[role="group"][aria-label="深浅色"] button, [role="group"][aria-label="主色"] button')];
+    const target = buttons.find((b) => (b.getAttribute('aria-label') || b.innerText || '').trim() === ${JSON.stringify(label)});
     if (target === undefined) return false;
     target.click();
     return true;
