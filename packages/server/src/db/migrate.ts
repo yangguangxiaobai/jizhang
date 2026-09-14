@@ -18,6 +18,7 @@ import { MIGRATION_001_INIT } from './migrations/001-init.js';
 import { MIGRATION_002_RECURRING } from './migrations/002-recurring.js';
 import { MIGRATION_003_SALARY_ACCOUNT } from './migrations/003-salary-account.js';
 import { MIGRATION_004_TRANSFERS } from './migrations/004-transfers.js';
+import { MIGRATION_005_REFUND_LINKS } from './migrations/005-refund-links.js';
 
 export interface Migration {
   readonly version: number;
@@ -34,6 +35,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 2, name: 'recurring', sql: MIGRATION_002_RECURRING },
   { version: 3, name: 'salary-account', sql: MIGRATION_003_SALARY_ACCOUNT },
   { version: 4, name: 'transfers', sql: MIGRATION_004_TRANSFERS },
+  { version: 5, name: 'refund-links', sql: MIGRATION_005_REFUND_LINKS },
 ];
 
 interface AppliedRow {
@@ -61,9 +63,7 @@ function ensureMigrationTable(db: Db): void {
 }
 
 function appliedVersions(db: Db): Set<number> {
-  const rows = db
-    .prepare('SELECT version FROM schema_migrations')
-    .all() as { version: number }[];
+  const rows = db.prepare('SELECT version FROM schema_migrations').all() as { version: number }[];
   return new Set(rows.map((row) => row.version));
 }
 
@@ -79,10 +79,7 @@ export function backupDatabase(db: Db, dataDir: string): string | null {
   const backupsDir = path.join(dataDir, 'backups');
   mkdirSync(backupsDir, { recursive: true });
 
-  const stamp = new Date()
-    .toISOString()
-    .replace(/[:.]/g, '-')
-    .replace('Z', '');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('Z', '');
   const target = path.join(backupsDir, `jizhang-${stamp}.db`);
 
   // VACUUM INTO writes a consistent snapshot of the live database, including
@@ -133,8 +130,7 @@ export function runMigrations(db: Db, dataDir: string | null): MigrateResult {
   // database already writes a header (the WAL pragma alone does), so a brand new
   // file looks non-empty immediately.
   const isUpgrade = done.size > 0;
-  const backupPath =
-    dataDir !== null && isUpgrade ? backupDatabase(db, dataDir) : null;
+  const backupPath = dataDir !== null && isUpgrade ? backupDatabase(db, dataDir) : null;
 
   const applied: number[] = [];
   const record = db.prepare(

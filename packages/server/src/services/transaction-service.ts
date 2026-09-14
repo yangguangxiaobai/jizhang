@@ -52,10 +52,11 @@ export interface TransactionDto {
   readonly note: string;
   readonly tags: string[];
   readonly isRefund: boolean;
+  readonly refundLinkedTxIds?: string[];
   readonly updatedAt: number;
 }
 
-function toDto(row: TransactionRow): TransactionDto {
+function toDto(row: TransactionRow, refundLinkedTxIds?: string[]): TransactionDto {
   return {
     id: row.id,
     type: row.type,
@@ -66,6 +67,7 @@ function toDto(row: TransactionRow): TransactionDto {
     note: row.note,
     tags: parseTagsJson(row.tags_json),
     isRefund: row.is_refund === 1,
+    refundLinkedTxIds,
     updatedAt: row.updated_at,
   };
 }
@@ -119,6 +121,7 @@ export interface CreateTransactionInput {
   readonly note?: unknown;
   readonly tags?: unknown;
   readonly isRefund?: unknown;
+  readonly refundLinkedTxIds?: unknown;
 }
 
 /**
@@ -261,13 +264,71 @@ export class TransactionService {
     this.assertAccountUsable(accountId);
   }
 
+  /** Returns the ids of original expenses linked to a refund transaction. */
+  private getRefundLinks(refundTxId: string): string[] {
+    const rows = this.db
+      .prepare('SELECT original_tx_id FROM refund_links WHERE refund_tx_id = ? ORDER BY rowid')
+      .all(refundTxId) as { original_tx_id: string }[];
+    return rows.map((row) => row.original_tx_id);
+  }
+
+  /** Removes existing links for a refund and inserts the validated set. */
+  private replaceRefundLinks(
+    refundTxId: string,
+    originalTxIds: readonly string[],
+    nowMs: number,
+  ): void {
+    this.db.prepare('DELETE FROM refund_links WHERE refund_tx_id = ?').run(refundTxId);
+    if (originalTxIds.length === 0) return;
+    const insert = this.db.prepare(
+      'INSERT INTO refund_links (id, refund_tx_id, original_tx_id, created_at) VALUES (?, ?, ?, ?)',
+    );
+    for (const originalTxId of originalTxIds) {
+      insert.run(randomUUID(), refundTxId, originalTxId, nowMs);
+    }
+  }
+
+  /**
+   * Validates that each linked id is a live, non-refund expense.
+   * Returns the de-duplicated id list so the caller stores a clean set.
+   */
+  private validateRefundLinks(originalTxIds: readonly string[], selfId?: string): string[] {
+    if (originalTxIds.length === 0) return [];
+    const unique = [...new Set(originalTxIds)];
+    if (selfId !== undefined && unique.includes(selfId)) {
+      throw new ValidationError('A refund cannot link to itself.');
+    }
+    const placeholders = unique.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(
+        `SELECT id, type, is_refund, deleted FROM transactions WHERE id IN (${placeholders})`,
+      )
+      .all(...unique) as {
+      id: string;
+      type: number;
+      is_refund: number;
+      deleted: number;
+    }[];
+    const found = new Map(rows.map((row) => [row.id, row]));
+    for (const id of unique) {
+      const row = found.get(id);
+      if (row === undefined) throw new ValidationError(`Linked transaction not found: ${id}`);
+      if (row.deleted === 1) throw new ValidationError(`Linked transaction is deleted: ${id}`);
+      if (row.type !== TYPE_EXPENSE)
+        throw new ValidationError(`Linked transaction must be an expense: ${id}`);
+      if (row.is_refund === 1)
+        throw new ValidationError(`Linked transaction must not be a refund: ${id}`);
+    }
+    return unique;
+  }
+
   getById(id: string, includeDeleted = false): TransactionDto | undefined {
     const row = this.db
-      .prepare(
-        `SELECT * FROM transactions WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`,
-      )
+      .prepare(`SELECT * FROM transactions WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`)
       .get(id) as TransactionRow | undefined;
-    return row === undefined ? undefined : toDto(row);
+    if (row === undefined) return undefined;
+    if (row.is_refund !== 1) return toDto(row);
+    return toDto(row, this.getRefundLinks(id));
   }
 
   /**
@@ -278,9 +339,8 @@ export class TransactionService {
    * silently hard-delete the wrong thing.
    */
   private deletedFlag(id: string): number | undefined {
-    const row = this.db
-      .prepare('SELECT deleted FROM transactions WHERE id = ?')
-      .get(id) as { deleted: number } | undefined;
+    const row = this.db.prepare('SELECT deleted FROM transactions WHERE id = ?').get(id) as
+      { deleted: number } | undefined;
     return row?.deleted;
   }
 
@@ -335,6 +395,18 @@ export class TransactionService {
         nowMs,
       );
 
+    if (isRefund) {
+      const linkedIds = Array.isArray(input.refundLinkedTxIds)
+        ? (input.refundLinkedTxIds as readonly unknown[]).filter(
+            (v): v is string => typeof v === 'string',
+          )
+        : [];
+      const validated = this.validateRefundLinks(linkedIds, rowId);
+      if (validated.length > 0) {
+        this.replaceRefundLinks(rowId, validated, nowMs);
+      }
+    }
+
     return this.getByIdOrThrow(rowId);
   }
 
@@ -347,8 +419,7 @@ export class TransactionService {
   update(id: string, input: UpdateTransactionInput): TransactionDto {
     const current = this.getByIdOrThrow(id);
 
-    const nextType =
-      input.type === undefined ? current.type : requireType(input.type);
+    const nextType = input.type === undefined ? current.type : requireType(input.type);
     const nextAmount =
       input.amountCents === undefined
         ? current.amountCents
@@ -362,9 +433,7 @@ export class TransactionService {
         ? current.accountId
         : requireNonEmptyString(input.accountId, 'accountId');
     const nextDate =
-      input.date === undefined
-        ? current.date
-        : requireTimestamp(input.date, 'date', this.now());
+      input.date === undefined ? current.date : requireTimestamp(input.date, 'date', this.now());
     const nextNote = input.note === undefined ? current.note : input.note;
     if (typeof nextNote !== 'string') {
       throw new ValidationError('note must be a string.');
@@ -373,8 +442,7 @@ export class TransactionService {
       input.tags === undefined
         ? current.tags
         : normaliseTags(Array.isArray(input.tags) ? input.tags : []);
-    const nextIsRefund =
-      input.isRefund === undefined ? current.isRefund : input.isRefund === true;
+    const nextIsRefund = input.isRefund === undefined ? current.isRefund : input.isRefund === true;
 
     if (nextIsRefund && nextType !== TYPE_EXPENSE) {
       throw new ValidationError('isRefund can only be set on an expense (type 0).');
@@ -402,6 +470,19 @@ export class TransactionService {
         this.now(),
         id,
       );
+
+    // Refund links: cleared when not a refund; replaced when the caller
+    // provides them; left untouched when the caller omits them on a row
+    // that is already a refund.
+    if (!nextIsRefund) {
+      this.replaceRefundLinks(id, [], this.now());
+    } else if (Array.isArray(input.refundLinkedTxIds)) {
+      const linkedIds = (input.refundLinkedTxIds as readonly unknown[]).filter(
+        (v): v is string => typeof v === 'string',
+      );
+      const validated = this.validateRefundLinks(linkedIds, id);
+      this.replaceRefundLinks(id, validated, this.now());
+    }
 
     return this.getByIdOrThrow(id);
   }
@@ -462,9 +543,9 @@ export class TransactionService {
   restoreAll(): number {
     const run = this.db.transaction(
       (): number =>
-        this.db.prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE deleted = 1').run(
-          this.now(),
-        ).changes,
+        this.db
+          .prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE deleted = 1')
+          .run(this.now()).changes,
     );
     return run();
   }
@@ -493,10 +574,10 @@ export class TransactionService {
         `SELECT * FROM transactions
           WHERE deleted = 1
           ORDER BY updated_at DESC, id
-          LIMIT ?`,
+         LIMIT ?`,
       )
       .all(safeLimit) as TransactionRow[];
-    return rows.map(toDto);
+    return rows.map((row) => toDto(row));
   }
 
   /** Number of rows currently in the trash, for the "will delete N" confirmation. */
@@ -523,10 +604,7 @@ export class TransactionService {
 
   /** Total income across the given rows, in cents (refunds excluded). */
   incomeCents(items: readonly TransactionDto[]): number {
-    return items.reduce(
-      (sum, item) => sum + incomeContribution(item as unknown as Transaction),
-      0,
-    );
+    return items.reduce((sum, item) => sum + incomeContribution(item as unknown as Transaction), 0);
   }
 
   /** Filtered, paginated list. Newest first; newest-edited first within a day. */
@@ -589,7 +667,7 @@ export class TransactionService {
       .all(...params, limit, offset) as TransactionRow[];
 
     return {
-      items: rows.map(toDto),
+      items: rows.map((row) => toDto(row)),
       total: totalRow.c,
       limit,
       offset,
@@ -599,9 +677,7 @@ export class TransactionService {
   /** Distinct tag names with usage counts, most used first (feeds T7). */
   listTags(includeDeleted = false): { name: string; count: number }[] {
     const rows = this.db
-      .prepare(
-        `SELECT tags_json FROM transactions ${includeDeleted ? '' : 'WHERE deleted = 0'}`,
-      )
+      .prepare(`SELECT tags_json FROM transactions ${includeDeleted ? '' : 'WHERE deleted = 0'}`)
       .all() as { tags_json: string }[];
 
     const counts = new Map<string, number>();

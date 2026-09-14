@@ -5,7 +5,7 @@
  * Money enters as yuan and is converted to integer cents with `Math.round` at the
  * boundary — the single place a float could sneak into the database (parent AC6).
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { TYPE_EXPENSE, TYPE_INCOME, api } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
@@ -14,6 +14,7 @@ import { useMetaStore } from '../stores/meta.js';
 import { useTransactionsStore } from '../stores/transactions.js';
 import {
   formatCents,
+  formatYuan,
   fromDateInputValue,
   parseYuanToCents,
   toDateInputValue,
@@ -40,6 +41,14 @@ const note = ref('');
 const tags = ref<string[]>([]);
 const tagDraft = ref('');
 const isRefund = ref(false);
+const refundLinkedTxIds = ref<string[]>([]);
+const candidateExpenses = ref<Transaction[]>([]);
+const candidatesLoaded = ref(false);
+
+/** Loads candidate expenses the first time the refund checkbox is turned on. */
+watch(isRefund, (val) => {
+  if (val) void loadCandidates();
+});
 
 const loading = ref(false);
 const saving = ref(false);
@@ -67,6 +76,7 @@ onMounted(async () => {
       note.value = item.note;
       tags.value = [...item.tags];
       isRefund.value = item.isRefund;
+      refundLinkedTxIds.value = item.refundLinkedTxIds ?? [];
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : String(error);
     } finally {
@@ -87,6 +97,7 @@ function onTypeChange(): void {
   if (type.value === TYPE_INCOME) {
     // Refunds only exist on expenses; a switch must not leave a stale flag behind.
     isRefund.value = false;
+    refundLinkedTxIds.value = [];
   }
 }
 
@@ -104,6 +115,32 @@ function removeTag(name: string): void {
   tags.value = tags.value.filter((tag) => tag !== name);
 }
 
+/** Loads recent non-refund expenses as refund candidates. Runs once when the refund checkbox is first checked. */
+async function loadCandidates(): Promise<void> {
+  if (candidatesLoaded.value) return;
+  candidatesLoaded.value = true;
+  try {
+    const result = await api.transactions.list({ type: TYPE_EXPENSE, limit: 100 });
+    candidateExpenses.value = result.items.filter((t) => !t.isRefund && t.id !== id.value);
+  } catch {
+    candidateExpenses.value = [];
+  }
+}
+
+/** A candidate is already selected when its id is in the linked list. */
+function isSelected(candidateId: string): boolean {
+  return refundLinkedTxIds.value.includes(candidateId);
+}
+
+/** Toggles a candidate expense in/out of the linked list. */
+function toggleOriginal(candidateId: string): void {
+  if (isSelected(candidateId)) {
+    refundLinkedTxIds.value = refundLinkedTxIds.value.filter((id2) => id2 !== candidateId);
+  } else {
+    refundLinkedTxIds.value = [...refundLinkedTxIds.value, candidateId];
+  }
+}
+
 async function save(): Promise<void> {
   errorMessage.value = null;
 
@@ -114,6 +151,10 @@ async function save(): Promise<void> {
   }
   if (categoryId.value === '') {
     errorMessage.value = '请选择分类。';
+    return;
+  }
+  if (isRefund.value && type.value === TYPE_EXPENSE && refundLinkedTxIds.value.length === 0) {
+    errorMessage.value = '退款需要关联至少一笔原始支出。';
     return;
   }
   if (accountId.value === '') {
@@ -136,6 +177,7 @@ async function save(): Promise<void> {
     note: note.value.trim(),
     tags: tags.value,
     isRefund: type.value === TYPE_EXPENSE ? isRefund.value : false,
+    refundLinkedTxIds: type.value === TYPE_EXPENSE && isRefund.value ? refundLinkedTxIds.value : [],
   };
 
   saving.value = true;
@@ -177,7 +219,10 @@ async function remove(): Promise<void> {
         role="radio"
         :aria-checked="type === TYPE_EXPENSE"
         :class="{ active: type === TYPE_EXPENSE }"
-        @click="type = TYPE_EXPENSE; onTypeChange()"
+        @click="
+          type = TYPE_EXPENSE;
+          onTypeChange();
+        "
       >
         支出
       </button>
@@ -186,7 +231,10 @@ async function remove(): Promise<void> {
         role="radio"
         :aria-checked="type === TYPE_INCOME"
         :class="{ active: type === TYPE_INCOME }"
-        @click="type = TYPE_INCOME; onTypeChange()"
+        @click="
+          type = TYPE_INCOME;
+          onTypeChange();
+        "
       >
         收入
       </button>
@@ -269,6 +317,29 @@ async function remove(): Promise<void> {
       <input v-model="isRefund" type="checkbox" />
       <span>这是退款 / 别人还我钱（从净支出中扣减，不计入收入）</span>
     </label>
+
+    <fieldset v-if="type === TYPE_EXPENSE && isRefund" class="field">
+      <legend>关联原始支出</legend>
+      <small>选择这笔退款对应的原始支出（可多选）</small>
+      <div v-if="candidateExpenses.length > 0" class="tag-list" style="margin-bottom: 0">
+        <button
+          v-for="item in candidateExpenses"
+          :key="item.id"
+          type="button"
+          class="tag"
+          :style="
+            isSelected(item.id)
+              ? 'border-color:var(--accent);background:var(--accent-subtle);font-weight:600'
+              : ''
+          "
+          @click="toggleOriginal(item.id)"
+        >
+          {{ isSelected(item.id) ? '✓ ' : '' }}{{ meta.categoryName(item.categoryId) }} ·
+          {{ formatYuan(item.amountCents) }}
+        </button>
+      </div>
+      <p v-else class="muted">没有可关联的支出记录。</p>
+    </fieldset>
 
     <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
 

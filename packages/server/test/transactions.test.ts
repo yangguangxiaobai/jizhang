@@ -52,9 +52,9 @@ async function login(): Promise<string> {
     headers: CSRF,
     payload: { username: USERNAME, password: PASSWORD },
   });
-  const found = (
-    response.cookies as { name: string; value: string }[]
-  ).find((c) => c.name === SESSION_COOKIE);
+  const found = (response.cookies as { name: string; value: string }[]).find(
+    (c) => c.name === SESSION_COOKIE,
+  );
   return found?.value as string;
 }
 
@@ -199,9 +199,7 @@ describe('AC1 create', () => {
   });
 
   it('accepts an income row', async () => {
-    const created = await post(
-      createBody({ type: 1, categoryId: SALARY, amountCents: 500_000 }),
-    );
+    const created = await post(createBody({ type: 1, categoryId: SALARY, amountCents: 500_000 }));
     expect(created.statusCode).toBe(201);
     expect(created.json()).toMatchObject({ type: 1, amountCents: 500_000 });
   });
@@ -307,18 +305,30 @@ describe('AC7 refund is negative expense, not income', () => {
     expect(service.incomeCents(items)).toBe(0);
 
     expect(
-      expenseContribution({ id: 'x', type: 0, amountCents: 50_000, categoryId: FOOD, date: 0, isRefund: true }),
+      expenseContribution({
+        id: 'x',
+        type: 0,
+        amountCents: 50_000,
+        categoryId: FOOD,
+        date: 0,
+        isRefund: true,
+      }),
     ).toBe(-50_000);
     expect(
-      incomeContribution({ id: 'x', type: 0, amountCents: 50_000, categoryId: FOOD, date: 0, isRefund: true }),
+      incomeContribution({
+        id: 'x',
+        type: 0,
+        amountCents: 50_000,
+        categoryId: FOOD,
+        date: 0,
+        isRefund: true,
+      }),
     ).toBe(0);
     void spend;
   });
 
   it('refuses to mark an income row as a refund', async () => {
-    const response = await post(
-      createBody({ type: 1, categoryId: SALARY, isRefund: true }),
-    );
+    const response = await post(createBody({ type: 1, categoryId: SALARY, isRefund: true }));
     expect(response.statusCode).toBe(400);
     expect(response.json().error.message).toMatch(/expense/i);
   });
@@ -405,6 +415,146 @@ describe('AC2 update', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Refund links: a refund can bind to one or more original expenses
+// ---------------------------------------------------------------------------
+
+describe('refund links', () => {
+  it('stores linked original expense ids on a refund and reads them back', async () => {
+    const a = await post(createBody({ amountCents: 100_000 }));
+    const b = await post(createBody({ amountCents: 50_000, categoryId: TRANSPORT }));
+    const aId = a.json().id as string;
+    const bId = b.json().id as string;
+
+    const refund = await post(
+      createBody({ amountCents: 30_000, isRefund: true, refundLinkedTxIds: [aId, bId] }),
+    );
+    expect(refund.statusCode).toBe(201);
+    expect(refund.json().refundLinkedTxIds).toEqual([aId, bId]);
+
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/v1/transactions/${refund.json().id}`,
+      headers: as(cookie),
+    });
+    expect(read.json().refundLinkedTxIds).toEqual([aId, bId]);
+  });
+
+  it('de-duplicates linked ids', async () => {
+    const a = await post(createBody({ amountCents: 100_000 }));
+    const aId = a.json().id as string;
+
+    const refund = await post(
+      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: [aId, aId, aId] }),
+    );
+    expect(refund.statusCode).toBe(201);
+    expect(refund.json().refundLinkedTxIds).toEqual([aId]);
+  });
+
+  it('rejects a self-reference', async () => {
+    const refund = await post(createBody({ amountCents: 50_000, isRefund: true }));
+    const id = refund.json().id as string;
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/transactions/${id}`,
+      headers: { ...CSRF, ...as(cookie) },
+      payload: { refundLinkedTxIds: [id] },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.message).toMatch(/itself/i);
+  });
+
+  it('rejects linking to an income', async () => {
+    const income = await post(createBody({ type: 1, categoryId: SALARY, amountCents: 500_000 }));
+    const incomeId = income.json().id as string;
+
+    const refund = await post(
+      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: [incomeId] }),
+    );
+    expect(refund.statusCode).toBe(400);
+    expect(refund.json().error.message).toMatch(/expense/i);
+  });
+
+  it('rejects linking to a non-existent transaction', async () => {
+    const refund = await post(
+      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: ['no-such-id'] }),
+    );
+    expect(refund.statusCode).toBe(400);
+    expect(refund.json().error.message).toMatch(/not found/i);
+  });
+
+  it('rejects linking to another refund', async () => {
+    const first = await post(createBody({ amountCents: 50_000, isRefund: true }));
+    const firstId = first.json().id as string;
+
+    const second = await post(
+      createBody({ amountCents: 10_000, isRefund: true, refundLinkedTxIds: [firstId] }),
+    );
+    expect(second.statusCode).toBe(400);
+    expect(second.json().error.message).toMatch(/refund/i);
+  });
+
+  it('updates linked ids on PATCH', async () => {
+    const a = await post(createBody({ amountCents: 100_000 }));
+    const b = await post(createBody({ amountCents: 50_000, categoryId: TRANSPORT }));
+    const aId = a.json().id as string;
+    const bId = b.json().id as string;
+
+    const refund = await post(
+      createBody({ amountCents: 30_000, isRefund: true, refundLinkedTxIds: [aId] }),
+    );
+    const id = refund.json().id as string;
+    expect(refund.json().refundLinkedTxIds).toEqual([aId]);
+
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/transactions/${id}`,
+      headers: { ...CSRF, ...as(cookie) },
+      payload: { refundLinkedTxIds: [bId] },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().refundLinkedTxIds).toEqual([bId]);
+  });
+
+  it('clears links when isRefund is turned off via PATCH', async () => {
+    const a = await post(createBody({ amountCents: 100_000 }));
+    const aId = a.json().id as string;
+
+    const refund = await post(
+      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: [aId] }),
+    );
+    const id = refund.json().id as string;
+    expect(refund.json().refundLinkedTxIds).toEqual([aId]);
+
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/transactions/${id}`,
+      headers: { ...CSRF, ...as(cookie) },
+      payload: { isRefund: false },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().isRefund).toBe(false);
+    expect(updated.json().refundLinkedTxIds ?? []).toEqual([]);
+
+    const rows = db.prepare('SELECT * FROM refund_links WHERE refund_tx_id = ?').all(id);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('does not return refundLinkedTxIds on a non-refund expense', async () => {
+    const created = await post(createBody({ amountCents: 100_000 }));
+    const id = created.json().id as string;
+
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/v1/transactions/${id}`,
+      headers: as(cookie),
+    });
+    expect(read.json().isRefund).toBe(false);
+    expect(read.json().refundLinkedTxIds).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC3: soft delete
 // ---------------------------------------------------------------------------
 
@@ -428,9 +578,9 @@ describe('AC3 soft delete', () => {
     expect(list.json().total).toBe(0);
 
     // Still physically present with deleted = 1.
-    const row = db
-      .prepare('SELECT deleted FROM transactions WHERE id = ?')
-      .get(id) as { deleted: number };
+    const row = db.prepare('SELECT deleted FROM transactions WHERE id = ?').get(id) as {
+      deleted: number;
+    };
     expect(row.deleted).toBe(1);
   });
 
@@ -495,10 +645,34 @@ describe('AC3 soft delete', () => {
 
 describe('AC8/AC9 filtering', () => {
   beforeEach(async () => {
-    await post(createBody({ categoryId: FOOD, amountCents: 1000, date: Date.UTC(2026, 7, 1), note: '早餐' }));
-    await post(createBody({ categoryId: FOOD, amountCents: 2000, date: Date.UTC(2026, 7, 15), note: '晚餐' }));
-    await post(createBody({ categoryId: TRANSPORT, amountCents: 3000, date: Date.UTC(2026, 8, 1), note: '地铁' }));
-    await post(createBody({ type: 1, categoryId: SALARY, amountCents: 900_000, date: Date.UTC(2026, 8, 5), note: '工资' }));
+    await post(
+      createBody({ categoryId: FOOD, amountCents: 1000, date: Date.UTC(2026, 7, 1), note: '早餐' }),
+    );
+    await post(
+      createBody({
+        categoryId: FOOD,
+        amountCents: 2000,
+        date: Date.UTC(2026, 7, 15),
+        note: '晚餐',
+      }),
+    );
+    await post(
+      createBody({
+        categoryId: TRANSPORT,
+        amountCents: 3000,
+        date: Date.UTC(2026, 8, 1),
+        note: '地铁',
+      }),
+    );
+    await post(
+      createBody({
+        type: 1,
+        categoryId: SALARY,
+        amountCents: 900_000,
+        date: Date.UTC(2026, 8, 5),
+        note: '工资',
+      }),
+    );
   });
 
   async function list(query: string) {

@@ -188,6 +188,7 @@ export interface Transaction {
   readonly note: string;
   readonly tags: string[];
   readonly isRefund: boolean;
+  readonly refundLinkedTxIds?: string[];
   readonly updatedAt: number;
 }
 
@@ -302,12 +303,12 @@ export interface TransactionInput {
   readonly note?: string;
   readonly tags?: string[];
   readonly isRefund?: boolean;
+  readonly refundLinkedTxIds?: string[];
 }
 
 /** Budget cycle configuration mirroring the shared engine's `CycleConfig`. */
 export type CycleConfig =
-  | { readonly kind: 'natural-month' }
-  | { readonly kind: 'start-day'; readonly day: number };
+  { readonly kind: 'natural-month' } | { readonly kind: 'start-day'; readonly day: number };
 
 export interface BudgetModuleView {
   readonly categoryId: string;
@@ -515,8 +516,7 @@ export const api = {
         method: 'PATCH',
         body: input,
       }),
-    remove: (id: string) =>
-      request<void>(`/api/v1/transactions/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => request<void>(`/api/v1/transactions/${id}`, { method: 'DELETE' }),
   },
   tags: {
     list: () => request<{ items: TagCount[] }>('/api/v1/tags'),
@@ -532,10 +532,8 @@ export const api = {
     list: () => request<TrashListResult>('/api/v1/trash'),
     restore: (id: string) =>
       request<Transaction>(`/api/v1/trash/${id}/restore`, { method: 'POST' }),
-    purge: (id: string) =>
-      request<void>(`/api/v1/trash/${id}`, { method: 'DELETE' }),
-    restoreAll: () =>
-      request<TrashBulkResult>('/api/v1/trash/restore-all', { method: 'POST' }),
+    purge: (id: string) => request<void>(`/api/v1/trash/${id}`, { method: 'DELETE' }),
+    restoreAll: () => request<TrashBulkResult>('/api/v1/trash/restore-all', { method: 'POST' }),
     purgeAll: () => request<TrashBulkResult>('/api/v1/trash', { method: 'DELETE' }),
   },
   categories: {
@@ -543,12 +541,8 @@ export const api = {
       request<{ items: Category[] }>('/api/v1/categories', {
         query: type === undefined ? {} : { type },
       }),
-    create: (input: {
-      name: string;
-      type: number;
-      icon?: string;
-      color?: number;
-    }) => request<Category>('/api/v1/categories', { method: 'POST', body: input }),
+    create: (input: { name: string; type: number; icon?: string; color?: number }) =>
+      request<Category>('/api/v1/categories', { method: 'POST', body: input }),
     update: (
       id: string,
       changes: {
@@ -558,15 +552,13 @@ export const api = {
         sortOrder?: number;
       },
     ) => request<Category>(`/api/v1/categories/${id}`, { method: 'PATCH', body: changes }),
-    remove: (id: string) =>
-      request<void>(`/api/v1/categories/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => request<void>(`/api/v1/categories/${id}`, { method: 'DELETE' }),
     move: (id: string, dir: -1 | 1) =>
       request<{ items: Category[] }>(`/api/v1/categories/${id}/move`, {
         method: 'POST',
         body: { dir },
       }),
-    usage: (id: string) =>
-      request<{ transactions: number }>(`/api/v1/categories/${id}/usage`),
+    usage: (id: string) => request<{ transactions: number }>(`/api/v1/categories/${id}/usage`),
   },
   accounts: {
     list: () => request<{ items: Account[] }>('/api/v1/accounts'),
@@ -575,11 +567,8 @@ export const api = {
      * data (cached for the session) while a balance changes with every bill.
      */
     balances: () => request<AccountBalancesResult>('/api/v1/accounts/balances'),
-    create: (input: {
-      name: string;
-      type: number;
-      initialBalanceCents?: number;
-    }) => request<Account>('/api/v1/accounts', { method: 'POST', body: input }),
+    create: (input: { name: string; type: number; initialBalanceCents?: number }) =>
+      request<Account>('/api/v1/accounts', { method: 'POST', body: input }),
     update: (
       id: string,
       changes: {
@@ -589,15 +578,13 @@ export const api = {
         sortOrder?: number;
       },
     ) => request<Account>(`/api/v1/accounts/${id}`, { method: 'PATCH', body: changes }),
-    remove: (id: string) =>
-      request<void>(`/api/v1/accounts/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => request<void>(`/api/v1/accounts/${id}`, { method: 'DELETE' }),
     move: (id: string, dir: -1 | 1) =>
       request<{ items: Account[] }>(`/api/v1/accounts/${id}/move`, {
         method: 'POST',
         body: { dir },
       }),
-    usage: (id: string) =>
-      request<{ transactions: number }>(`/api/v1/accounts/${id}/usage`),
+    usage: (id: string) => request<{ transactions: number }>(`/api/v1/accounts/${id}/usage`),
   },
   tagsAdmin: {
     rename: (from: string, to: string) =>
@@ -606,10 +593,9 @@ export const api = {
         body: { from, to },
       }),
     remove: (name: string) =>
-      request<{ updated: number; items: TagCount[] }>(
-        `/api/v1/tags/${encodeURIComponent(name)}`,
-        { method: 'DELETE' },
-      ),
+      request<{ updated: number; items: TagCount[] }>(`/api/v1/tags/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+      }),
   },
   transfers: {
     list: (query: TransactionListQuery = {}) =>
@@ -619,8 +605,7 @@ export const api = {
       request<Transfer>('/api/v1/transfers', { method: 'POST', body: input }),
     update: (id: string, changes: Partial<TransferInput>) =>
       request<Transfer>(`/api/v1/transfers/${id}`, { method: 'PATCH', body: changes }),
-    remove: (id: string) =>
-      request<void>(`/api/v1/transfers/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => request<void>(`/api/v1/transfers/${id}`, { method: 'DELETE' }),
   },
   stats: {
     categoryShare: (from: number, to: number) =>
@@ -632,8 +617,7 @@ export const api = {
         query: { months },
       }),
     poolTrend: () => request<PoolTrendResult>('/api/v1/stats/pool-trend'),
-    range: () =>
-      request<{ earliest: number | null; latest: number | null }>('/api/v1/stats/range'),
+    range: () => request<{ earliest: number | null; latest: number | null }>('/api/v1/stats/range'),
     monthWindow: (monthStart: number) =>
       request<{ from: number; to: number }>('/api/v1/stats/month-window', {
         query: { monthStart },
@@ -667,8 +651,7 @@ export const api = {
         method: 'PUT',
         body: { allocations },
       }),
-    remove: (id: string) =>
-      request<void>(`/api/v1/salaries/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => request<void>(`/api/v1/salaries/${id}`, { method: 'DELETE' }),
   },
 
   templates: {
@@ -678,16 +661,12 @@ export const api = {
         method: 'POST',
         body: { name, modules, isDefault },
       }),
-    update: (
-      id: string,
-      changes: { name?: string; modules?: TemplateModule[] },
-    ) =>
+    update: (id: string, changes: { name?: string; modules?: TemplateModule[] }) =>
       request<BudgetTemplate>(`/api/v1/templates/${id}`, {
         method: 'PATCH',
         body: changes,
       }),
-    remove: (id: string) =>
-      request<void>(`/api/v1/templates/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => request<void>(`/api/v1/templates/${id}`, { method: 'DELETE' }),
     setDefault: (id: string) =>
       request<BudgetTemplate>(`/api/v1/templates/${id}/default`, { method: 'POST' }),
   },
@@ -745,8 +724,7 @@ export const api = {
    * pulling the whole CSV into memory through `fetch`. `exportUrl` returns the href.
    */
   portability: {
-    exportUrl: (what: 'transactions' | 'salaries' | 'recurring') =>
-      `/api/v1/export/${what}.csv`,
+    exportUrl: (what: 'transactions' | 'salaries' | 'recurring') => `/api/v1/export/${what}.csv`,
     /**
      * Imports a CSV.
      *
