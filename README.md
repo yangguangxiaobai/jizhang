@@ -2,8 +2,8 @@
 
 单用户记账 Web PWA:Vue 3 + Vite 前端、Fastify 后端、SQLite 存储,**单容器**部署(后端同源托管前端产物)。
 
-> 当前状态:**功能已完整交付,容器与浏览器验证全绿,尚未部署到线上**(见 [§下一步](#下一步))。
-> 日常用法请看 [USAGE.md](./USAGE.md);部署到 VPS 请看 [DEPLOY.md](./DEPLOY.md)。
+> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-17-refund-income`,迁移 v6 已执行)。
+> 日常用法请看 [USAGE.md](./USAGE.md);部署与升级请看 [DEPLOY.md](./DEPLOY.md)。
 
 ## 功能
 
@@ -300,9 +300,7 @@ restore <file.db>            用备份替换在线数据库
 
 ## 下一步
 
-功能开发已完成。**唯一未完成的是上线**:`09-11-t10-production` 需要 VPS 的 SSH 访问方式、
-域名与解析状态、当前反代是 Nginx 还是 Caddy 及其配置位置、以及既有站点清单,拿到后按
-[DEPLOY.md](./DEPLOY.md) 执行(反代改动**只新增、不修改**,改前备份、改后逐个复核既有站点)。
+已上线。升级方式见 [DEPLOY.md §6](./DEPLOY.md):本地或服务器构建镜像 → 改 `/opt/jizhang/docker-compose.yml` 的 tag → `docker compose up -d` → 确认 `migrationsApplied` 与健康检查。
 
 已知限制(有意如此,不是遗漏):
 
