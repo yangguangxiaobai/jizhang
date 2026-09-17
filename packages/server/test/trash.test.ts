@@ -36,6 +36,7 @@ const PASSWORD = 'correct horse battery staple';
 const CSRF = { 'x-requested-with': 'fetch' } as const;
 
 const FOOD = 'builtin-expense-food';
+const REFUND = 'builtin-income-refund';
 const ACCOUNT = 'builtin-default-account';
 
 /** A fixed "now" so date validation and deletion stamps are deterministic. */
@@ -291,6 +292,37 @@ describe('purge', () => {
     expect(() => service.purge(id)).toThrow(ConflictError);
     expect(() => service.purge('no-such-id')).toThrow(NotFoundError);
   });
+
+  it('purge removes refund links when the trash rows were flagged directly', async () => {
+    const originalId = await createTxn({ note: '原单', amountCents: 100_00 });
+    const refundId = await createTxn({
+      note: '退款',
+      type: 1,
+      categoryId: REFUND,
+      amountCents: 30_00,
+      isRefund: true,
+      refundLinkedTxIds: [originalId],
+    });
+    db.prepare('UPDATE transactions SET deleted = 1 WHERE id IN (?, ?)').run(
+      originalId,
+      refundId,
+    );
+    expect(
+      db
+        .prepare('SELECT 1 AS x FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+        .get(refundId, originalId),
+    ).toBeDefined();
+
+    const response = await trashDelete(`/api/v1/trash/${refundId}`);
+
+    expect(response.statusCode).toBe(204);
+    const rows = db
+      .prepare('SELECT * FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+      .all(refundId, originalId);
+    expect(rows).toHaveLength(0);
+    // Only the purged refund is gone; the still-deleted original remains in the table.
+    expect(rawCount()).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -333,6 +365,31 @@ describe('bulk operations', () => {
     expect(response.json().purged).toBe(1);
     expect(service.getByIdOrThrow(keep).note).toBe('保留');
     expect(rawCount()).toBe(1);
+  });
+
+  it('purge-all also clears refund links between trash rows', async () => {
+    const originalId = await createTxn({ amountCents: 100_00 });
+    const refundId = await createTxn({
+      type: 1,
+      categoryId: REFUND,
+      amountCents: 30_00,
+      isRefund: true,
+      refundLinkedTxIds: [originalId],
+    });
+    db.prepare('UPDATE transactions SET deleted = 1 WHERE id IN (?, ?)').run(
+      originalId,
+      refundId,
+    );
+
+    const response = await trashDelete('/api/v1/trash');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ purged: 2, remaining: 0 });
+    const rows = db
+      .prepare('SELECT * FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+      .all(refundId, originalId);
+    expect(rows).toHaveLength(0);
+    expect(rawCount()).toBe(0);
   });
 
   it('both are safe on an empty bin', async () => {

@@ -28,6 +28,7 @@ const NOW = Date.UTC(2026, 8, 15, 12, 0, 0);
 const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
 const SALARY = 'builtin-income-salary';
+const REFUND = 'builtin-income-refund';
 const ACCOUNT = 'builtin-default-account';
 
 /** Local-time day inside a month, `offset` months from NOW. */
@@ -148,12 +149,12 @@ describe('category share', () => {
     expect(body.items[0].categoryId).toBe(FOOD);
   });
 
-  it('AC5 a refund reduces net expense rather than counting as income', async () => {
+  it('AC5 a refund counts as income and does not reduce the category spend', async () => {
     await addTransaction({ type: 0, amountCents: 150_000, categoryId: FOOD, date: dayIn(0, 10) });
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 50_000,
-      categoryId: FOOD,
+      categoryId: REFUND,
       date: dayIn(0, 11),
       isRefund: true,
     });
@@ -162,16 +163,18 @@ describe('category share', () => {
       `/api/v1/stats/category-share?from=${window.from}&to=${window.to}`,
     );
     const food = body.items.find((i: { categoryId: string }) => i.categoryId === FOOD);
-    expect(food.amountCents).toBe(100_000);
-    expect(body.totalCents).toBe(100_000);
+    expect(food.amountCents).toBe(150_000);
+    expect(body.totalCents).toBe(150_000);
+    // The 退款 category is income and never appears in the expense share.
+    expect(body.items.find((i: { categoryId: string }) => i.categoryId === REFUND)).toBeUndefined();
   });
 
-  it('AC1 a refund equal to the spending nets the category to zero (not two entries)', async () => {
+  it('AC1 a refund equal to the spending no longer nets the category to zero', async () => {
     await addTransaction({ type: 0, amountCents: 80_000, categoryId: FOOD, date: dayIn(0, 10) });
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 80_000,
-      categoryId: FOOD,
+      categoryId: REFUND,
       date: dayIn(0, 11),
       isRefund: true,
     });
@@ -179,10 +182,10 @@ describe('category share', () => {
     const body = await get(
       `/api/v1/stats/category-share?from=${window.from}&to=${window.to}`,
     );
+    // Only FOOD is in the expense share; the refund is income.
     expect(body.items).toHaveLength(1);
-    expect(body.items[0].amountCents).toBe(0);
-    expect(body.totalCents).toBe(0);
-    expect(body.items[0].ratio).toBe(0);
+    expect(body.items[0].amountCents).toBe(80_000);
+    expect(body.totalCents).toBe(80_000);
   });
 
   it('AC2 income rows never appear in the expense share', async () => {
@@ -197,12 +200,12 @@ describe('category share', () => {
     expect(body.totalCents).toBe(10_000);
   });
 
-  it('AC8 a category with negative net expense is reported, not dropped', async () => {
+  it('AC8 refunds never appear in the expense share, even when they outweigh spending', async () => {
     await addTransaction({ type: 0, amountCents: 10_000, categoryId: FOOD, date: dayIn(0, 10) });
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 30_000,
-      categoryId: TRANSPORT,
+      categoryId: REFUND,
       date: dayIn(0, 11),
       isRefund: true,
     });
@@ -210,13 +213,10 @@ describe('category share', () => {
     const body = await get(
       `/api/v1/stats/category-share?from=${window.from}&to=${window.to}`,
     );
-    const transport = body.items.find(
-      (i: { categoryId: string }) => i.categoryId === TRANSPORT,
-    );
-    expect(transport).toBeDefined();
-    expect(transport.amountCents).toBe(-30_000);
-    // Food 10,000 plus transport -30,000.
-    expect(body.totalCents).toBe(-20_000);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].categoryId).toBe(FOOD);
+    expect(body.items[0].amountCents).toBe(10_000);
+    expect(body.totalCents).toBe(10_000);
   });
 
   it('labels a soft-deleted category instead of showing a raw id', async () => {
@@ -322,12 +322,12 @@ describe('monthly trend', () => {
     expect(current.month).toMatch(/^\d{4}-\d{2}$/);
   });
 
-  it('AC5 refunds lower the month net expense and never raise income', async () => {
+  it('AC5 refunds raise income and never reduce the month expense', async () => {
     await addTransaction({ type: 0, amountCents: 100_000, categoryId: FOOD, date: dayIn(0, 8) });
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 40_000,
-      categoryId: FOOD,
+      categoryId: REFUND,
       date: dayIn(0, 9),
       isRefund: true,
     });
@@ -335,8 +335,8 @@ describe('monthly trend', () => {
 
     const body = await get('/api/v1/stats/monthly-trend?months=3');
     const current = body.items[body.items.length - 1];
-    expect(current.netExpenseCents).toBe(60_000);
-    expect(current.incomeCents).toBe(300_000);
+    expect(current.netExpenseCents).toBe(100_000);
+    expect(current.incomeCents).toBe(340_000);
   });
 
   it('defaults to 6 months and accepts 1', async () => {

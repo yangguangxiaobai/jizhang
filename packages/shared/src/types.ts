@@ -62,10 +62,10 @@ export interface Transaction {
   readonly note?: string;
   readonly tags?: readonly string[];
   /**
-   * 退款标记（横切属性，**不是**收入）。
+   * 退款标记（横切属性）。
    *
-   * 口径（参考 `transaction.dart:44-51`）：退款行的 `type` 仍为 0（支出），
-   * 靠此标记区分。净支出 = 支出 − 退款；**退款不计收入**。
+   * 口径（已修订，参考 `transaction-service.ts`）：退款是收入型账单（type = 1），
+   * 靠此标记区分；计入收入，不再冲减支出。`refund_links` 表记录它冲抵的原始支出。
    */
   readonly isRefund?: boolean;
   readonly deleted?: boolean;
@@ -106,7 +106,7 @@ export interface ModuleView {
   readonly categoryId: string;
   /** 本周期分配额（分）。 */
   readonly budgetCents: number;
-  /** 周期内净消费（分），可能为负（退款多于支出时）。 */
+  /** 周期内消费（分），毛口径（退款不再冲减，见下方支出贡献）。 */
   readonly spentCents: number;
   /** 剩余 = 分配 − 消费；可为负。 */
   readonly remainingCents: number;
@@ -140,34 +140,32 @@ export function isOverBudget(view: ModuleView): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// 净支出口径（全项目唯一的聚合口径）
+// 支出 / 收入口径（全项目唯一的聚合口径）
 // ---------------------------------------------------------------------------
 
 /**
- * 支出聚合贡献（净支出口径）。
+ * 支出聚合贡献（毛支出口径）。
  *
  * - 支出：`+amountCents`
- * - **退款：`-amountCents`**（type 仍为 0）
- * - 收入：`0`
+ * - 收入：`0`（退款是收入型账单，不再冲减支出）
  *
  * 参考 `transaction.dart:44-47`。所有聚合点（预算 / 图表 / 月汇总 / 首页）
  * 必须统一使用本函数，不得各处重复判断。
  */
 export function expenseContribution(txn: Transaction): number {
   if (txn.type !== TYPE_EXPENSE) return 0;
-  return txn.isRefund === true ? -txn.amountCents : txn.amountCents;
+  return txn.amountCents;
 }
 
 /**
  * 收入聚合贡献。
  *
- * - 收入：`+amountCents`
- * - **退款：`0`**（退款不计收入）
+ * - 收入：`+amountCents`（**含退款**——退款是收入型账单，钱进来就计收入）
  * - 支出：`0`
  *
  * 参考 `transaction.dart:49-51`。
  */
 export function incomeContribution(txn: Transaction): number {
   if (txn.type !== TYPE_INCOME) return 0;
-  return txn.isRefund === true ? 0 : txn.amountCents;
+  return txn.amountCents;
 }

@@ -155,7 +155,7 @@ function mergeModules(
  * One window, one accounting rule. Start with the salary snapshot, then include
  * EVERY live expense category in that window. An expense outside the template is
  * a zero-budget module, not money that may disappear from the overview or pool.
- * Refunds use the same signed contribution as funded categories.
+ * Refunds are income-typed, so they contribute 0 here and spend stays gross.
  */
 function moduleViewsInWindow(
   allocations: readonly BudgetAllocation[],
@@ -363,8 +363,8 @@ export function computeCarryoverPool(
 
   // ---- ② 无现役周期期间的消费（发生在最早周期起点之前）----
   // 参考 `:137-144`（自然月） / `:184-191`（起始日）。
-  // 注意符号：`pool -= expenseContribution`，退款贡献为负 → 等于把退款**加回**池。
-  // 参考实现只在 `txn.isExpense` 时执行，故此处用 `type === TYPE_EXPENSE` 同构。
+  // 退款是收入型账单（贡献为 0），不进池子计算；参考实现只在 `txn.isExpense` 时
+  // 执行，故此处用 `type === TYPE_EXPENSE` 同构。
   const oldest = live[live.length - 1];
   if (oldest === undefined) return pool;
   const earliestStart =

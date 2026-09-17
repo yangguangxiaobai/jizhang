@@ -4,8 +4,9 @@
  *
  * Every number is computed by the server from the shared accounting rules, so this
  * view does no aggregation of its own — it only chooses a window and renders. That
- * is what keeps the charts consistent with the budget page (a refund is a negative
- * expense everywhere, and the pool series ends where the engine says it does).
+ * is what keeps the charts consistent with the budget page (spend is gross — refunds
+ * are income, not expense deductions — and the pool series ends where the engine says
+ * it does).
  */
 import { computed, onMounted, ref } from 'vue';
 import { api } from '../api/client.js';
@@ -86,11 +87,6 @@ const positiveSlices = computed<Slice[]>(() =>
       // A palette token, so the slice follows the theme; a custom colour passes through.
       color: categoryCssColor(item.color),
     })),
-);
-
-/** Categories whose refunds outweighed spending; shown separately, never hidden. */
-const negativeItems = computed(() =>
-  (share.value?.items ?? []).filter((item) => item.amountCents < 0),
 );
 
 const barGroups = computed(() =>
@@ -180,18 +176,6 @@ const topCategory = computed(() => {
       <p v-else class="empty">
         {{ windowLabel }}没有支出记录。
       </p>
-
-      <!-- Refund-dominant categories cannot be a wedge, so they get their own list
-           rather than being silently dropped. -->
-      <div v-if="negativeItems.length > 0" class="refund-note">
-        <p class="muted small">以下分类退款多于支出（净额为负）：</p>
-        <ul>
-          <li v-for="item in negativeItems" :key="item.categoryId">
-            <span>{{ item.categoryName }}</span>
-            <span class="negative">{{ formatYuan(item.amountCents) }}</span>
-          </li>
-        </ul>
-      </div>
     </section>
 
     <!-- ── monthly trend ───────────────────────────────────────────────── -->

@@ -265,7 +265,9 @@ async function signOut(): Promise<void> {
 
   <section class="theme-card card">
     <h2>关于</h2>
-    <p class="hint">信封预算法记账 · 自建部署。预算、统计与模板功能在后续任务中加入。</p>
+    <p class="hint">
+      信封预算法记账 · 自建部署。预算、统计、工资模板、周期账单、转账与回收站均已支持。
+    </p>
   </section>
 </template>
 

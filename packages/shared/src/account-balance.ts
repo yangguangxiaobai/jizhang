@@ -15,12 +15,12 @@
  * balance = initialBalance + income − netExpense + salaries
  * ```
  *
- * The one thing that is easy to get wrong: a **refund** is a negative expense
- * (`types.ts` `expenseContribution`), so `expenseCents` is a NET figure and a refund
- * therefore *raises* the balance — which is right, the money came back — while
- * `incomeCents` stays untouched, so a refund still never counts as income. Both halves come
- * from `expenseContribution` / `incomeContribution` instead of a local `isRefund` test,
- * which is exactly what keeps this file and `StatsService.monthlyTrend` in agreement.
+ * The one thing that is easy to get wrong: a **refund** is an income-typed row
+ * (`types.ts` `incomeContribution`), so a refund lands in `incomeCents` and *raises* the
+ * balance — which is right, the money came back — while `expenseCents` stays GROSS
+ * (refunds no longer deduct from it). Both halves come from `expenseContribution` /
+ * `incomeContribution` instead of a local `isRefund` test, which is exactly what keeps
+ * this file and `StatsService.monthlyTrend` in agreement.
  *
  * ## Two conventions worth stating because they are choices, not consequences
  *

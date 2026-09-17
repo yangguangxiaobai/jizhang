@@ -1,12 +1,12 @@
 /**
  * Master-data routes: categories, accounts and the derived tag vocabulary.
  *
- *   GET    /api/v1/categories            list (`?type=0|1`)
+ *   GET    /api/v1/categories            list (`?type=0|1&includeDeleted=true`)
  *   POST   /api/v1/categories            create
  *   PATCH  /api/v1/categories/:id        rename / re-icon / recolour / reorder
  *   DELETE /api/v1/categories/:id        soft delete (builtins refuse)
  *   POST   /api/v1/categories/:id/move   `{dir:-1|1}` swap with the neighbour
- *   GET    /api/v1/accounts              list
+ *   GET    /api/v1/accounts              list (`?includeDeleted=true`)
  *   GET    /api/v1/accounts/balances     every live account's balance + the total
  *   POST   /api/v1/accounts              create
  *   PATCH  /api/v1/accounts/:id          edit
@@ -50,6 +50,14 @@ function optionalType(query: Record<string, unknown>): number | undefined {
   return parsed;
 }
 
+function optionalIncludeDeleted(query: Record<string, unknown>): boolean {
+  const raw = query['includeDeleted'];
+  if (raw === undefined || raw === '') return false;
+  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return false;
+  throw new ValidationError('includeDeleted must be true or false.');
+}
+
 /** `{dir:-1|1}` from a move request. */
 function requireDirection(body: Record<string, unknown>): -1 | 1 {
   const raw = body['dir'];
@@ -73,8 +81,9 @@ export async function registerMasterDataRoutes(
 
   // ── categories ────────────────────────────────────────────────────────────
   app.get('/api/v1/categories', async (request: FastifyRequest, reply: FastifyReply) => {
-    const type = optionalType((request.query ?? {}) as Record<string, unknown>);
-    return reply.send({ items: service.listCategories(type) });
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const type = optionalType(query);
+    return reply.send({ items: service.listCategories(type, optionalIncludeDeleted(query)) });
   });
 
   app.post('/api/v1/categories', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -110,8 +119,9 @@ export async function registerMasterDataRoutes(
   );
 
   // ── accounts ──────────────────────────────────────────────────────────────
-  app.get('/api/v1/accounts', async (_request: FastifyRequest, reply: FastifyReply) => {
-    return reply.send({ items: service.listAccounts() });
+  app.get('/api/v1/accounts', async (request: FastifyRequest, reply: FastifyReply) => {
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    return reply.send({ items: service.listAccounts(optionalIncludeDeleted(query)) });
   });
 
   // A separate endpoint rather than extra fields on the list above: the account list is

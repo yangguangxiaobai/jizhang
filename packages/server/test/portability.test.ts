@@ -24,6 +24,8 @@ const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
 const ACCOUNT = 'builtin-default-account';
 const SALARY_CATEGORY = 'builtin-income-salary';
+const REFUND_CATEGORY = 'builtin-income-refund';
+const WALLET = 'wallet-account';
 
 /** Local midnight, matching how the export writes dates. */
 const day = (d: number): number => new Date(2026, 8, d).getTime();
@@ -53,6 +55,32 @@ function addTxn(overrides: Record<string, unknown> = {}): string {
   return id;
 }
 
+function addAccount(id: string, name: string): void {
+  db.prepare(
+    `INSERT INTO accounts
+       (id, name, type, initial_balance_cents, sort_order, is_builtin, deleted, updated_at)
+     VALUES (?, ?, 1, 0, ?, 0, 0, 1)`,
+  ).run(id, name, id === ACCOUNT ? 0 : 1);
+}
+
+function addTransfer(overrides: Record<string, unknown> = {}): string {
+  const id =
+    (overrides['id'] as string | undefined) ?? `f-${Math.random().toString(36).slice(2, 10)}`;
+  db.prepare(
+    `INSERT INTO transfers
+       (id, from_account_id, to_account_id, amount_cents, date, note, deleted, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 0, 1)`,
+  ).run(
+    id,
+    (overrides['fromAccountId'] as string | undefined) ?? ACCOUNT,
+    (overrides['toAccountId'] as string | undefined) ?? WALLET,
+    (overrides['amountCents'] as number | undefined) ?? 32_100,
+    (overrides['date'] as number | undefined) ?? day(8),
+    (overrides['note'] as string | undefined) ?? '转出',
+  );
+  return id;
+}
+
 function rowCount(): number {
   return (db.prepare('SELECT COUNT(*) AS c FROM transactions WHERE deleted = 0').get() as { c: number })
     .c;
@@ -66,8 +94,9 @@ function totals(): { netExpense: number; income: number } {
   let netExpense = 0;
   let income = 0;
   for (const row of rows) {
-    if (row.type === 0) netExpense += row.is_refund === 1 ? -row.amount_cents : row.amount_cents;
-    else if (row.is_refund !== 1) income += row.amount_cents;
+    if (row.type === 0) netExpense += row.amount_cents;
+    else if (row.is_refund === 1) income += row.amount_cents; // refunds ARE income now
+    else income += row.amount_cents;
   }
   return { netExpense, income };
 }
@@ -101,7 +130,7 @@ describe('export', () => {
 
   it('writes human-readable types and keeps the refund flag', () => {
     addTxn({ note: '买菜', amountCents: 15_000 });
-    addTxn({ note: '退款', amountCents: 4_000, isRefund: true });
+    addTxn({ note: '退款', amountCents: 4_000, type: 1, categoryId: REFUND_CATEGORY, isRefund: true });
     addTxn({ note: '工资', amountCents: 500_000, type: 1, categoryId: SALARY_CATEGORY });
 
     const csv = service.exportTransactionsCsv();
@@ -186,7 +215,7 @@ describe('export', () => {
 describe('round trip', () => {
   it('AC2/AC4 re-importing reproduces the count and both totals', () => {
     addTxn({ note: '买菜', amountCents: 15_000, tags: ['日常'] });
-    addTxn({ note: '退款, 部分', amountCents: 4_000, isRefund: true });
+    addTxn({ note: '退款, 部分', amountCents: 4_000, type: 1, categoryId: REFUND_CATEGORY, isRefund: true });
     addTxn({ note: '打车', amountCents: 3_000, categoryId: TRANSPORT });
     addTxn({ note: '工资', amountCents: 500_000, type: 1, categoryId: SALARY_CATEGORY });
 
@@ -217,7 +246,7 @@ describe('round trip', () => {
   });
 
   it('preserves tags and the refund flag across the trip', () => {
-    addTxn({ note: 'x', tags: ['a', 'b'], isRefund: true });
+    addTxn({ note: 'x', tags: ['a', 'b'], type: 1, categoryId: REFUND_CATEGORY, isRefund: true });
     const csv = service.exportTransactionsCsv();
     db.prepare('DELETE FROM transactions').run();
 
@@ -426,6 +455,130 @@ describe('AC6/AC7 invalid input is rejected, never silently skipped', () => {
       note: string;
     };
     expect(row.note).toBe('他说 "太贵"\n然后走了');
+  });
+
+  it('normalises a pre-reform expense-typed refund row to income under 退款', () => {
+    // Pre-refund-reform exports wrote refunds as type=expense. Importing one as-is would
+    // create a row that contributes 0 to BOTH aggregates, so it is normalised — the same
+    // rewrite migration 006 applies to existing rows.
+    const result = service.importTransactionsCsv(
+      fileWith('legacy-1,2026-09-01,expense,10.00,餐饮,默认账户,,,true'),
+    );
+    expect(result.inserted).toBe(1);
+
+    const row = db
+      .prepare('SELECT type, category_id, is_refund FROM transactions WHERE id = ?')
+      .get('legacy-1') as { type: number; category_id: string; is_refund: number };
+    expect(row.type).toBe(1);
+    expect(row.category_id).toBe(REFUND_CATEGORY);
+    expect(row.is_refund).toBe(1);
+  });
+
+  it('fails the import when a legacy refund row lands and 退款 is missing', () => {
+    db.prepare('UPDATE categories SET deleted = 1 WHERE id = ?').run(REFUND_CATEGORY);
+    expect(() =>
+      service.importTransactionsCsv(
+        fileWith('legacy-2,2026-09-01,expense,10.00,餐饮,默认账户,,,true'),
+      ),
+    ).toThrow(ValidationError);
+    expect(rowCount()).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transfers export/import
+// ---------------------------------------------------------------------------
+
+describe('transfer CSV portability', () => {
+  it('exports live transfers with account names', () => {
+    addAccount(WALLET, '钱包');
+    addTransfer({ id: 'live-transfer', note: '转给钱包', amountCents: 12_345 });
+    addTransfer({ id: 'deleted-transfer', note: '已删除' });
+    db.prepare('UPDATE transfers SET deleted = 1 WHERE id = ?').run('deleted-transfer');
+
+    const csv = service.exportTransfersCsv();
+
+    expect(csv).toContain('钱包');
+    expect(csv).toContain('默认账户');
+    expect(csv).not.toContain(WALLET);
+    expect(csv).not.toContain('deleted-transfer');
+    expect(csv.replace('\uFEFF', '').trim().split('\n')).toHaveLength(2);
+  });
+
+  it('round-trips ids, account names, amount, date and note', () => {
+    addAccount(WALLET, '钱包');
+    addTransfer({
+      id: 'round-transfer',
+      fromAccountId: ACCOUNT,
+      toAccountId: WALLET,
+      amountCents: 43_210,
+      date: day(8),
+      note: '转给钱包',
+    });
+
+    const csv = service.exportTransfersCsv();
+    db.prepare('DELETE FROM transfers').run();
+
+    const result = service.importTransfersCsv(csv);
+
+    expect(result).toEqual({ inserted: 1, skipped: 0, total: 1 });
+    const row = db.prepare('SELECT * FROM transfers WHERE id = ?').get('round-transfer') as {
+      from_account_id: string;
+      to_account_id: string;
+      amount_cents: number;
+      date: number;
+      note: string;
+      deleted: number;
+    };
+    expect(row).toMatchObject({
+      from_account_id: ACCOUNT,
+      to_account_id: WALLET,
+      amount_cents: 43_210,
+      date: day(8),
+      note: '转给钱包',
+      deleted: 0,
+    });
+  });
+
+  it('a second import skips the same ids instead of duplicating money', () => {
+    addAccount(WALLET, '钱包');
+    addTransfer({ id: 'once', amountCents: 5_000 });
+    const csv = service.exportTransfersCsv();
+
+    db.prepare('DELETE FROM transfers').run();
+    expect(service.importTransfersCsv(csv)).toEqual({ inserted: 1, skipped: 0, total: 1 });
+    expect(service.importTransfersCsv(csv)).toEqual({ inserted: 0, skipped: 1, total: 1 });
+  });
+
+  it('rejects an unknown account and a transfer to itself', () => {
+    const header = 'id,date,amount,from,to,note';
+
+    expect(() =>
+      service.importTransfersCsv(
+        `${header}\nx,2026-09-01,10.00,不存在的账户,默认账户,`,
+      ),
+    ).toThrow(/unknown account "不存在的账户"/i);
+    expect(() =>
+      service.importTransfersCsv(`${header}\nx,2026-09-01,10.00,默认账户,默认账户,`),
+    ).toThrow(/two different accounts/i);
+  });
+
+  it('a rejected file leaves existing transfers untouched', () => {
+    addAccount(WALLET, '钱包');
+    addTransfer({ id: 'existing', amountCents: 1_000 });
+
+    expect(() =>
+      service.importTransfersCsv(
+        'id,date,amount,from,to,note\nnew,2026-09-01,10.00,默认账户,钱包,\nbad,2026-09-01,not-money,默认账户,钱包,',
+      ),
+    ).toThrow(ValidationError);
+
+    expect(
+      db.prepare('SELECT COUNT(*) AS c FROM transfers WHERE id = ?').get('existing'),
+    ).toEqual({ c: 1 });
+    expect(db.prepare('SELECT COUNT(*) AS c FROM transfers WHERE id = ?').get('new')).toEqual({
+      c: 0,
+    });
   });
 });
 

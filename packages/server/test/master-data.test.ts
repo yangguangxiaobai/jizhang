@@ -118,13 +118,13 @@ describe('category management', () => {
     const response = await inject('GET', '/api/v1/categories');
     expect(response.statusCode).toBe(200);
     const items = response.json().items as { type: number }[];
-    expect(items).toHaveLength(8);
+    expect(items).toHaveLength(9);
     expect(items.filter((c) => c.type === 0)).toHaveLength(6);
-    expect(items.filter((c) => c.type === 1)).toHaveLength(2);
+    expect(items.filter((c) => c.type === 1)).toHaveLength(3);
   });
 
   it('filters by type', async () => {
-    expect((await inject('GET', '/api/v1/categories?type=1')).json().items).toHaveLength(2);
+    expect((await inject('GET', '/api/v1/categories?type=1')).json().items).toHaveLength(3);
     expect((await inject('GET', '/api/v1/categories?type=0')).json().items).toHaveLength(6);
   });
 
@@ -204,6 +204,58 @@ describe('category management', () => {
 
     const list = (await inject('GET', '/api/v1/categories')).json().items as { id: string }[];
     expect(list.some((c) => c.id === created.id)).toBe(false);
+  });
+
+  it('includeDeleted returns soft-deleted categories for historical naming', async () => {
+    const created = (await inject('POST', '/api/v1/categories', { name: '旧分类', type: 0 })).json();
+    await inject('DELETE', `/api/v1/categories/${created.id}`);
+
+    const live = (await inject('GET', '/api/v1/categories')).json().items as { id: string }[];
+    expect(live.some((c) => c.id === created.id)).toBe(false);
+
+    const history = (
+      await inject('GET', '/api/v1/categories?includeDeleted=true')
+    ).json().items as { id: string; name: string }[];
+    expect(history.find((c) => c.id === created.id)?.name).toBe('旧分类');
+  });
+
+  it('deleting a category retires its recurring rules and pending items', async () => {
+    const category = (await inject('POST', '/api/v1/categories', {
+      name: '即将删除',
+      type: 0,
+    })).json();
+
+    const rule = await inject('POST', '/api/v1/recurring/rules', {
+      name: '旧分类账单',
+      type: 0,
+      amountCents: 1000,
+      categoryId: category.id,
+      accountId: DEFAULT_ACCOUNT,
+      frequency: 'monthly',
+      anchorDate: Date.UTC(2026, 6, 10),
+    });
+    expect(rule.statusCode, rule.body).toBe(201);
+    await inject('POST', '/api/v1/recurring/generate');
+    const pending = (await inject('GET', '/api/v1/recurring/pending')).json().items as {
+      id: string;
+    }[];
+    expect(pending.length).toBeGreaterThan(0);
+    const confirmed = await inject(
+      'POST',
+      `/api/v1/recurring/occurrences/${pending[0]?.id}/confirm`,
+    );
+    expect(confirmed.statusCode, confirmed.body).toBe(200);
+
+    await inject('DELETE', `/api/v1/categories/${category.id}`);
+
+    expect((await inject('GET', '/api/v1/recurring/rules')).json().items).toHaveLength(0);
+    expect((await inject('GET', '/api/v1/recurring/pending')).json().items).toHaveLength(0);
+    // The confirmed occurrence is history and must survive the category delete.
+    const occurrences = (await inject('GET', '/api/v1/recurring/occurrences')).json().items as {
+      status: string;
+      transactionId: string | null;
+    }[];
+    expect(occurrences.some((item) => item.status === 'confirmed')).toBe(true);
   });
 
   it('404s for an unknown category', async () => {
@@ -389,6 +441,50 @@ describe('account management', () => {
     const txn = (await inject('GET', `/api/v1/transactions/${txnId}`)).json();
     expect(txn.accountId).toBe(created.id);
     expect(service.getAccount(created.id, true)?.name).toBe('临时卡');
+  });
+
+  it('includeDeleted returns soft-deleted accounts for historical naming', async () => {
+    const created = (await inject('POST', '/api/v1/accounts', {
+      name: '旧账户',
+      type: 1,
+    })).json();
+    await inject('DELETE', `/api/v1/accounts/${created.id}`);
+
+    const live = (await inject('GET', '/api/v1/accounts')).json().items as { id: string }[];
+    expect(live.some((a) => a.id === created.id)).toBe(false);
+
+    const history = (
+      await inject('GET', '/api/v1/accounts?includeDeleted=true')
+    ).json().items as { id: string; name: string }[];
+    expect(history.find((a) => a.id === created.id)?.name).toBe('旧账户');
+  });
+
+  it('deleting an account retires its rules and pending items', async () => {
+    const account = (await inject('POST', '/api/v1/accounts', {
+      name: '即将关闭',
+      type: 1,
+    })).json();
+
+    const rule = await inject('POST', '/api/v1/recurring/rules', {
+      name: '账户账单',
+      type: 0,
+      amountCents: 1000,
+      categoryId: FOOD,
+      accountId: account.id,
+      frequency: 'monthly',
+      anchorDate: Date.UTC(2026, 6, 10),
+    });
+    expect(rule.statusCode, rule.body).toBe(201);
+    await inject('POST', '/api/v1/recurring/generate');
+    const pending = (await inject('GET', '/api/v1/recurring/pending')).json().items as {
+      id: string;
+    }[];
+    expect(pending.length).toBeGreaterThan(0);
+
+    await inject('DELETE', `/api/v1/accounts/${account.id}`);
+
+    expect((await inject('GET', '/api/v1/recurring/rules')).json().items).toHaveLength(0);
+    expect((await inject('GET', '/api/v1/recurring/pending')).json().items).toHaveLength(0);
   });
 
   it('reports account usage', async () => {

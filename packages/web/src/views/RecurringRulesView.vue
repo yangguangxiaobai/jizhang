@@ -13,7 +13,7 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { TYPE_EXPENSE } from '../api/client.js';
-import type { RecurringRule } from '../api/client.js';
+import type { RecurringOccurrence, RecurringRule } from '../api/client.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useRecurringStore } from '../stores/recurring.js';
 import { formatYuan } from '../utils/money.js';
@@ -30,8 +30,14 @@ const FREQUENCY_LABELS: Record<string, string> = {
   yearly: '每年',
 };
 
+const OCCURRENCE_STATUS_LABELS: Record<RecurringOccurrence['status'], string> = {
+  pending: '待确认',
+  confirmed: '已记账',
+  ignored: '已忽略',
+};
+
 onMounted(async () => {
-  await Promise.all([recurring.loadAll(), meta.load()]);
+  await Promise.all([recurring.loadAll(), recurring.loadOccurrences(), meta.load()]);
 });
 
 /** `"每月 15 日"` — the cadence plus the day the schedule is anchored to. */
@@ -52,12 +58,18 @@ function nextDueLabel(rule: RecurringRule): string {
 }
 
 /** The ledger's polarity: an expense reads as a negative amount. */
-function displayAmount(rule: RecurringRule): string {
-  const cents = rule.type === TYPE_EXPENSE ? -rule.amountCents : rule.amountCents;
+function displayAmount(item: { type: number; amountCents: number }): string {
+  const cents = item.type === TYPE_EXPENSE ? -item.amountCents : item.amountCents;
   return formatYuan(cents);
 }
 
 const hasAnyRule = computed(() => recurring.rules.length > 0);
+const hasOccurrences = computed(() => recurring.occurrences.length > 0);
+
+function plannedLabel(item: RecurringOccurrence): string {
+  const date = new Date(item.plannedDate);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 async function toggle(rule: RecurringRule): Promise<void> {
   await recurring.setRuleEnabled(rule.id, !rule.enabled);
@@ -139,6 +151,44 @@ async function remove(rule: RecurringRule): Promise<void> {
       新建周期账单
     </button>
   </template>
+
+  <section v-if="!recurring.loading && !recurring.errorMessage && hasOccurrences" class="history">
+    <h2>历史记录</h2>
+    <ul class="rows">
+      <li
+        v-for="item in recurring.occurrences"
+        :key="item.id"
+        :class="item.status"
+      >
+        <div class="row">
+          <span class="row-main">
+            <span class="row-title">{{ item.note }}</span>
+            <span class="row-sub">
+              {{ meta.categoryName(item.categoryId) }} ·
+              {{ meta.accountName(item.accountId) }} · {{ plannedLabel(item) }}
+            </span>
+          </span>
+          <span class="row-amount" :class="{ negative: item.type === TYPE_EXPENSE }">
+            {{ displayAmount(item) }}
+          </span>
+        </div>
+
+        <div class="history-footer">
+          <span class="status" :class="item.status">
+            {{ OCCURRENCE_STATUS_LABELS[item.status] }}
+          </span>
+          <button
+            v-if="item.status === 'confirmed' && item.transactionId"
+            type="button"
+            class="ghost"
+            @click="router.push({ name: 'transaction-edit', params: { id: item.transactionId } })"
+          >
+            查看账单
+          </button>
+        </div>
+      </li>
+    </ul>
+  </section>
 </template>
 
 <style scoped>
@@ -304,5 +354,65 @@ button:disabled {
 
 .empty {
   text-align: center;
+}
+
+.history {
+  margin-top: 1rem;
+}
+
+.history > h2 {
+  margin-bottom: 0.75rem;
+}
+
+.history .rows {
+  margin-bottom: 0;
+}
+
+.history .rows li.pending {
+  border-color: var(--accent);
+}
+
+.history .rows li.confirmed {
+  border-color: var(--ok);
+}
+
+.history .rows li.ignored {
+  opacity: 0.72;
+}
+
+.history-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+}
+
+.status {
+  padding: 0.18rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 0.4rem;
+}
+
+.status.pending {
+  color: var(--accent);
+  background: var(--surface-soft);
+}
+
+.status.confirmed {
+  color: var(--ok);
+  background: var(--surface-soft);
+}
+
+.status.ignored {
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
+.history-footer button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 0.9rem;
 }
 </style>

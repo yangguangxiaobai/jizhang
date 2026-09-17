@@ -4,7 +4,9 @@
  *   GET  /api/v1/export/transactions.csv   bills, with isRefund so net expense is reproducible
  *   GET  /api/v1/export/salaries.csv       salary records with their allocation snapshot
  *   GET  /api/v1/export/recurring.csv      recurring rules
+ *   GET  /api/v1/export/transfers.csv      account-to-account transfers
  *   POST /api/v1/import/transactions       import a transactions CSV (body is the file text)
+ *   POST /api/v1/import/transfers          import a transfers CSV (body is the file text)
  *   GET  /api/v1/backups                   list archives (file names only)
  *   POST /api/v1/backups                   take an archive now
  *
@@ -74,6 +76,12 @@ export async function registerPortabilityRoutes(
       sendCsv(reply, 'jizhang-recurring.csv', service.exportRecurringCsv()),
   );
 
+  app.get(
+    '/api/v1/export/transfers.csv',
+    async (_request: FastifyRequest, reply: FastifyReply) =>
+      sendCsv(reply, 'jizhang-transfers.csv', service.exportTransfersCsv()),
+  );
+
   // ── import ─────────────────────────────────────────────────────────────────
   app.post(
     '/api/v1/import/transactions',
@@ -85,6 +93,19 @@ export async function registerPortabilityRoutes(
         );
       }
       return reply.send(service.importTransactionsCsv(body));
+    },
+  );
+
+  app.post(
+    '/api/v1/import/transfers',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const body = request.body;
+      if (typeof body !== 'string' || body.trim() === '') {
+        throw new ValidationError(
+          'Send the CSV file contents as the request body with Content-Type: text/csv.',
+        );
+      }
+      return reply.send(service.importTransfersCsv(body));
     },
   );
 

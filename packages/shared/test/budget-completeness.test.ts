@@ -31,14 +31,14 @@ describe('every expense remains visible even outside the salary template', () =>
     expect(computeCarryoverPool({ ...input, currentModuleViews: views })).toBe(-50_000);
   });
 
-  it('refunds reduce unbudgeted spending instead of disappearing or becoming income', () => {
+  it('refunds are income: they leave unbudgeted spending gross instead of reducing it', () => {
     const input = {
       allocationsDesc: [salary(at(9, 5), 100_000)],
-      transactions: [expense(at(9, 6), 50_000), expense(at(9, 7), 20_000, { isRefund: true })],
+      transactions: [expense(at(9, 6), 50_000), expense(at(9, 7), 20_000, { isRefund: true, type: 1 })],
     };
     const views = computeModuleViews(input);
-    expect(views.find(view => view.categoryId === 'transport')?.spentCents).toBe(30_000);
-    expect(computeCarryoverPool({ ...input, currentModuleViews: views })).toBe(-30_000);
+    expect(views.find(view => view.categoryId === 'transport')?.spentCents).toBe(50_000);
+    expect(computeCarryoverPool({ ...input, currentModuleViews: views })).toBe(-50_000);
   });
 
   it('editing into a funded category and deleting do not leave a phantom module', () => {
@@ -55,17 +55,18 @@ describe('every expense remains visible even outside the salary template', () =>
       const input = {
         cycle,
         allocationsDesc: [salary(at(9, 5), 200_000), salary(at(8, 5), 100_000)],
-        transactions: [expense(at(8, 6), 10_000), expense(at(8, 7), 2_000, { isRefund: true }), expense(at(9, 5), 7_000)],
+        // 退款是收入：不参与模块与池子的支出计算。
+        transactions: [expense(at(8, 6), 10_000), expense(at(8, 7), 2_000, { isRefund: true, type: 1 }), expense(at(9, 5), 7_000)],
       };
       const views = computeModuleViews(input);
       const history = computeModuleViews({ ...input, periodStart: at(8, 5) });
-      expect(history.find(view => view.categoryId === 'transport')?.spentCents).toBe(8_000);
+      expect(history.find(view => view.categoryId === 'transport')?.spentCents).toBe(10_000);
       expect(views.find(view => view.categoryId === 'transport')?.spentCents).toBe(7_000);
       const pool = computeCarryoverPool({ ...input, currentModuleViews: views });
-      expect(pool).toBe(85_000);
+      expect(pool).toBe(83_000);
       expect(computePoolTrend({ ...input, currentModuleViews: views })).toEqual([
         { periodStart: at(8, 5), poolCents: 0 },
-        { periodStart: at(9, 5), poolCents: 85_000 },
+        { periodStart: at(9, 5), poolCents: 83_000 },
       ]);
     },
   );

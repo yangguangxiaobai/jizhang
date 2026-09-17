@@ -101,12 +101,16 @@ check('餐饮 spent increased to 1500 yuan', foodModule()?.spentCents === 150_00
 check('餐饮 remaining is 2500 yuan', foodModule()?.remainingCents === 250_000, `-> ${foodModule()?.remainingCents}`);
 check('交通 untouched by a 餐饮 expense', transportModule()?.spentCents === 0);
 
-// ── AC5: a refund reduces net expense rather than adding income ──────────────
-console.log('\n[AC5] mark a refund -> net expense drops, income unchanged');
+// ── AC5: a refund counts as income and does not reduce the module spend ──────
+console.log('\n[AC5] record a refund in the income tab -> spend stays gross');
+const refundCategoryId = (await get('/categories?type=1')).json.items.find(
+  (/** @type {{ id: string, name: string }} */ c) => c.id === 'builtin-income-refund',
+)?.id;
+check('退款 income category is seeded', typeof refundCategoryId === 'string');
 await post('/transactions', {
-  type: 0,
+  type: 1,
   amountCents: 50_000,
-  categoryId: foodId,
+  categoryId: refundCategoryId,
   accountId,
   date: dayIn(-2, 11),
   note: '退货',
@@ -114,12 +118,12 @@ await post('/transactions', {
 });
 overview = (await get('/budget/overview')).json;
 check(
-  '餐饮 spent is net of the refund (1000 yuan)',
-  foodModule()?.spentCents === 100_000,
+  '餐饮 spend is gross (1500 yuan, refund no longer deducts)',
+  foodModule()?.spentCents === 150_000,
   `-> ${foodModule()?.spentCents}`,
 );
-const refundOnIncome = await post('/transactions', {
-  type: 1,
+const refundOnExpense = await post('/transactions', {
+  type: 0,
   amountCents: 100,
   categoryId: foodId,
   accountId,
@@ -127,9 +131,9 @@ const refundOnIncome = await post('/transactions', {
   isRefund: true,
 });
 check(
-  'a refund cannot be attached to an income row -> 400',
-  refundOnIncome.status === 400,
-  `-> ${refundOnIncome.status}`,
+  'a refund cannot be attached to an expense row -> 400',
+  refundOnExpense.status === 400,
+  `-> ${refundOnExpense.status}`,
 );
 
 // ── AC4: overspend inside the current cycle is borrowed from the pool ────────
@@ -148,8 +152,8 @@ check(
   foodModule().spentCents > foodModule().budgetCents,
   `spent=${foodModule().spentCents} budget=${foodModule().budgetCents}`,
 );
-// 餐饮: budget 400,000, spent 150,000 - 50,000 + 450,000 = 550,000 -> borrowed 150,000.
-check('pool is negative from that borrow', overview.carryoverPoolCents === -150_000, `-> ${overview.carryoverPoolCents}`);
+// 餐饮: budget 400,000, spent 150,000 + 450,000 = 600,000 (gross) -> borrowed 200,000.
+check('pool is negative from that borrow', overview.carryoverPoolCents === -200_000, `-> ${overview.carryoverPoolCents}`);
 
 // ── AC4: a new cycle closes the old one and its leftover enters the pool ─────
 console.log(`\n[AC4] start a new cycle in ${label(M1)} -> ${label(M2)} leftover moves to the pool`);
@@ -158,11 +162,12 @@ overview = (await get('/budget/overview')).json;
 check('current cycle has no spending yet', foodModule()?.spentCents === 0, `-> ${foodModule()?.spentCents}`);
 
 // The pool is per-cycle NET, so a fully-allocated cycle that overspent one module is
-// still positive when other modules went untouched:
-//   budget 1,000,000 - spent 550,000 = 450,000.
+// still positive when other modules went untouched. Spend is gross now (the refund is
+// income):
+//   budget 1,000,000 - spent 600,000 = 400,000.
 check(
-  'pool reflects the net leftover of the closed cycle (450000)',
-  overview.carryoverPoolCents === 450_000,
+  'pool reflects the net leftover of the closed cycle (400000)',
+  overview.carryoverPoolCents === 400_000,
   `-> ${overview.carryoverPoolCents}`,
 );
 
@@ -205,14 +210,14 @@ check(
   `-> ${foodModule()?.remainingCents}`,
 );
 // Two cycles are now closed, so the pool is their combined net leftover:
-//   oldest cycle: 1,000,000 budget - 550,000 spent      =   450,000
-//   middle cycle: 1,000,000 budget - 0 spent            = 1,000,000
-//   current cycle borrow                               =  -100,000
+//   oldest cycle: 1,000,000 budget - 600,000 spent (gross) =   400,000
+//   middle cycle: 1,000,000 budget - 0 spent               = 1,000,000
+//   current cycle borrow                                   =  -100,000
 //                                                         ---------
-//                                                          1,350,000
+//                                                          1,300,000
 check(
-  'pool = both closed cycles net of the current borrow (1350000)',
-  overview.carryoverPoolCents === 1_350_000,
+  'pool = both closed cycles net of the current borrow (1300000)',
+  overview.carryoverPoolCents === 1_300_000,
   `-> ${overview.carryoverPoolCents}`,
 );
 

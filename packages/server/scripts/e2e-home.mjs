@@ -48,6 +48,7 @@ const nextMonthStart = (monthOffset) =>
 const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
 const SALARY_TXN = 'builtin-income-salary';
+const REFUND = 'builtin-income-refund';
 const ACCOUNT = 'builtin-default-account';
 
 const addTxn = async (body) => {
@@ -103,7 +104,7 @@ check(
 // ── the figures the dashboard shows ──────────────────────────────────────────
 console.log('\n[dashboard figures]');
 await addTxn({ type: 0, amountCents: 150_000, categoryId: FOOD, date: dayIn(0, 5), note: '买菜' });
-await addTxn({ type: 0, amountCents: 40_000, categoryId: FOOD, date: dayIn(0, 6), note: '退款', isRefund: true });
+await addTxn({ type: 1, amountCents: 40_000, categoryId: REFUND, date: dayIn(0, 6), note: '退款', isRefund: true });
 await addTxn({ type: 0, amountCents: 30_000, categoryId: TRANSPORT, date: dayIn(0, 7), note: '打车' });
 await addTxn({ type: 1, amountCents: 200_000, categoryId: SALARY_TXN, date: dayIn(0, 8), note: '兼职收入' });
 // Deliberately in a prior month: it must not leak into the current month's figures.
@@ -119,20 +120,20 @@ const salaryResponse = await post('/salaries', {
 check('salary recorded -> 201', salaryResponse.status === 201, `-> ${salaryResponse.status}`);
 
 const summary = (await get('/stats/monthly-trend?months=1')).json.items[0];
-// Income: 200,000 transaction + 1,000,000 salary. Expense: 150,000 - 40,000 + 30,000.
+// Income: 200,000 transaction + 40,000 refund + 1,000,000 salary. Expense: 150,000 + 30,000 (gross).
 check(
-  'income is the income transaction plus the recorded salary',
-  summary.incomeCents === 1_200_000,
+  'income is the income transaction plus the refund plus the recorded salary',
+  summary.incomeCents === 1_240_000,
   `-> ${summary.incomeCents}`,
 );
 check(
-  'net expense is the month spend net of the refund',
-  summary.netExpenseCents === 140_000,
+  'net expense is the month spend gross',
+  summary.netExpenseCents === 180_000,
   `-> ${summary.netExpenseCents}`,
 );
 check(
   'a prior-month expense stays out of this month',
-  summary.netExpenseCents !== 999_999 + 140_000,
+  summary.netExpenseCents !== 999_999 + 180_000,
   `-> ${summary.netExpenseCents}`,
 );
 
@@ -164,12 +165,12 @@ check(
 );
 check(
   'the cycle spend covers every module of this cycle',
-  overview.totalSpentCents === 140_000,
+  overview.totalSpentCents === 180_000,
   `-> ${overview.totalSpentCents}`,
 );
 check(
   'the remaining is budget minus spend',
-  overview.totalBudgetCents - overview.totalSpentCents === salaryAmount - 140_000,
+  overview.totalBudgetCents - overview.totalSpentCents === salaryAmount - 180_000,
   `-> ${overview.totalBudgetCents - overview.totalSpentCents}`,
 );
 check(

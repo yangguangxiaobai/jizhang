@@ -14,6 +14,7 @@ import {
   SEED_CATEGORIES,
   SEED_TEMPLATE,
   SEED_UPDATED_AT_MS,
+  paletteSlot,
 } from '@jizhang/shared';
 import {
   closeDatabase,
@@ -149,6 +150,103 @@ describe('migrations', () => {
     const accountId = columns.find((column) => column.name === 'account_id');
     expect(accountId?.notnull).toBe(1);
     expect(accountId?.dflt_value).toBe("'builtin-default-account'");
+  });
+
+  /**
+   * Migration 006 rewrites every expense-typed refund row to income under the new 退款
+   * category. This drives the real upgrade path: apply migrations 1–5, write refund rows
+   * the way the old code did (type = 0), then migrate.
+   */
+  it('006 rewrites old expense-typed refunds to income under the 退款 category', () => {
+    // A database as it existed before 006: migrations 1–5 applied and recorded.
+    const through5 = MIGRATIONS.filter((entry) => entry.version <= 5);
+    expect(through5).toHaveLength(5);
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS schema_migrations (
+         version    INTEGER PRIMARY KEY,
+         name       TEXT    NOT NULL,
+         applied_at INTEGER NOT NULL
+       )`,
+    );
+    const record = db.prepare(
+      'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+    );
+    for (const entry of through5) {
+      db.exec(entry.sql);
+      record.run(entry.version, entry.name, 1);
+    }
+
+    db.prepare(
+      `INSERT INTO accounts (id, name, type, initial_balance_cents, sort_order, is_builtin, deleted, updated_at)
+       VALUES ('builtin-default-account', '默认账户', 0, 0, 0, 1, 0, 1)`,
+    ).run();
+
+    // One expense original, one live refund, one trashed refund — all written the
+    // way the old model did: type = 0 with is_refund = 1.
+    const insertTxn = db.prepare(
+      `INSERT INTO transactions
+         (id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund, deleted, updated_at)
+       VALUES (?, ?, ?, 'builtin-expense-food', 'builtin-default-account', 1000, '', '[]', ?, ?, 1)`,
+    );
+    insertTxn.run('original-1', 0, 100_000, 0, 0);
+    insertTxn.run('refund-live', 0, 30_000, 1, 0);
+    insertTxn.run('refund-trashed', 0, 20_000, 1, 1);
+    db.prepare(
+      `INSERT INTO refund_links (id, refund_tx_id, original_tx_id, created_at)
+       VALUES ('link-1', 'refund-live', 'original-1', 1)`,
+    ).run();
+
+    runMigrations(db, null);
+
+    // Both refund rows are now income under 退款 — including the trashed one.
+    for (const id of ['refund-live', 'refund-trashed']) {
+      const row = db.prepare('SELECT type, category_id FROM transactions WHERE id = ?').get(id) as {
+        type: number;
+        category_id: string;
+      };
+      expect(row.type).toBe(1);
+      expect(row.category_id).toBe('builtin-income-refund');
+    }
+    // The original stays an expense, and the link survives.
+    const original = db.prepare('SELECT type FROM transactions WHERE id = ?').get('original-1') as {
+      type: number;
+    };
+    expect(original.type).toBe(0);
+    expect(countRows('refund_links')).toBe(1);
+
+    // The category was created exactly as the seed describes it.
+    const category = db
+      .prepare('SELECT name, type, color, sort_order, is_builtin FROM categories WHERE id = ?')
+      .get('builtin-income-refund') as {
+      name: string;
+      type: number;
+      color: number;
+      sort_order: number;
+      is_builtin: number;
+    };
+    expect(category.name).toBe('退款');
+    expect(category.type).toBe(1);
+    expect(category.color).toBe(paletteSlot(9).argb);
+    expect(category.sort_order).toBe(2);
+    expect(category.is_builtin).toBe(1);
+
+    // Re-running is a no-op — no duplicate category.
+    runMigrations(db, null);
+    expect(
+      db.prepare('SELECT COUNT(*) AS c FROM categories WHERE id = ?').get('builtin-income-refund'),
+    ).toMatchObject({ c: 1 });
+  });
+
+  it('006 creates the 退款 category on a fresh database and updates no rows', () => {
+    runMigrations(db, null);
+    const row = db
+      .prepare('SELECT name, type FROM categories WHERE id = ?')
+      .get('builtin-income-refund') as { name: string; type: number };
+    expect(row.name).toBe('退款');
+    expect(row.type).toBe(1);
+    expect(
+      db.prepare('SELECT COUNT(*) AS c FROM transactions WHERE is_refund = 1').get(),
+    ).toMatchObject({ c: 0 });
   });
 
   /**
@@ -373,7 +471,7 @@ describe('seeding', () => {
       .prepare('SELECT COUNT(*) AS c FROM categories WHERE type = 1')
       .get() as { c: number };
     expect(expense.c).toBe(6);
-    expect(income.c).toBe(2);
+    expect(income.c).toBe(3);
   });
 
   it('AC2 seeding twice does not duplicate anything', () => {

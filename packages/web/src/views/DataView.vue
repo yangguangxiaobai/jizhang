@@ -22,6 +22,7 @@ const errorMessage = ref<string | null>(null);
 const importResult = ref<ImportResult | null>(null);
 /** The chosen file's name and size, shown before the user commits. */
 const chosen = ref<{ name: string; sizeBytes: number; text: string } | null>(null);
+const importMode = ref<'transactions' | 'transfers'>('transactions');
 
 const RESTORE_COMMAND =
   'docker compose stop jizhang\n' +
@@ -48,6 +49,12 @@ async function loadBackups(): Promise<void> {
 }
 
 onMounted(loadBackups);
+
+function chooseImportMode(mode: 'transactions' | 'transfers'): void {
+  importMode.value = mode;
+  chosen.value = null;
+  importResult.value = null;
+}
 
 /** Bytes → a short human string. Display only; no accounting involved. */
 function sizeLabel(bytes: number): string {
@@ -104,7 +111,10 @@ async function runImport(): Promise<void> {
   errorMessage.value = null;
   importResult.value = null;
   try {
-    importResult.value = await api.portability.importTransactions(chosen.value.text);
+    importResult.value =
+      importMode.value === 'transfers'
+        ? await api.portability.importTransfers(chosen.value.text)
+        : await api.portability.importTransactions(chosen.value.text);
   } catch (error) {
     record(error);
   } finally {
@@ -123,7 +133,7 @@ function clearImport(): void {
   <section class="card">
     <h2>导出</h2>
     <p class="hint">
-      下载 CSV 文件，可直接用 Excel 打开（中文不会乱码）。金额为元，含退款标记，可按净支出核对。
+      下载 CSV 文件，可直接用 Excel 打开（中文不会乱码）。金额为元；账单含退款标记，转账带出入账户。
     </p>
     <!--
       Plain links rather than fetch + Blob: these are file downloads behind the session
@@ -138,13 +148,35 @@ function clearImport(): void {
     <a class="action" :href="api.portability.exportUrl('recurring')" download>
       导出周期账单规则
     </a>
+    <a class="action" :href="api.portability.exportUrl('transfers')" download>
+      导出转账
+    </a>
   </section>
 
   <section class="card">
-    <h2>导入账单</h2>
+    <h2>导入数据</h2>
     <p class="hint">
-      只支持导入本应用导出的账单文件。已有相同 id 的账单会被跳过，因此重复导入不会重复记账。
+      只支持导入本应用导出的账单或转账文件。已有相同 id 的记录会被跳过，因此重复导入不会重复入账。
     </p>
+
+    <div class="mode-switch" role="group" aria-label="导入类型">
+      <button
+        type="button"
+        :class="{ active: importMode === 'transactions' }"
+        :aria-pressed="importMode === 'transactions'"
+        @click="chooseImportMode('transactions')"
+      >
+        账单
+      </button>
+      <button
+        type="button"
+        :class="{ active: importMode === 'transfers' }"
+        :aria-pressed="importMode === 'transfers'"
+        @click="chooseImportMode('transfers')"
+      >
+        转账
+      </button>
+    </div>
 
     <label class="field">
       <span>选择 CSV 文件</span>
@@ -154,7 +186,7 @@ function clearImport(): void {
     <template v-if="chosen !== null">
       <p class="preview">
         已选择 <strong>{{ chosen.name }}</strong>（{{ sizeLabel(chosen.sizeBytes) }}）。
-        导入只会<strong>新增</strong>账单，不会修改或删除现有数据。
+        导入只会<strong>新增</strong>{{ importMode === 'transfers' ? '转账' : '账单' }}，不会修改或删除现有数据。
       </p>
       <div class="actions">
         <button type="button" :disabled="busy || isOffline" @click="runImport">
@@ -248,6 +280,25 @@ h2 {
 .field > span {
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.mode-switch button {
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+}
+
+.mode-switch button.active {
+  color: var(--fg);
+  background: var(--surface-soft);
+  border-color: var(--accent);
 }
 
 /* 16px minimum: below it, iOS Safari zooms the page on focus. */

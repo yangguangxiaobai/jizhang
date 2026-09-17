@@ -189,6 +189,21 @@ export interface Transaction {
   readonly tags: string[];
   readonly isRefund: boolean;
   readonly refundLinkedTxIds?: string[];
+  readonly refundSummary?: RefundSummary;
+  readonly refundDetails?: RefundDetail[];
+  readonly updatedAt: number;
+}
+/** How much has been refunded against an original expense (reverse-view). */
+export interface RefundSummary {
+  readonly totalRefundCents: number;
+  readonly refundCount: number;
+}
+/** One linked refund row for an original expense (forward-view detail). */
+export interface RefundDetail {
+  readonly id: string;
+  readonly amountCents: number;
+  readonly date: number;
+  readonly note: string;
   readonly updatedAt: number;
 }
 
@@ -403,9 +418,9 @@ export interface AccountBalance {
   readonly name: string;
   readonly type: number;
   readonly initialBalanceCents: number;
-  /** Income transactions in. Refunds are excluded — they are not income. */
+  /** Income transactions in. Refunds are included — they are income. */
   readonly incomeCents: number;
-  /** NET expense out, refunds already subtracted; may be negative. */
+  /** Gross expense out; refunds no longer subtract from it. */
   readonly expenseCents: number;
   /** Salaries received into this account. */
   readonly salaryCents: number;
@@ -461,7 +476,7 @@ export interface CategoryShareItem {
   readonly categoryId: string;
   readonly categoryName: string;
   readonly color: number;
-  /** Net expense in cents; negative when refunds exceeded spending. */
+  /** Gross expense in cents (refunds are income and never appear here). */
   readonly amountCents: number;
   readonly ratio: number;
 }
@@ -537,9 +552,9 @@ export const api = {
     purgeAll: () => request<TrashBulkResult>('/api/v1/trash', { method: 'DELETE' }),
   },
   categories: {
-    list: (type?: number) =>
+    list: (type?: number, includeDeleted = false) =>
       request<{ items: Category[] }>('/api/v1/categories', {
-        query: type === undefined ? {} : { type },
+        query: { type, includeDeleted },
       }),
     create: (input: { name: string; type: number; icon?: string; color?: number }) =>
       request<Category>('/api/v1/categories', { method: 'POST', body: input }),
@@ -561,7 +576,10 @@ export const api = {
     usage: (id: string) => request<{ transactions: number }>(`/api/v1/categories/${id}/usage`),
   },
   accounts: {
-    list: () => request<{ items: Account[] }>('/api/v1/accounts'),
+    list: (includeDeleted = false) =>
+      request<{ items: Account[] }>('/api/v1/accounts', {
+        query: { includeDeleted },
+      }),
     /**
      * Balances are a separate call from the account list on purpose: the list is master
      * data (cached for the session) while a balance changes with every bill.
@@ -724,7 +742,8 @@ export const api = {
    * pulling the whole CSV into memory through `fetch`. `exportUrl` returns the href.
    */
   portability: {
-    exportUrl: (what: 'transactions' | 'salaries' | 'recurring') => `/api/v1/export/${what}.csv`,
+    exportUrl: (what: 'transactions' | 'salaries' | 'recurring' | 'transfers') =>
+      `/api/v1/export/${what}.csv`,
     /**
      * Imports a CSV.
      *
@@ -733,6 +752,11 @@ export const api = {
      */
     importTransactions: (csvText: string) =>
       request<ImportResult>('/api/v1/import/transactions', {
+        method: 'POST',
+        rawBody: { contentType: 'text/csv', body: csvText },
+      }),
+    importTransfers: (csvText: string) =>
+      request<ImportResult>('/api/v1/import/transfers', {
         method: 'POST',
         rawBody: { contentType: 'text/csv', body: csvText },
       }),

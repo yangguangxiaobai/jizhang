@@ -80,9 +80,9 @@ console.log('\n[delete -> appears in the bin]');
 const lunchId = await addTxn({ type: 0, amountCents: 150_000, categoryId: FOOD, date: dayIn(5), note: '买菜' });
 const taxiId = await addTxn({ type: 0, amountCents: 30_000, categoryId: TRANSPORT, date: dayIn(6), note: '打车' });
 const refundId = await addTxn({
-  type: 0,
+  type: 1,
   amountCents: 40_000,
-  categoryId: FOOD,
+  categoryId: 'builtin-income-refund',
   date: dayIn(7),
   note: '买菜退款',
   isRefund: true,

@@ -45,7 +45,7 @@ function deletedLabel(item: Transaction): string {
 }
 
 /**
- * The ledger's own polarity: spending negative, a refund a negative expense. Kept
+ * The ledger's own polarity: spending negative, income (refunds included) positive. Kept
  * identical to the bill list so one row never reads `-400` on one screen and `+400`
  * on another.
  */

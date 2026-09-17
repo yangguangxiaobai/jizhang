@@ -22,13 +22,13 @@ function expectRejected(response, status, label) {
 // ── master data ──────────────────────────────────────────────────────────────
 const categories = await (await fetch(`${BASE}/categories`, { headers: auth })).json();
 check(
-  'GET /categories returns the 8 seeded categories',
-  categories.items?.length === 8,
+  'GET /categories returns the 9 seeded categories',
+  categories.items?.length === 9,
   `-> ${categories.items?.length}`,
 );
 const expenseCategories = categories.items.filter((c) => c.type === 0);
 const incomeCategories = categories.items.filter((c) => c.type === 1);
-check('6 expense + 2 income', expenseCategories.length === 6 && incomeCategories.length === 2);
+check('6 expense + 3 income', expenseCategories.length === 6 && incomeCategories.length === 3);
 
 const accounts = await (await fetch(`${BASE}/accounts`, { headers: auth })).json();
 check('GET /accounts returns the default account', accounts.items?.length === 1, `-> ${accounts.items?.[0]?.name}`);
@@ -36,6 +36,7 @@ const accountId = accounts.items[0].id;
 const foodId = expenseCategories.find((c) => c.name === '餐饮').id;
 const transportId = expenseCategories.find((c) => c.name === '交通').id;
 const salaryId = incomeCategories.find((c) => c.name === '工资').id;
+const refundId = incomeCategories.find((c) => c.name === '退款').id;
 
 // ── create ───────────────────────────────────────────────────────────────────
 const AUG = (day) => new Date(2026, 7, day).getTime();
@@ -88,7 +89,7 @@ await expectRejectedCreate(
 
 // ── more rows, including a refund and an income ──────────────────────────────
 await create({ type: 0, amountCents: 50000, categoryId: foodId, date: AUG(15), note: '聚餐' });
-await create({ type: 0, amountCents: 20000, categoryId: foodId, date: AUG(16), note: '退款', isRefund: true });
+await create({ type: 1, amountCents: 20000, categoryId: refundId, date: AUG(16), note: '退款', isRefund: true });
 await create({ type: 0, amountCents: 3000, categoryId: transportId, date: AUG(20), note: '地铁' });
 await create({ type: 1, amountCents: 900000, categoryId: salaryId, date: AUG(5), note: '工资' });
 
@@ -99,30 +100,30 @@ const list = await listRes.json();
 // "50% off" row is created later, for the LIKE-escaping check.
 check('GET /transactions lists all rows so far', list.total === 5, `-> ${list.total}`);
 
-// Net expense = 1999 + 50000 - 20000 + 3000 = 34999 cents (the refund reduces it).
+// Gross expense = 1999 + 50000 + 3000 = 54999 cents (the refund no longer reduces it).
 const expenses = list.items.filter((t) => t.type === 0);
 const netExpense = expenses.reduce(
-  (sum, t) => sum + (t.isRefund ? -t.amountCents : t.amountCents),
+  (sum, t) => sum + t.amountCents,
   0,
 );
 check(
-  'AC7 net expense subtracts the refund (34999)',
-  netExpense === 34999,
+  'AC7 expense is gross (54999)',
+  netExpense === 54999,
   `-> ${netExpense}`,
 );
 const income = list.items
   .filter((t) => t.type === 1)
   .reduce((sum, t) => sum + t.amountCents, 0);
-check('AC7 refund excluded from income (900000)', income === 900000, `-> ${income}`);
+check('AC7 refund included in income (920000)', income === 920000, `-> ${income}`);
 
 // ── filters ──────────────────────────────────────────────────────────────────
 const byCategory = await (
   await fetch(`${BASE}/transactions?categoryId=${foodId}`, { headers: auth })
 ).json();
-check('AC8 filter by category -> 3 rows', byCategory.total === 3, `-> ${byCategory.total}`);
+check('AC8 filter by category -> 2 rows', byCategory.total === 2, `-> ${byCategory.total}`);
 
 const byType = await (await fetch(`${BASE}/transactions?type=1`, { headers: auth })).json();
-check('AC8 filter by income type -> 1 row', byType.total === 1, `-> ${byType.total}`);
+check('AC8 filter by income type -> 2 rows', byType.total === 2, `-> ${byType.total}`);
 
 const byRange = await (
   await fetch(`${BASE}/transactions?from=${AUG(1)}&to=${AUG(10)}`, { headers: auth })

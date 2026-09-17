@@ -10,14 +10,14 @@
 按**信封预算法**记账:每月工资按模板分配到各分类模块,日常支出从模块额度里扣,超支从累积
 结余池借用。
 
-- **账单**:记收入/支出、多账户、标签、退款标记(退款冲减净支出,不计收入)、按月筛选
+- **账单**:记收入/支出、多账户、标签、退款(记在收入下,计入收入,可关联原始支出)、按月筛选
 - **预算**:工资录入 + 分配模板(比例和必须为 100%)、模块已用/剩余、80%–100% 预警与超支提示、
   累积结余池、**历史周期回看**
 - **周期账单**:房租/订阅这类固定账单按日/周/月/季/年自动到期,到期后进入**待确认**由你确认,
   不静默入账
 - **统计**:分类占比环形图、月度收入与净支出柱状图、结余池趋势
 - **回收站**:删除的账单可恢复,或彻底删除
-- **数据**:CSV 导出(带 BOM,Excel 直接打开中文不乱码)、CSV 导入、整库备份
+- **数据**:CSV 导出/导入(账单、转账、工资、周期规则,带 BOM,Excel 直接打开中文不乱码)、整库备份
 - **外观**:深浅色(跟随系统/浅色/深色)、三套主色预设(钛蓝/森林绿/极简黑白)
 - **PWA**:可"添加到主屏幕"作为独立 App 使用,离线可查看已打开的页面
 
@@ -285,7 +285,7 @@ pnpm test:iphone:only         # 跳过构建
 | 标签 | `GET /tags`、`PATCH /tags`(重命名)、`DELETE /tags/:id` |
 | 周期账单 | `GET/POST /recurring/rules`、`PATCH/DELETE /recurring/rules/:id`、`POST /recurring/rules/:id/enabled`、`POST /recurring/generate`、`GET /recurring/occurrences`、`POST /recurring/occurrences/:id/confirm`、`POST /recurring/occurrences/:id/ignore`、`GET /recurring/pending` |
 | 统计 | `GET /stats/category-share`、`GET /stats/monthly-trend`、`GET /stats/month-window`、`GET /stats/pool-trend`、`GET /stats/range` |
-| 导入导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`POST /import/transactions` |
+| 导入导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`GET /export/transfers.csv`、`POST /import/transactions`、`POST /import/transfers` |
 | 备份 | `GET /backups`、`POST /backups` |
 | 设置 | `GET /settings`、`PUT /settings`(预算周期起点) |
 

@@ -6,8 +6,11 @@
  *   * money arrives as integer cents and never as a float (AC4);
  *   * tags are normalised through `services/tags.ts` so the de-duplication rule
  *     exists in exactly one place (AC6);
- *   * `isRefund` is a cross-cutting flag on an EXPENSE row, not an income — it
- *     makes `expenseContribution` negative (AC7);
+ *   * `isRefund` is a cross-cutting flag on an INCOME row, not an expense — it
+ *     marks money that came back in (退款/还款/AA 收款) and links back to the
+ *     original expense(s) it offsets; refunds count as income (AC7, revised).
+ *     No category-type-match validation exists by convention: the UI restricts
+ *     the category list to the active type.
  *   * deletes are soft: the row stays, `deleted` flips (AC3);
  *   * a keyword search escapes `%` and `_`, so a note containing `%` is matched
  *     literally instead of matching everything (AC9).
@@ -42,6 +45,24 @@ interface TransactionRow {
 }
 
 /** Wire/domain representation. Field names match the API contract (design.md §5). */
+/** Reverse-refund summary for an original expense: how much has been refunded. */
+export interface RefundSummary {
+  /** Sum of all linked refund amounts, in cents. */
+  readonly totalRefundCents: number;
+  /** Number of linked refund transactions. */
+  readonly refundCount: number;
+}
+
+/** One linked refund row for an original expense (forward-view detail). */
+export interface RefundDetail {
+  readonly id: string;
+  readonly amountCents: number;
+  readonly date: number;
+  readonly note: string;
+  readonly updatedAt: number;
+}
+
+/** Wire/domain representation. Field names match the API contract (design.md §5). */
 export interface TransactionDto {
   readonly id: string;
   readonly type: number;
@@ -53,10 +74,17 @@ export interface TransactionDto {
   readonly tags: string[];
   readonly isRefund: boolean;
   readonly refundLinkedTxIds?: string[];
+  readonly refundSummary?: RefundSummary;
+  readonly refundDetails?: RefundDetail[];
   readonly updatedAt: number;
 }
 
-function toDto(row: TransactionRow, refundLinkedTxIds?: string[]): TransactionDto {
+function toDto(
+  row: TransactionRow,
+  refundLinkedTxIds?: string[],
+  refundSummary?: RefundSummary,
+  refundDetails?: RefundDetail[],
+): TransactionDto {
   return {
     id: row.id,
     type: row.type,
@@ -68,6 +96,8 @@ function toDto(row: TransactionRow, refundLinkedTxIds?: string[]): TransactionDt
     tags: parseTagsJson(row.tags_json),
     isRefund: row.is_refund === 1,
     refundLinkedTxIds,
+    refundSummary,
+    refundDetails,
     updatedAt: row.updated_at,
   };
 }
@@ -121,7 +151,7 @@ export interface CreateTransactionInput {
   readonly note?: unknown;
   readonly tags?: unknown;
   readonly isRefund?: unknown;
-  readonly refundLinkedTxIds?: unknown;
+   readonly refundLinkedTxIds?: unknown;
 }
 
 /**
@@ -234,6 +264,54 @@ export class TransactionService {
     this.db = db;
     this.now = options.now ?? (() => Date.now());
   }
+  
+  /** Returns the ids of refunds linked TO this original expense (reverse lookup). */
+  getRefundsForExpense(originalTxId: string): string[] {
+    const rows = this.db
+      .prepare('SELECT refund_tx_id FROM refund_links WHERE original_tx_id = ? ORDER BY created_at')
+      .all(originalTxId) as { refund_tx_id: string }[];
+    return rows.map((row) => row.refund_tx_id);
+  }
+
+  /** Sum of refund amounts linked to an original expense, plus how many there are. */
+  getRefundSummary(originalTxId: string): RefundSummary {
+    const rows = this.db
+      .prepare(
+        `SELECT t.amount_cents AS amount
+           FROM refund_links rl
+           JOIN transactions t ON t.id = rl.refund_tx_id
+          WHERE rl.original_tx_id = ? AND t.deleted = 0`,
+      )
+      .all(originalTxId) as { amount: number }[];
+    const totalRefundCents = rows.reduce((sum, row) => sum + row.amount, 0);
+    return { totalRefundCents, refundCount: rows.length };
+  }
+
+  /** Forward-view rows for the refunds linked to an original expense. */
+  getRefundDetails(originalTxId: string): RefundDetail[] {
+    const rows = this.db
+      .prepare(
+        `SELECT t.id, t.amount_cents, t.date, t.note, t.updated_at
+           FROM refund_links rl
+           JOIN transactions t ON t.id = rl.refund_tx_id
+          WHERE rl.original_tx_id = ? AND t.deleted = 0
+          ORDER BY rl.created_at`,
+      )
+      .all(originalTxId) as {
+      id: string;
+      amount_cents: number;
+      date: number;
+      note: string;
+      updated_at: number;
+    }[];
+    return rows.map((row) => ({
+      id: row.id,
+      amountCents: row.amount_cents,
+      date: row.date,
+      note: row.note,
+      updatedAt: row.updated_at,
+    }));
+  }
 
   /** Rejects a reference to a category that is missing or soft-deleted (AC10). */
   private assertCategoryUsable(categoryId: string): void {
@@ -327,8 +405,20 @@ export class TransactionService {
       .prepare(`SELECT * FROM transactions WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`)
       .get(id) as TransactionRow | undefined;
     if (row === undefined) return undefined;
-    if (row.is_refund !== 1) return toDto(row);
-    return toDto(row, this.getRefundLinks(id));
+    if (row.is_refund === 1) {
+      return toDto(row, this.getRefundLinks(id));
+    }
+    // For a non-refund expense, attach the reverse-view: how much has been
+    // refunded against it. Only expense originals carry this summary — refunds
+    // (income-typed) show their linked originals instead, and plain income
+    // has nothing to offset.
+    if (row.type === TYPE_EXPENSE) {
+      const summary = this.getRefundSummary(id);
+      if (summary.refundCount > 0) {
+        return toDto(row, undefined, summary, this.getRefundDetails(id));
+      }
+    }
+    return toDto(row);
   }
 
   /**
@@ -363,11 +453,12 @@ export class TransactionService {
     const note = typeof input.note === 'string' ? input.note : '';
     const tags = normaliseTags(Array.isArray(input.tags) ? input.tags : []);
 
-    // A refund only makes sense on an expense: a refund is a negative EXPENSE, and
-    // "refund income" is not a concept in this model (T4 PRD R5).
+    // A refund only makes sense on an income: money that came back in is recorded
+    // in the income tab and counts as +income (AC7, revised — supersedes the old
+    // "refund is a negative expense" rule from T4 PRD R5).
     const isRefund = input.isRefund === true;
-    if (isRefund && type !== TYPE_EXPENSE) {
-      throw new ValidationError('isRefund can only be set on an expense (type 0).');
+    if (isRefund && type !== TYPE_INCOME) {
+      throw new ValidationError('isRefund can only be set on an income (type 1).');
     }
 
     this.assertCategoryUsable(categoryId);
@@ -413,7 +504,7 @@ export class TransactionService {
   /**
    * Partial update. Only the keys present in `input` are changed.
    *
-   * `isRefund` is special-cased: flipping it on an income row is rejected, and
+   * `isRefund` is special-cased: flipping it on an expense row is rejected, and
    * clearing it is always allowed.
    */
   update(id: string, input: UpdateTransactionInput): TransactionDto {
@@ -444,8 +535,8 @@ export class TransactionService {
         : normaliseTags(Array.isArray(input.tags) ? input.tags : []);
     const nextIsRefund = input.isRefund === undefined ? current.isRefund : input.isRefund === true;
 
-    if (nextIsRefund && nextType !== TYPE_EXPENSE) {
-      throw new ValidationError('isRefund can only be set on an expense (type 0).');
+    if (nextIsRefund && nextType !== TYPE_INCOME) {
+      throw new ValidationError('isRefund can only be set on an income (type 1).');
     }
 
     if (nextCategory !== current.categoryId) this.assertCategoryUsable(nextCategory);
@@ -487,12 +578,24 @@ export class TransactionService {
     return this.getByIdOrThrow(id);
   }
 
-  /** Soft delete. The row stays in the table with `deleted = 1` (AC3). */
+  /**
+   * Soft delete. The row stays in the table with `deleted = 1` (AC3).
+   *
+   * Refund links are removed as part of the same transaction. A link to an expense that
+   * is no longer live cannot be meaningfully traced in the live UI, and a link from a
+   * refund that is in the trash should not still point at a live expense.
+   */
   softDelete(id: string): void {
     this.getByIdOrThrow(id);
-    this.db
-      .prepare('UPDATE transactions SET deleted = 1, updated_at = ? WHERE id = ?')
-      .run(this.now(), id);
+    const run = this.db.transaction((): void => {
+      this.db
+        .prepare('UPDATE transactions SET deleted = 1, updated_at = ? WHERE id = ?')
+        .run(this.now(), id);
+      this.db
+        .prepare('DELETE FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+        .run(id, id);
+    });
+    run();
   }
 
   /**
@@ -524,8 +627,8 @@ export class TransactionService {
    * follow a deliberate trip through the trash. A live row is a conflict, not a
    * not-found: the two mean different things to the caller and must not be collapsed.
    *
-   * No cascade is needed: `transactions` has no inbound foreign keys (the schema's only
-   * `REFERENCES` is `sessions -> users`), so nothing is left dangling.
+   * Refund links are removed first: this row may be the refund or the original, and
+   * leaving the link would let a hard-deleted id linger in `refund_links`.
    */
   purge(id: string): void {
     const deleted = this.deletedFlag(id);
@@ -536,7 +639,13 @@ export class TransactionService {
       );
     }
 
-    this.db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+    const run = this.db.transaction((): void => {
+      this.db
+        .prepare('DELETE FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+        .run(id, id);
+      this.db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+    });
+    run();
   }
 
   /** Restores every soft-deleted row. Returns how many came back. */
@@ -553,7 +662,23 @@ export class TransactionService {
   /** Permanently deletes every soft-deleted row. Returns how many are gone. */
   purgeAll(): number {
     const run = this.db.transaction(
-      (): number => this.db.prepare('DELETE FROM transactions WHERE deleted = 1').run().changes,
+      (): number => {
+        const ids = (
+          this.db.prepare('SELECT id FROM transactions WHERE deleted = 1').all() as {
+            id: string;
+          }[]
+        ).map((row) => row.id);
+        if (ids.length > 0) {
+          const placeholders = ids.map(() => '?').join(',');
+          this.db
+            .prepare(
+              `DELETE FROM refund_links
+                WHERE refund_tx_id IN (${placeholders}) OR original_tx_id IN (${placeholders})`,
+            )
+            .run(...ids, ...ids);
+        }
+        return this.db.prepare('DELETE FROM transactions WHERE deleted = 1').run().changes;
+      },
     );
     return run();
   }
@@ -589,7 +714,7 @@ export class TransactionService {
   }
 
   /**
-   * Total net expense across the given rows, in cents (may be negative).
+   * Total gross expense across the given rows, in cents.
    *
    * Delegates to the shared rule rather than re-deriving it: `TransactionDto` is
    * structurally compatible with the shared `Transaction` shape for the fields the
@@ -602,7 +727,7 @@ export class TransactionService {
     );
   }
 
-  /** Total income across the given rows, in cents (refunds excluded). */
+  /** Total income across the given rows (refunds included — they are income). */
   incomeCents(items: readonly TransactionDto[]): number {
     return items.reduce((sum, item) => sum + incomeContribution(item as unknown as Transaction), 0);
   }
@@ -666,12 +791,57 @@ export class TransactionService {
       )
       .all(...params, limit, offset) as TransactionRow[];
 
-    return {
-      items: rows.map((row) => toDto(row)),
-      total: totalRow.c,
-      limit,
-      offset,
-    };
+   return {
+      items: this.withRefundSummaries(rows),
+     total: totalRow.c,
+     limit,
+     offset,
+   };
+ }
+
+  /**
+   * Batch-attaches refund summaries to non-refund expense rows in a list result.
+   *
+   * A single GROUP BY query covers all expenses in the page, so the list endpoint
+   * stays at two queries total regardless of how many rows have refunds.
+   */
+  private withRefundSummaries(rows: TransactionRow[]): TransactionDto[] {
+    const expenseIds = rows
+      .filter((row) => row.type === TYPE_EXPENSE && row.is_refund !== 1)
+      .map((row) => row.id);
+
+    if (expenseIds.length === 0) {
+      return rows.map((row) => toDto(row));
+    }
+
+    const placeholders = expenseIds.map(() => '?').join(',');
+    const summaryRows = this.db
+      .prepare(
+        `SELECT rl.original_tx_id AS id,
+                COUNT(*)          AS refund_count,
+                SUM(t.amount_cents) AS total_refund
+           FROM refund_links rl
+           JOIN transactions t ON t.id = rl.refund_tx_id AND t.deleted = 0
+          WHERE rl.original_tx_id IN (${placeholders})
+          GROUP BY rl.original_tx_id`,
+      )
+      .all(...expenseIds) as { id: string; refund_count: number; total_refund: number }[];
+
+    const summaryMap = new Map<string, RefundSummary>();
+    for (const row of summaryRows) {
+      summaryMap.set(row.id, {
+        totalRefundCents: row.total_refund,
+        refundCount: row.refund_count,
+      });
+    }
+
+    return rows.map((row) => {
+      const summary = summaryMap.get(row.id);
+      if (summary !== undefined) {
+        return toDto(row, undefined, summary);
+      }
+      return toDto(row);
+    });
   }
 
   /** Distinct tag names with usage counts, most used first (feeds T7). */

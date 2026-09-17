@@ -39,6 +39,7 @@ const nextMonthStart = (monthOffset) =>
 const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
 const SALARY = 'builtin-income-salary';
+const REFUND = 'builtin-income-refund';
 const ACCOUNT = 'builtin-default-account';
 
 const accountId = (await get('/accounts')).json.items[0].id;
@@ -58,9 +59,9 @@ const WINDOW = `from=${monthStart(0)}&to=${nextMonthStart(0)}`;
 
 await addTxn({ type: 0, amountCents: 150_000, categoryId: FOOD, date: dayIn(0, 5), note: '买菜' });
 await addTxn({
-  type: 0,
+  type: 1,
   amountCents: 50_000,
-  categoryId: FOOD,
+  categoryId: REFUND,
   date: dayIn(0, 6),
   note: '退货',
   isRefund: true,
@@ -69,36 +70,37 @@ await addTxn({ type: 0, amountCents: 30_000, categoryId: TRANSPORT, date: dayIn(
 await addTxn({ type: 1, amountCents: 900_000, categoryId: SALARY, date: dayIn(0, 8), note: '工资' });
 
 let share = (await get(`/stats/category-share?${WINDOW}`)).json;
-// Food 150,000 − 50,000 refund = 100,000; transport 30,000. Total 130,000.
-check('AC5 net expense is reduced by the refund (130000)', share.totalCents === 130_000, `-> ${share.totalCents}`);
+// Spend is gross: food 150,000; transport 30,000. Total 180,000.
+check('AC5 spend is gross (180000)', share.totalCents === 180_000, `-> ${share.totalCents}`);
 
 const food = share.items.find((i) => i.categoryId === FOOD);
-check('AC5 the food category nets 100000, not 150000', food.amountCents === 100_000, `-> ${food.amountCents}`);
+check('AC5 the food category keeps its full 150000', food.amountCents === 150_000, `-> ${food.amountCents}`);
 
 const salaryInShare = share.items.find((i) => i.categoryId === SALARY);
 check('AC2 income does not appear in the expense share', salaryInShare === undefined);
 
-check('the refund is NOT reported as income anywhere in the share', share.items.every((i) => i.amountCents <= 150_000));
+// 退款 is an income category, so it never appears in the expense share.
+check('the refund category is NOT reported in the expense share', share.items.every((i) => i.categoryId !== REFUND));
 check('items are sorted largest spend first', share.items[0].categoryId === FOOD);
 check('each item carries its display name and colour', typeof food.categoryName === 'string' && typeof food.color === 'number');
 
-// Transport becomes refund-dominant: 30,000 + 70,000 spent vs 100,000 refunded.
+// More transport spending, and a refund against it: the refund is income, so the
+// transport category stays gross.
 await addTxn({ type: 0, amountCents: 70_000, categoryId: TRANSPORT, date: dayIn(0, 9), note: '打车' });
 await addTxn({
-  type: 0,
+  type: 1,
   amountCents: 100_000,
-  categoryId: TRANSPORT,
+  categoryId: REFUND,
   date: dayIn(0, 10),
   note: '打车退款',
   isRefund: true,
 });
 share = (await get(`/stats/category-share?${WINDOW}`)).json;
 const transport = share.items.find((i) => i.categoryId === TRANSPORT);
-check('AC1 a refund-dominant category is reported, not dropped', transport !== undefined);
-// 30,000 + 70,000 − 100,000 = 0, so it is listed with a zero net rather than dropped.
-check('AC1 its net expense is exactly zero', transport.amountCents === 0, `-> ${transport?.amountCents}`);
-check('the window total is food only (100000)', share.totalCents === 100_000, `-> ${share.totalCents}`);
-check('a zero-net category keeps a 0 ratio', transport.ratio === 0);
+check('the transport category is reported, not dropped', transport !== undefined);
+check('transport spend stays gross (100000)', transport.amountCents === 100_000, `-> ${transport?.amountCents}`);
+// Food 150,000 + transport 100,000.
+check('the window total is 250000', share.totalCents === 250_000, `-> ${share.totalCents}`);
 
 // ── monthly trend ────────────────────────────────────────────────────────────
 console.log('\n[monthly trend]');
@@ -106,10 +108,11 @@ const trend = (await get('/stats/monthly-trend?months=6')).json.items;
 check('AC4 six points, one per month', trend.length === 6, `-> ${trend.length}`);
 
 const currentMonth = trend[trend.length - 1];
-check('the current month carries the income (900000)', currentMonth.incomeCents === 900_000, `-> ${currentMonth.incomeCents}`);
-// Food 100,000 net + transport 0 net.
-check('AC5 the current month net expense is 100000', currentMonth.netExpenseCents === 100_000, `-> ${currentMonth.netExpenseCents}`);
-check('AC5 the refund never inflates income', currentMonth.incomeCents === 900_000);
+// Income = 900,000 salary + 50,000 + 100,000 refunds (refunds ARE income).
+check('the current month carries the income (1050000)', currentMonth.incomeCents === 1_050_000, `-> ${currentMonth.incomeCents}`);
+// Food 150,000 + transport 100,000, gross.
+check('AC5 the current month expense is 250000', currentMonth.netExpenseCents === 250_000, `-> ${currentMonth.netExpenseCents}`);
+check('AC5 refunds raise income', currentMonth.incomeCents === 1_050_000);
 
 const emptyMonths = trend.slice(0, 5).filter((p) => p.netExpenseCents === 0 && p.incomeCents === 0);
 check('AC4 empty months are present with zeros, not missing', emptyMonths.length === 5, `-> ${emptyMonths.length}`);
@@ -121,7 +124,7 @@ const trend2 = (await get('/stats/monthly-trend?months=6')).json.items;
 check('a past expense lands in its own month bucket', trend2[3].netExpenseCents === 12_345, `-> ${trend2[3].netExpenseCents}`);
 check(
   'and the current month is untouched by a past-month row',
-  trend2[5].netExpenseCents === 100_000,
+  trend2[5].netExpenseCents === 250_000,
   `-> ${trend2[5].netExpenseCents}`,
 );
 
@@ -155,7 +158,7 @@ await addTxn({ type: 0, amountCents: 250_000, categoryId: FOOD, date: dayIn(0, 4
 const allRows = (await get('/transactions?limit=200')).json.items;
 const foodSpentAllTime = allRows
   .filter((t) => t.categoryId === FOOD && t.type === 0)
-  .reduce((sum, t) => sum + (t.isRefund ? -t.amountCents : t.amountCents), 0);
+  .reduce((sum, t) => sum + t.amountCents, 0);
 check('the overspend row exists and is counted', foodSpentAllTime > 250_000, `-> ${foodSpentAllTime}`);
 
 poolTrend = (await get('/stats/pool-trend')).json;

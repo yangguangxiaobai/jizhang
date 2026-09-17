@@ -96,14 +96,14 @@ describe('categoryPaletteSlot', () => {
 });
 
 describe('seed data colours', () => {
-  it('expense categories take slots 1–6 and income 7–8, in order', () => {
+  it('expense categories take slots 1–6 and income 7–9, in order', () => {
     SEED_EXPENSE_CATEGORIES.forEach((category, index) => {
       expect(categoryPaletteSlot(category.color)).toBe(index + 1);
     });
     SEED_INCOME_CATEGORIES.forEach((category, index) => {
       expect(categoryPaletteSlot(category.color)).toBe(index + 7);
     });
-    expect(new Set(SEED_CATEGORIES.map((category) => category.color)).size).toBe(8);
+    expect(new Set(SEED_CATEGORIES.map((category) => category.color)).size).toBe(9);
   });
 
   it('the fallback for a missing category is a palette colour', () => {

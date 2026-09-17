@@ -59,10 +59,10 @@ async function seed(page) {
   for (const [categoryId, amountCents, note, isRefund] of [
     ['builtin-expense-food', 328650, '日常餐饮', false],
     ['builtin-expense-transport', 600, '地铁通勤', false],
-    ['builtin-expense-food', 2000, '餐饮退款', true],
+    ['builtin-income-refund', 2000, '餐饮退款', true],
   ])
     await api(page, '/transactions', {
-      type: 0,
+      type: isRefund ? 1 : 0,
       categoryId,
       accountId: 'builtin-default-account',
       amountCents,

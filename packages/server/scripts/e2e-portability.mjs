@@ -57,11 +57,11 @@ const addTxn = async (body) => {
 
 const billTotal = async () => (await get('/transactions?limit=500')).json.total;
 
-/** Net expense across everything, derived from the rows themselves. */
+/** Gross expense across everything, derived from the rows themselves. */
 async function netExpense() {
   const rows = (await get('/transactions?limit=500')).json.items;
   return rows.reduce(
-    (sum, row) => sum + (row.type === 0 ? (row.isRefund ? -row.amountCents : row.amountCents) : 0),
+    (sum, row) => sum + (row.type === 0 ? row.amountCents : 0),
     0,
   );
 }
@@ -69,7 +69,7 @@ async function netExpense() {
 // ── seed a ledger worth round-tripping ───────────────────────────────────────
 console.log('\n[seed]');
 await addTxn({ type: 0, amountCents: 15_000, categoryId: FOOD, date: dayIn(5), note: '午饭, 加饮料', tags: ['日常'] });
-await addTxn({ type: 0, amountCents: 4_000, categoryId: FOOD, date: dayIn(6), note: '退款', isRefund: true });
+await addTxn({ type: 1, amountCents: 4_000, categoryId: 'builtin-income-refund', date: dayIn(6), note: '退款', isRefund: true });
 await addTxn({ type: 0, amountCents: 3_000, categoryId: TRANSPORT, date: dayIn(7), note: '打车' });
 await addTxn({ type: 1, amountCents: 500_000, categoryId: 'builtin-income-salary', date: dayIn(2), note: '工资' });
 // Two identical bills on the same day: the natural-key dedup would merge them and lose money.
@@ -208,6 +208,25 @@ check(
   'AC6 and NEITHER row was written (all-or-nothing)',
   (await billTotal()) === seededCount,
   `-> ${await billTotal()} vs ${seededCount}`,
+);
+
+// ── AC11 old-model CSVs are normalised ───────────────────────────────────────
+console.log('\n[old-model refund rows are normalised]');
+// A pre-reform export wrote refunds as expense-typed rows. Importing one must not
+// create a row that contributes 0 to BOTH aggregates — it lands as income under 退款.
+const legacyRefundCsv = `${header}\nlegacy-refund-1,2026-09-01,expense,10.00,餐饮,默认账户,,,true`;
+const legacyRefund = await importCsv(legacyRefundCsv);
+check('the old-model refund row imports', legacyRefund.status === 200, `-> ${legacyRefund.status}`);
+const legacyRow = (await get('/transactions?limit=500')).json.items.find(
+  (row) => row.id === 'legacy-refund-1',
+);
+check(
+  'and it is normalised to income under 退款',
+  legacyRow !== undefined &&
+    legacyRow.type === 1 &&
+    legacyRow.categoryId === 'builtin-income-refund' &&
+    legacyRow.isRefund === true,
+  JSON.stringify(legacyRow),
 );
 
 // ── AC8 import only adds ─────────────────────────────────────────────────────

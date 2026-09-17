@@ -3,7 +3,7 @@
  *
  * 这里钉住的是三件容易在后续改动里被"顺手修坏"的事：
  *
- * 1. **退款让余额增加，但不算收入**。两半来自同一对函数（`expenseContribution` /
+ * 1. **退款让余额增加，就是收入**。两半来自同一对函数（`expenseContribution` /
  *    `incomeContribution`），所以这条断言同时保护了余额和统计页。
  * 2. **余额 = 各部分之和**（`totalBalanceCents` 与逐账户明细一致）。
  * 3. **账户之间不串**：一个账户的流水不会出现在另一个账户里，引用未知账户的行被忽略。
@@ -66,7 +66,7 @@ describe('ledgerFlowCents：一行账单对一个账户的影响', () => {
   it('退款让钱回到账户 —— 正值，不是负值', () => {
     expect(
       ledgerFlowCents(
-        txn({ accountId: 'a', type: TYPE_EXPENSE, amountCents: 1_200, isRefund: true }),
+        txn({ accountId: 'a', type: TYPE_INCOME, amountCents: 1_200, isRefund: true }),
       ),
     ).toBe(1_200);
   });
@@ -106,34 +106,34 @@ describe('computeAccountBalances', () => {
     expect(flow?.balanceCents).toBe(56_435);
   });
 
-  it('退款：余额增加、净支出减少，但收入**不变**', () => {
+  it('退款：余额增加、收入增加，支出不变（毛口径）', () => {
     const [flow] = computeAccountBalances({
       accounts: [alipay],
       transactions: [
         txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 10_000 }),
-        txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 4_000, isRefund: true }),
+        txn({ accountId: alipay.id, type: TYPE_INCOME, amountCents: 4_000, isRefund: true }),
       ],
       salaries: [],
     });
 
-    // 净支出 = 10000 − 4000，余额 = 58935 − 6000
-    expect(flow?.expenseCents).toBe(6_000);
+    // 支出 = 10000（毛口径，退款不再冲减），余额 = 58935 − 10000 + 4000
+    expect(flow?.expenseCents).toBe(10_000);
     expect(flow?.balanceCents).toBe(52_935);
-    // 这是本文件最重要的一条断言：退款是负支出，**永远不是收入**。
-    expect(flow?.incomeCents).toBe(0);
+    // 这是本文件最重要的一条断言：退款就是收入。
+    expect(flow?.incomeCents).toBe(4_000);
   });
 
-  it('退款多于支出时净支出为负，余额高于初始余额', () => {
+  it('退款多于支出时余额高于初始余额', () => {
     const [flow] = computeAccountBalances({
       accounts: [alipay],
       transactions: [
         txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 1_000 }),
-        txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 2_500, isRefund: true }),
+        txn({ accountId: alipay.id, type: TYPE_INCOME, amountCents: 2_500, isRefund: true }),
       ],
       salaries: [],
     });
 
-    expect(flow?.expenseCents).toBe(-1_500);
+    expect(flow?.expenseCents).toBe(1_000);
     expect(flow?.balanceCents).toBe(58_935 + 1_500);
   });
 
@@ -211,7 +211,7 @@ describe('totalBalanceCents', () => {
       accounts: [alipay, bank],
       transactions: [
         txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 2_000 }),
-        txn({ accountId: bank.id, type: TYPE_EXPENSE, amountCents: 300, isRefund: true }),
+        txn({ accountId: bank.id, type: TYPE_INCOME, amountCents: 300, isRefund: true }),
       ],
       salaries: [{ accountId: bank.id, amountCents: 8_888 }],
     });
@@ -461,7 +461,7 @@ describe('computeAccountBalances 纳入转账', () => {
       accounts: [alipay, bank],
       transactions: [
         txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 10_000 }),
-        txn({ accountId: alipay.id, type: TYPE_EXPENSE, amountCents: 4_000, isRefund: true }),
+        txn({ accountId: alipay.id, type: TYPE_INCOME, amountCents: 4_000, isRefund: true }),
         txn({ accountId: alipay.id, type: TYPE_INCOME, amountCents: 500 }),
       ],
       salaries: [{ accountId: alipay.id, amountCents: 800_000 }],
@@ -471,13 +471,13 @@ describe('computeAccountBalances 纳入转账', () => {
     });
 
     expect(flow).toMatchObject({
-      incomeCents: 500,
-      expenseCents: 6_000,
+      incomeCents: 4_500,
+      expenseCents: 10_000,
       salaryCents: 800_000,
       transferOutCents: 600_000,
       transferInCents: 0,
     });
-    // 58_935 + 500 + 800_000 + 0 − 6_000 − 600_000
-    expect(flow?.balanceCents).toBe(58_935 + 500 + 800_000 - 6_000 - 600_000);
+    // 58_935 + 4_500 + 800_000 + 0 − 10_000 − 600_000
+    expect(flow?.balanceCents).toBe(58_935 + 4_500 + 800_000 - 10_000 - 600_000);
   });
 });

@@ -128,6 +128,8 @@
    */
   --lift-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
   --lift-2: 0 2px 6px rgb(15 23 42 / 0.09), 0 1px 2px rgb(15 23 42 / 0.05);
+  --scrim: rgb(15 23 42 / 0.4);
+  --lift-modal: 0 -4px 24px rgb(15 23 42 / 0.15), 0 -2px 8px rgb(15 23 42 / 0.08);
 
   /* ── motion ──────────────────────────────────────────────────────────────
    *
@@ -212,6 +214,8 @@
   --cat-12: #6f8a10;
   --lift-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
   --lift-2: 0 2px 6px rgb(15 23 42 / 0.09), 0 1px 2px rgb(15 23 42 / 0.05);
+  --scrim: rgb(15 23 42 / 0.4);
+  --lift-modal: 0 -4px 24px rgb(15 23 42 / 0.15), 0 -2px 8px rgb(15 23 42 / 0.08);
   color-scheme: light;
 }
 
@@ -263,6 +267,8 @@
        bar rather than outlining the bar itself. */
     --lift-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
     --lift-2: 0 2px 6px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.4);
+    --scrim: rgb(0 0 0 / 0.5);
+    --lift-modal: 0 -4px 24px rgb(0 0 0 / 0.5), 0 -2px 8px rgb(0 0 0 / 0.3);
     color-scheme: dark;
   }
 }
@@ -306,6 +312,8 @@
   --cat-12: #7f9820;
   --lift-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 1px 1px rgb(0 0 0 / 0.35);
   --lift-2: 0 2px 6px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.4);
+  --scrim: rgb(0 0 0 / 0.5);
+  --lift-modal: 0 -4px 24px rgb(0 0 0 / 0.5), 0 -2px 8px rgb(0 0 0 / 0.3);
   color-scheme: dark;
 }
 

@@ -112,20 +112,16 @@ export class MasterDataService {
 
   // ── categories ────────────────────────────────────────────────────────────
 
-  listCategories(type?: number): CategoryDto[] {
-    const rows = (
+  listCategories(type?: number, includeDeleted = false): CategoryDto[] {
+    const allRows =
       type === undefined
-        ? this.db
-            .prepare(
-              'SELECT * FROM categories WHERE deleted = 0 ORDER BY type, sort_order, name',
-            )
-            .all()
-        : this.db
-            .prepare(
-              'SELECT * FROM categories WHERE deleted = 0 AND type = ? ORDER BY sort_order, name',
-            )
-            .all(type)
-    ) as CategoryRow[];
+        ? (this.db.prepare('SELECT * FROM categories ORDER BY type, sort_order, name').all() as CategoryRow[])
+        : (this.db
+            .prepare('SELECT * FROM categories WHERE type = ? ORDER BY sort_order, name')
+            .all(type) as CategoryRow[]);
+    const rows = includeDeleted
+      ? allRows
+      : allRows.filter((row) => row.deleted === 0);
     return rows.map(toCategoryDto);
   }
 
@@ -233,16 +229,33 @@ export class MasterDataService {
    *
    * Historical transactions are deliberately left alone: rewriting them would
    * falsify the ledger. Their category name still resolves via
-   * `getCategory(id, true)`.
+   * `getCategory(id, true)`, and recurring rules that could never confirm against a
+   * deleted category are retired in the same transaction so the pending queue cannot
+   * dead-end.
    */
   deleteCategory(id: string): void {
     const category = this.getCategoryOrThrow(id);
     if (category.isBuiltin) {
       throw new ValidationError('A builtin category cannot be deleted.');
     }
-    this.db
-      .prepare('UPDATE categories SET deleted = 1, updated_at = ? WHERE id = ?')
-      .run(this.now(), id);
+    const at = this.now();
+    this.db.transaction(() => {
+      this.db
+        .prepare('UPDATE categories SET deleted = 1, updated_at = ? WHERE id = ?')
+        .run(at, id);
+      // A rule is a definition of future bills, so deleting the category should stop it
+      // too; already-confirmed and ignored occurrences are history and stay visible.
+      this.db
+        .prepare(
+          'UPDATE recurring_rules SET deleted = 1, updated_at = ? WHERE deleted = 0 AND category_id = ?',
+        )
+        .run(at, id);
+      this.db
+        .prepare(
+          "UPDATE recurring_occurrences SET deleted = 1, updated_at = ? WHERE deleted = 0 AND status = 'pending' AND category_id = ?",
+        )
+        .run(at, id);
+    })();
   }
 
   /** How many live transactions reference a category. */
@@ -257,11 +270,13 @@ export class MasterDataService {
 
   // ── accounts ──────────────────────────────────────────────────────────────
 
-  listAccounts(): AccountDto[] {
+  listAccounts(includeDeleted = false): AccountDto[] {
     const rows = this.db
-      .prepare('SELECT * FROM accounts WHERE deleted = 0 ORDER BY sort_order, name')
+      .prepare('SELECT * FROM accounts ORDER BY sort_order, name')
       .all() as AccountRow[];
-    return rows.map(toAccountDto);
+    return rows
+      .filter((row) => includeDeleted || row.deleted === 0)
+      .map(toAccountDto);
   }
 
   getAccount(id: string, includeDeleted = false): AccountDto | undefined {
@@ -358,9 +373,22 @@ export class MasterDataService {
     if (this.listAccounts().length <= 1) {
       throw new ValidationError('At least one account must remain.');
     }
-    this.db
-      .prepare('UPDATE accounts SET deleted = 1, updated_at = ? WHERE id = ?')
-      .run(this.now(), id);
+    const at = this.now();
+    this.db.transaction(() => {
+      this.db
+        .prepare('UPDATE accounts SET deleted = 1, updated_at = ? WHERE id = ?')
+        .run(at, id);
+      this.db
+        .prepare(
+          'UPDATE recurring_rules SET deleted = 1, updated_at = ? WHERE deleted = 0 AND account_id = ?',
+        )
+        .run(at, id);
+      this.db
+        .prepare(
+          "UPDATE recurring_occurrences SET deleted = 1, updated_at = ? WHERE deleted = 0 AND status = 'pending' AND account_id = ?",
+        )
+        .run(at, id);
+    })();
   }
 
   countTransactionsForAccount(id: string): number {

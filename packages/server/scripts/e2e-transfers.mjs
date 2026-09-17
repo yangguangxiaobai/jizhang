@@ -118,9 +118,9 @@ await send('POST', '/transactions', {
   note: '本月买菜',
 });
 await send('POST', '/transactions', {
-  type: 0,
+  type: 1,
   amountCents: 50_000,
-  categoryId: FOOD,
+  categoryId: 'builtin-income-refund',
   accountId: ACCOUNT,
   date: dayIn(0, 5),
   note: '退款',
@@ -151,7 +151,7 @@ const snapshot = async () => ({
 const before = await snapshot();
 check(
   'the snapshot is not vacuous (there is a budget and some spending)',
-  before.overview.totalBudgetCents === 1_000_000 && before.overview.totalSpentCents === 200_000,
+  before.overview.totalBudgetCents === 1_000_000 && before.overview.totalSpentCents === 250_000,
   `-> budget ${before.overview.totalBudgetCents} spent ${before.overview.totalSpentCents}`,
 );
 
@@ -163,8 +163,8 @@ const ledgerBefore = await get('/accounts/balances');
 const defaultBefore = ledgerBefore.items.find((item) => item.accountId === ACCOUNT)?.balanceCents;
 const bankBefore = ledgerBefore.items.find((item) => item.accountId === bank.id)?.balanceCents;
 check(
-  'the default account holds income + salary − net spending',
-  // 0 initial + 50,000 income + 1,000,000 salary − (250,000 expense − 50,000 refund)
+  'the default account holds income + salary − gross spending',
+  // 0 initial + 50,000 income + 50,000 refund + 1,000,000 salary − 250,000 expense
   defaultBefore === 850_000,
   `-> ${defaultBefore}`,
 );

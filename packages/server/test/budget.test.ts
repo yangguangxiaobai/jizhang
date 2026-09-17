@@ -39,6 +39,7 @@ const AUG = (day: number) => Date.UTC(2026, 7, day);
 const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
 const SHOPPING = 'builtin-expense-shopping';
+const REFUND = 'builtin-income-refund';
 const DEFAULT_TEMPLATE = 'builtin-default-template';
 /** Every salary must name the account that received it; these tests use the seeded one. */
 const ACCOUNT = 'builtin-default-account';
@@ -605,7 +606,7 @@ describe('AC11 budget overview', () => {
     expect(food.remainingCents).toBe(250_000);
   });
 
-  it('a refund reduces the module spend instead of adding income', async () => {
+  it('a refund no longer reduces the module spend (it is income now)', async () => {
     salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
 
     await post('/api/v1/transactions', {
@@ -616,18 +617,18 @@ describe('AC11 budget overview', () => {
       date: AUG(10),
     });
     await post('/api/v1/transactions', {
-      type: 0,
+      type: 1,
       amountCents: 50_000,
-      categoryId: FOOD,
+      categoryId: REFUND,
       accountId: 'builtin-default-account',
       date: AUG(11),
       isRefund: true,
     });
 
-    const food = (await get('/api/v1/budget/overview'))
-      .json()
-      .modules.find((m: { categoryId: string }) => m.categoryId === FOOD);
-    expect(food.spentCents).toBe(100_000);
+    const body = (await get('/api/v1/budget/overview')).json();
+    // Spend is gross: the refund does not reduce the module spend.
+    const food = body.modules.find((m: { categoryId: string }) => m.categoryId === FOOD);
+    expect(food.spentCents).toBe(150_000);
   });
 
   it('an overspend makes the pool negative', async () => {

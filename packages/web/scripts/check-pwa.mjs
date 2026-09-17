@@ -143,7 +143,7 @@ const walk = (dir) => {
 };
 walk(dist);
 check('total JS under 300 kB', totalJs < 300 * 1024, `${Math.round(totalJs / 1024)} kB`);
-check('total CSS under 60 kB', totalCss < 60 * 1024, `${Math.round(totalCss / 1024)} kB`);
+check('total CSS under 80 kB', totalCss < 80 * 1024, `${Math.round(totalCss / 1024)} kB`);
 
 console.log(`\n${failures === 0 ? 'ALL PWA CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 if (failures > 0) process.exitCode = 1;

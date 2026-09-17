@@ -5,13 +5,14 @@
  * Totals come from the shared net-expense rule, so a refund row reduces the month's
  * expense figure instead of appearing as income.
  */
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { TYPE_EXPENSE, TYPE_INCOME } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
 import { useBalanceStore } from '../stores/balances.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useTransactionsStore } from '../stores/transactions.js';
+import TransactionDetailModal from '../components/TransactionDetailModal.vue';
 import { formatDayLabel, formatYuan } from '../utils/money.js';
 
 const store = useTransactionsStore();
@@ -19,6 +20,8 @@ const balances = useBalanceStore();
 const meta = useMetaStore();
 const route = useRoute();
 const router = useRouter();
+
+const detailModalTxId = ref<string | null>(null);
 
 const monthLabel = computed(() => {
   const date = new Date(store.filters.monthStart);
@@ -55,8 +58,8 @@ async function changeMonth(delta: number): Promise<void> {
   await store.load();
 }
 
-function edit(item: Transaction): void {
-  void router.push({ name: 'transaction-edit', params: { id: item.id } });
+function openDetail(item: Transaction): void {
+  detailModalTxId.value = item.id;
 }
 
 async function remove(item: Transaction): Promise<void> {
@@ -204,13 +207,20 @@ function signedAmount(item: Transaction): string {
 
     <ul>
       <li v-for="item in group.items" :key="item.id">
-        <button type="button" class="row" @click="edit(item)">
+        <button type="button" class="row" @click="openDetail(item)">
           <span class="dot" :style="{ background: meta.categoryColor(item.categoryId) }" />
           <span class="row-main">
-            <span class="row-title">
-              {{ meta.categoryName(item.categoryId) }}
-              <span v-if="item.isRefund" class="badge">退款</span>
-            </span>
+           <span class="row-title">
+             {{ meta.categoryName(item.categoryId) }}
+             <span v-if="item.isRefund" class="badge">退款</span>
+             <span
+               v-if="!item.isRefund && item.refundSummary && item.refundSummary.refundCount > 0"
+               class="badge refund-badge"
+               @click.stop="detailModalTxId = item.id"
+             >
+               已退{{ formatYuan(item.refundSummary.totalRefundCents) }}
+             </span>
+           </span>
             <span class="row-sub">
               {{ formatDayLabel(item.date) }}
               <template v-if="item.accountId"> · {{ meta.accountName(item.accountId) }}</template>
@@ -220,8 +230,14 @@ function signedAmount(item: Transaction): string {
               <span v-for="tag in item.tags" :key="tag" class="tag">{{ tag }}</span>
             </span>
           </span>
-          <span class="amount" :class="{ income: item.type === TYPE_INCOME, refund: item.isRefund }">
-            {{ signedAmount(item) }}
+         <span class="amount" :class="{ income: item.type === TYPE_INCOME, refund: item.isRefund }">
+           {{ signedAmount(item) }}
+         </span>
+          <span
+            v-if="!item.isRefund && item.refundSummary && item.refundSummary.refundCount > 0"
+            class="net-amount"
+          >
+            净{{ formatYuan(item.amountCents - item.refundSummary.totalRefundCents) }}
           </span>
         </button>
 
@@ -230,7 +246,13 @@ function signedAmount(item: Transaction): string {
         </button>
       </li>
     </ul>
-  </section>
+</section>
+
+  <TransactionDetailModal
+    v-if="detailModalTxId !== null"
+    :tx-id="detailModalTxId"
+    @close="detailModalTxId = null"
+  />
 </template>
 
 <style scoped>
@@ -507,6 +529,22 @@ li:last-child {
 .amount.income,
 .amount.refund {
   color: var(--ok);
+}
+
+.refund-badge {
+  color: var(--ok);
+  background: var(--ok-subtle);
+  border: 1px solid var(--ok);
+  cursor: pointer;
+}
+
+.net-amount {
+  flex: 0 0 auto;
+  padding-right: 0.85rem;
+  font-size: 0.72rem;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .delete {

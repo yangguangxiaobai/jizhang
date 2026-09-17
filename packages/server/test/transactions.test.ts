@@ -34,6 +34,7 @@ const CSRF = { 'x-requested-with': 'fetch' } as const;
 const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
 const SALARY = 'builtin-income-salary';
+const REFUND = 'builtin-income-refund';
 const ACCOUNT = 'builtin-default-account';
 
 /** A fixed "now" so date validation is deterministic. */
@@ -286,11 +287,14 @@ describe('AC6 tags through the API', () => {
 // AC7 refund accounting
 // ---------------------------------------------------------------------------
 
-describe('AC7 refund is negative expense, not income', () => {
-  it('marks an expense as a refund and counts it negatively', async () => {
+describe('AC7 refund counts as income (income-typed)', () => {
+  it('creates an income-typed refund that counts as income, not expense', async () => {
     const spend = await post(createBody({ amountCents: 150_000 }));
-    const refund = await post(createBody({ amountCents: 50_000, isRefund: true }));
+    const refund = await post(
+      createBody({ type: 1, categoryId: REFUND, amountCents: 50_000, isRefund: true }),
+    );
     expect(refund.json().isRefund).toBe(true);
+    expect(refund.json().type).toBe(1);
 
     const list = await app.inject({
       method: 'GET',
@@ -300,42 +304,43 @@ describe('AC7 refund is negative expense, not income', () => {
     const items = list.json().items as TransactionDto[];
 
     expect(items).toHaveLength(2);
-    expect(service.netExpenseCents(items)).toBe(100_000);
-    // A refund must never contribute to income.
-    expect(service.incomeCents(items)).toBe(0);
+    // Spend is gross: the refund no longer reduces it.
+    expect(service.netExpenseCents(items)).toBe(150_000);
+    // A refund IS income now.
+    expect(service.incomeCents(items)).toBe(50_000);
 
     expect(
       expenseContribution({
         id: 'x',
-        type: 0,
+        type: 1,
         amountCents: 50_000,
-        categoryId: FOOD,
-        date: 0,
-        isRefund: true,
-      }),
-    ).toBe(-50_000);
-    expect(
-      incomeContribution({
-        id: 'x',
-        type: 0,
-        amountCents: 50_000,
-        categoryId: FOOD,
+        categoryId: REFUND,
         date: 0,
         isRefund: true,
       }),
     ).toBe(0);
+    expect(
+      incomeContribution({
+        id: 'x',
+        type: 1,
+        amountCents: 50_000,
+        categoryId: REFUND,
+        date: 0,
+        isRefund: true,
+      }),
+    ).toBe(50_000);
     void spend;
   });
 
-  it('refuses to mark an income row as a refund', async () => {
-    const response = await post(createBody({ type: 1, categoryId: SALARY, isRefund: true }));
+  it('refuses to mark an expense row as a refund', async () => {
+    const response = await post(createBody({ type: 0, categoryId: FOOD, isRefund: true }));
     expect(response.statusCode).toBe(400);
-    expect(response.json().error.message).toMatch(/expense/i);
+    expect(response.json().error.message).toMatch(/income/i);
   });
 
-  it('refuses to flip an existing income row to refund via PATCH', async () => {
-    const income = await post(createBody({ type: 1, categoryId: SALARY }));
-    const id = income.json().id as string;
+  it('refuses to flip an existing expense row to refund via PATCH', async () => {
+    const expense = await post(createBody({ type: 0, categoryId: FOOD }));
+    const id = expense.json().id as string;
 
     const response = await app.inject({
       method: 'PATCH',
@@ -426,7 +431,7 @@ describe('refund links', () => {
     const bId = b.json().id as string;
 
     const refund = await post(
-      createBody({ amountCents: 30_000, isRefund: true, refundLinkedTxIds: [aId, bId] }),
+      createBody({ type: 1, categoryId: REFUND, amountCents: 30_000, isRefund: true, refundLinkedTxIds: [aId, bId] }),
     );
     expect(refund.statusCode).toBe(201);
     expect(refund.json().refundLinkedTxIds).toEqual([aId, bId]);
@@ -439,19 +444,38 @@ describe('refund links', () => {
     expect(read.json().refundLinkedTxIds).toEqual([aId, bId]);
   });
 
+  it('returns per-refund details on the linked original expense', async () => {
+    const a = await post(createBody({ amountCents: 60_000, note: '买菜' }));
+    const aId = a.json().id as string;
+
+    await post(
+      createBody({ type: 1, categoryId: REFUND, amountCents: 30_000, isRefund: true, refundLinkedTxIds: [aId], note: 'AA 还款' }),
+    );
+
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/v1/transactions/${aId}`,
+      headers: as(cookie),
+    });
+    expect(read.statusCode).toBe(200);
+    expect(read.json().refundSummary).toMatchObject({ totalRefundCents: 30_000, refundCount: 1 });
+    expect(read.json().refundDetails).toHaveLength(1);
+    expect(read.json().refundDetails[0]).toMatchObject({ amountCents: 30_000, note: 'AA 还款' });
+  });
+
   it('de-duplicates linked ids', async () => {
     const a = await post(createBody({ amountCents: 100_000 }));
     const aId = a.json().id as string;
 
     const refund = await post(
-      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: [aId, aId, aId] }),
+      createBody({ type: 1, categoryId: REFUND, amountCents: 50_000, isRefund: true, refundLinkedTxIds: [aId, aId, aId] }),
     );
     expect(refund.statusCode).toBe(201);
     expect(refund.json().refundLinkedTxIds).toEqual([aId]);
   });
 
   it('rejects a self-reference', async () => {
-    const refund = await post(createBody({ amountCents: 50_000, isRefund: true }));
+    const refund = await post(createBody({ type: 1, categoryId: REFUND, amountCents: 50_000, isRefund: true }));
     const id = refund.json().id as string;
 
     const res = await app.inject({
@@ -469,7 +493,7 @@ describe('refund links', () => {
     const incomeId = income.json().id as string;
 
     const refund = await post(
-      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: [incomeId] }),
+      createBody({ type: 1, categoryId: REFUND, amountCents: 50_000, isRefund: true, refundLinkedTxIds: [incomeId] }),
     );
     expect(refund.statusCode).toBe(400);
     expect(refund.json().error.message).toMatch(/expense/i);
@@ -477,21 +501,22 @@ describe('refund links', () => {
 
   it('rejects linking to a non-existent transaction', async () => {
     const refund = await post(
-      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: ['no-such-id'] }),
+      createBody({ type: 1, categoryId: REFUND, amountCents: 50_000, isRefund: true, refundLinkedTxIds: ['no-such-id'] }),
     );
     expect(refund.statusCode).toBe(400);
     expect(refund.json().error.message).toMatch(/not found/i);
   });
 
   it('rejects linking to another refund', async () => {
-    const first = await post(createBody({ amountCents: 50_000, isRefund: true }));
+    const first = await post(createBody({ type: 1, categoryId: REFUND, amountCents: 50_000, isRefund: true }));
     const firstId = first.json().id as string;
 
     const second = await post(
-      createBody({ amountCents: 10_000, isRefund: true, refundLinkedTxIds: [firstId] }),
+      createBody({ type: 1, categoryId: REFUND, amountCents: 10_000, isRefund: true, refundLinkedTxIds: [firstId] }),
     );
     expect(second.statusCode).toBe(400);
-    expect(second.json().error.message).toMatch(/refund/i);
+    // A refund is income-typed, so the type check fires first ("must be an expense").
+    expect(second.json().error.message).toMatch(/expense/i);
   });
 
   it('updates linked ids on PATCH', async () => {
@@ -501,7 +526,7 @@ describe('refund links', () => {
     const bId = b.json().id as string;
 
     const refund = await post(
-      createBody({ amountCents: 30_000, isRefund: true, refundLinkedTxIds: [aId] }),
+      createBody({ type: 1, categoryId: REFUND, amountCents: 30_000, isRefund: true, refundLinkedTxIds: [aId] }),
     );
     const id = refund.json().id as string;
     expect(refund.json().refundLinkedTxIds).toEqual([aId]);
@@ -521,7 +546,7 @@ describe('refund links', () => {
     const aId = a.json().id as string;
 
     const refund = await post(
-      createBody({ amountCents: 50_000, isRefund: true, refundLinkedTxIds: [aId] }),
+      createBody({ type: 1, categoryId: REFUND, amountCents: 50_000, isRefund: true, refundLinkedTxIds: [aId] }),
     );
     const id = refund.json().id as string;
     expect(refund.json().refundLinkedTxIds).toEqual([aId]);
@@ -537,6 +562,53 @@ describe('refund links', () => {
     expect(updated.json().refundLinkedTxIds ?? []).toEqual([]);
 
     const rows = db.prepare('SELECT * FROM refund_links WHERE refund_tx_id = ?').all(id);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('soft-deleting the original expense removes its refund links', async () => {
+    const original = await post(createBody({ amountCents: 100_000 }));
+    const originalId = original.json().id as string;
+    const refund = await post(
+      createBody({ type: 1, categoryId: REFUND, amountCents: 30_000, isRefund: true, refundLinkedTxIds: [originalId] }),
+    );
+    const refundId = refund.json().id as string;
+    expect(
+      db
+        .prepare('SELECT 1 AS x FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+        .get(refundId, originalId),
+    ).toBeDefined();
+
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/transactions/${originalId}`,
+      headers: { ...CSRF, ...as(cookie) },
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    const rows = db
+      .prepare('SELECT * FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+      .all(refundId, originalId);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('soft-deleting the refund removes its links too', async () => {
+    const original = await post(createBody({ amountCents: 100_000 }));
+    const originalId = original.json().id as string;
+    const refund = await post(
+      createBody({ type: 1, categoryId: REFUND, amountCents: 30_000, isRefund: true, refundLinkedTxIds: [originalId] }),
+    );
+    const refundId = refund.json().id as string;
+
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/transactions/${refundId}`,
+      headers: { ...CSRF, ...as(cookie) },
+    });
+    expect(deleted.statusCode).toBe(204);
+
+    const rows = db
+      .prepare('SELECT * FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
+      .all(refundId, originalId);
     expect(rows).toHaveLength(0);
   });
 

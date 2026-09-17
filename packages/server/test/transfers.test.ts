@@ -439,14 +439,23 @@ describe('转账不影响任何会计数字（AC4）', () => {
         method: 'POST',
         url: '/api/v1/transactions',
         headers: authed(),
-        payload: {
-          type: 0,
-          amountCents,
-          categoryId: FOOD,
-          accountId: DEFAULT_ACCOUNT,
-          date: dayIn(0, day),
-          isRefund,
-        },
+        payload: isRefund
+          ? {
+              type: 1,
+              amountCents,
+              categoryId: 'builtin-income-refund',
+              accountId: DEFAULT_ACCOUNT,
+              date: dayIn(0, day),
+              isRefund: true,
+            }
+          : {
+              type: 0,
+              amountCents,
+              categoryId: FOOD,
+              accountId: DEFAULT_ACCOUNT,
+              date: dayIn(0, day),
+              isRefund: false,
+            },
       });
       expect(txn.statusCode, txn.body).toBe(201);
     }
@@ -483,8 +492,8 @@ describe('转账不影响任何会计数字（AC4）', () => {
     const share = await getJson<{ totalCents: number }>(
       `/api/v1/stats/category-share?from=${dayIn(-1, 1)}&to=${dayIn(1, 1)}`,
     );
-    // 净支出 = 150000 − 40000 + 90000，与转账无关。
-    expect(share.totalCents).toBe(200_000);
+    // 毛支出 = 150000 + 90000；退款 40000 是收入、不冲减支出，与转账无关。
+    expect(share.totalCents).toBe(240_000);
   });
 });
 

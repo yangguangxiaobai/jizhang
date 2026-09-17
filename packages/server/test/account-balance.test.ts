@@ -30,6 +30,7 @@ const NOW = new Date(2026, 8, 15, 12, 0, 0).getTime();
 
 const FOOD = 'builtin-expense-food';
 const TRANSPORT = 'builtin-expense-transport';
+const REFUND = 'builtin-income-refund';
 const DEFAULT_ACCOUNT = 'builtin-default-account';
 
 /** `offset` 个月后、`day` 号的本地时间戳。 */
@@ -242,15 +243,15 @@ describe('GET /accounts/balances', () => {
     expect(item.balanceCents).toBe(7_500);
   });
 
-  it('一笔退款让余额增加、净支出减少，同时**不**改变本月收入（AC4）', async () => {
+  it('一笔退款让余额增加、本月收入增加，不再冲减支出（AC4，已修订）', async () => {
     await addTransaction({ type: 0, amountCents: 20_000, categoryId: FOOD, date: dayIn(0, 5) });
     const beforeRefund = await balances();
     const trendBefore = await monthlyTrend();
 
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 8_000,
-      categoryId: FOOD,
+      categoryId: REFUND,
       date: dayIn(0, 6),
       isRefund: true,
     });
@@ -261,13 +262,14 @@ describe('GET /accounts/balances', () => {
     const before = balanceOf(beforeRefund, DEFAULT_ACCOUNT);
     const after = balanceOf(afterRefund, DEFAULT_ACCOUNT);
 
-    // 钱回来了：余额高 8000，净支出低 8000。
+    // 钱回来了：余额高 8000。
     expect(after.balanceCents).toBe(before.balanceCents + 8_000);
-    expect(after.expenseCents).toBe(before.expenseCents - 8_000);
-    // ……但退款永远不是收入。这一条与上一条来自同一个函数，必须同时成立。
-    expect(after.incomeCents).toBe(before.incomeCents);
-    expect(trendAfter.incomeCents).toBe(trendBefore.incomeCents);
-    expect(trendAfter.netExpenseCents).toBe(trendBefore.netExpenseCents - 8_000);
+    // 支出是毛口径：退款不再冲减。
+    expect(after.expenseCents).toBe(before.expenseCents);
+    // ……退款就是收入。这一条与上一条来自同一个函数，必须同时成立。
+    expect(after.incomeCents).toBe(before.incomeCents + 8_000);
+    expect(trendAfter.incomeCents).toBe(trendBefore.incomeCents + 8_000);
+    expect(trendAfter.netExpenseCents).toBe(trendBefore.netExpenseCents);
   });
 
   it('软删除账户后，它的余额退出资产表而历史账单仍在账本里（已定决策）', async () => {
@@ -636,7 +638,7 @@ describe('信用账户与还款', () => {
  * 那么这一行的账户要选**支付宝**，三个数字才会同时对。
  */
 describe('群收款/垫付', () => {
-  it('别人还你钱：净支出降到自己那份，且不算收入', async () => {
+  it('别人还你钱：记为收入，账户余额各归各位', async () => {
     const alipay = await createAccount('支付宝', 0);
 
     // 你先垫付 18.70，从默认账户出。
@@ -649,9 +651,9 @@ describe('群收款/垫付', () => {
     });
     // 朋友把 15.00 还到**支付宝**（未必是你付款的那个账户）。
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 1_500,
-      categoryId: FOOD,
+      categoryId: REFUND,
       date: dayIn(0, 6),
       note: '群收款',
       isRefund: true,
@@ -659,10 +661,10 @@ describe('群收款/垫付', () => {
     });
 
     const trend = await monthlyTrend();
-    // 你自己的那份 = 18.70 − 15.00 = 3.70，分类与预算按这个数算。
-    expect(trend.netExpenseCents).toBe(370);
-    // 别人还的钱**不是收入**——这一条与上一条来自同一个函数，必须同时成立。
-    expect(trend.incomeCents).toBe(0);
+    // 支出是毛口径：18.70 全额算支出。
+    expect(trend.netExpenseCents).toBe(1_870);
+    // 别人还的钱就是收入。
+    expect(trend.incomeCents).toBe(1_500);
 
     const body = await balances();
     // 付钱的账户确实少了 18.70（对它来说钱真的出去了）。
@@ -682,23 +684,23 @@ describe('群收款/垫付', () => {
       note: '垫付聚餐',
     });
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 2_500,
-      categoryId: FOOD,
+      categoryId: REFUND,
       date: dayIn(0, 6),
       note: '收回一份',
       isRefund: true,
     });
     await addTransaction({
-      type: 0,
+      type: 1,
       amountCents: 2_500,
-      categoryId: FOOD,
+      categoryId: REFUND,
       date: dayIn(0, 7),
       note: '又收回一份',
       isRefund: true,
     });
 
-    expect((await monthlyTrend()).netExpenseCents).toBe(5_000);
-    expect((await monthlyTrend()).incomeCents).toBe(0);
+    expect((await monthlyTrend()).netExpenseCents).toBe(10_000);
+    expect((await monthlyTrend()).incomeCents).toBe(5_000);
   });
 });

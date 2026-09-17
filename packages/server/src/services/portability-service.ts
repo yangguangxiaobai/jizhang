@@ -69,6 +69,7 @@ export const RECURRING_COLUMNS = [
   'enabled',
   'hasOlderDue',
 ] as const;
+export const TRANSFER_COLUMNS = ['id', 'date', 'amount', 'from', 'to', 'note'] as const;
 
 export interface ImportResult {
   /** Rows inserted by this call. */
@@ -285,6 +286,39 @@ export class PortabilityService {
     return encodeCsvWithBom(rows);
   }
 
+  exportTransfersCsv(): string {
+    const accounts = this.nameMap('accounts');
+    const rows: CsvRow[] = [[...TRANSFER_COLUMNS]];
+    const transfers = this.db
+      .prepare(
+        `SELECT id, from_account_id, to_account_id, amount_cents, date, note
+           FROM transfers
+          WHERE deleted = 0
+          ORDER BY date, updated_at, id`,
+      )
+      .all() as {
+      id: string;
+      from_account_id: string;
+      to_account_id: string;
+      amount_cents: number;
+      date: number;
+      note: string;
+    }[];
+
+    for (const transfer of transfers) {
+      rows.push([
+        transfer.id,
+        dateOnlyLabel(transfer.date),
+        formatCents(transfer.amount_cents),
+        accounts.get(transfer.from_account_id) ?? transfer.from_account_id,
+        accounts.get(transfer.to_account_id) ?? transfer.to_account_id,
+        transfer.note,
+      ]);
+    }
+
+    return encodeCsvWithBom(rows);
+  }
+
   // ── import ─────────────────────────────────────────────────────────────────
 
   /**
@@ -329,6 +363,21 @@ export class PortabilityService {
     }[]) {
       if (!accounts.has(row.name)) accounts.set(row.name, row.id);
     }
+
+    // The 退款 income category, resolved once for the whole file: first by the stable id
+    // the seed writes, then by name among live income categories (covers a user rename).
+    // Old-model exports (type=expense + isRefund=true) are rewritten to point at it —
+    // importing one as-is would create a row the new model can never produce and that
+    // contributes 0 to BOTH aggregates, so the money would vanish.
+    const refundById = this.db
+      .prepare("SELECT id FROM categories WHERE id = 'builtin-income-refund' AND deleted = 0")
+      .get() as { id: string } | undefined;
+    const refundCategoryRow =
+      refundById ??
+      (this.db
+        .prepare("SELECT id FROM categories WHERE name = '退款' AND type = 1 AND deleted = 0")
+        .get() as { id: string } | undefined);
+    const refundCategoryId = refundCategoryRow?.id ?? null;
 
     const existingIds = new Set(
       (this.db.prepare('SELECT id FROM transactions').all() as { id: string }[]).map((r) => r.id),
@@ -410,11 +459,28 @@ export class PortabilityService {
         .map((tag) => tag.trim())
         .filter((tag) => tag !== '');
 
+      // Pre-refund-reform exports wrote refunds as expense-typed rows. Normalise them
+      // to the new model (income + 退款), consistent with migration 006: the original
+      // expense category is deliberately lost there too. Rows exported after the
+      // reform (income + isRefund=true) pass through untouched.
+      let rowType = typeLabel === 'expense' ? 0 : 1;
+      let rowCategoryId = categoryId;
+      if (typeLabel === 'expense' && refundLabel === 'true') {
+        if (refundCategoryId === null) {
+          throw new ValidationError(
+            `Line ${line}: this file was exported before refunds became income, and ` +
+              'the 退款 category does not exist. Restore or create it first.',
+          );
+        }
+        rowType = 1;
+        rowCategoryId = refundCategoryId;
+      }
+
       pendingRows.push({
         id,
-        type: typeLabel === 'expense' ? 0 : 1,
+        type: rowType,
         amountCents,
-        categoryId,
+        categoryId: rowCategoryId,
         accountId,
         date,
         note: record['note'] ?? '',
@@ -442,6 +508,135 @@ export class PortabilityService {
           row.note,
           JSON.stringify(row.tags),
           row.isRefund ? 1 : 0,
+          at,
+        );
+      }
+    });
+    insertMany(pendingRows);
+
+    return { inserted: pendingRows.length, skipped, total: parsed.records.length };
+  }
+
+  /**
+   * Imports a transfers CSV produced by `exportTransfersCsv`.
+   *
+   * Follows the same all-or-nothing contract as the transactions importer: a bad row
+   * rejects the whole file instead of applying a partial ledger. Account names must
+   * match live accounts and the two sides of one transfer must differ.
+   */
+  importTransfersCsv(csvText: string): ImportResult {
+    let parsed;
+    try {
+      parsed = parseCsvWithHeader(csvText);
+    } catch (error) {
+      throw new ValidationError(
+        `The file could not be read as CSV: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    const missing = TRANSFER_COLUMNS.filter((column) => !parsed.header.includes(column));
+    if (missing.length > 0) {
+      throw new ValidationError(
+        `The file is missing required column(s): ${missing.join(', ')}. ` +
+          'Export a file from this app to see the expected header.',
+      );
+    }
+
+    const accounts = new Map<string, string>();
+    for (const row of this.db.prepare('SELECT id, name FROM accounts WHERE deleted = 0').all() as {
+      id: string;
+      name: string;
+    }[]) {
+      if (!accounts.has(row.name)) accounts.set(row.name, row.id);
+    }
+
+    const existingIds = new Set(
+      (this.db.prepare('SELECT id FROM transfers').all() as { id: string }[]).map((r) => r.id),
+    );
+
+    interface Pending {
+      readonly id: string;
+      readonly fromAccountId: string;
+      readonly toAccountId: string;
+      readonly amountCents: number;
+      readonly date: number;
+      readonly note: string;
+    }
+
+    const pendingRows: Pending[] = [];
+    let skipped = 0;
+
+    parsed.records.forEach((record, index) => {
+      const line = index + 2;
+      const id = (record['id'] ?? '').trim();
+      if (id === '') throw new ValidationError(`Line ${line}: id is empty.`);
+
+      if (existingIds.has(id)) {
+        skipped += 1;
+        return;
+      }
+
+      const date = parseDateLabel(record['date'] ?? '');
+      if (date === null) {
+        throw new ValidationError(
+          `Line ${line}: date must be YYYY-MM-DD (got "${record['date'] ?? ''}").`,
+        );
+      }
+
+      const amountCents = parseAmountToCents(record['amount'] ?? '');
+      if (amountCents === null || amountCents <= 0) {
+        throw new ValidationError(
+          `Line ${line}: amount must be a positive number with at most 2 decimals (got "${record['amount'] ?? ''}").`,
+        );
+      }
+
+      const fromName = (record['from'] ?? '').trim();
+      const fromAccountId = accounts.get(fromName);
+      if (fromAccountId === undefined) {
+        throw new ValidationError(
+          `Line ${line}: unknown account "${fromName}". Create it first, or correct the file.`,
+        );
+      }
+
+      const toName = (record['to'] ?? '').trim();
+      const toAccountId = accounts.get(toName);
+      if (toAccountId === undefined) {
+        throw new ValidationError(
+          `Line ${line}: unknown account "${toName}". Create it first, or correct the file.`,
+        );
+      }
+
+      if (fromAccountId === toAccountId) {
+        throw new ValidationError(
+          `Line ${line}: a transfer needs two different accounts (both are "${fromName}").`,
+        );
+      }
+
+      pendingRows.push({
+        id,
+        fromAccountId,
+        toAccountId,
+        amountCents,
+        date,
+        note: record['note'] ?? '',
+      });
+    });
+
+    const at = Date.now();
+    const insert = this.db.prepare(
+      `INSERT INTO transfers
+         (id, from_account_id, to_account_id, amount_cents, date, note, deleted, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+    );
+    const insertMany = this.db.transaction((rows: readonly Pending[]) => {
+      for (const row of rows) {
+        insert.run(
+          row.id,
+          row.fromAccountId,
+          row.toAccountId,
+          row.amountCents,
+          row.date,
+          row.note,
           at,
         );
       }

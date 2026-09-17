@@ -14,11 +14,13 @@ import { useMetaStore } from '../stores/meta.js';
 import { useTransactionsStore } from '../stores/transactions.js';
 import {
   formatCents,
+  formatDayLabel,
   formatYuan,
   fromDateInputValue,
   parseYuanToCents,
   toDateInputValue,
 } from '../utils/money.js';
+import TransactionDetailModal from '../components/TransactionDetailModal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -44,6 +46,7 @@ const isRefund = ref(false);
 const refundLinkedTxIds = ref<string[]>([]);
 const candidateExpenses = ref<Transaction[]>([]);
 const candidatesLoaded = ref(false);
+const detailModalTxId = ref<string | null>(null);
 
 /** Loads candidate expenses the first time the refund checkbox is turned on. */
 watch(isRefund, (val) => {
@@ -94,11 +97,25 @@ function onTypeChange(): void {
   if (!stillValid) {
     categoryId.value = meta.firstCategoryId(type.value) ?? '';
   }
-  if (type.value === TYPE_INCOME) {
-    // Refunds only exist on expenses; a switch must not leave a stale flag behind.
+  if (type.value === TYPE_EXPENSE) {
+    // Refunds only exist on incomes; a switch must not leave a stale flag behind.
     isRefund.value = false;
     refundLinkedTxIds.value = [];
   }
+}
+
+/**
+ * When the refund box is turned on, defaults the category to 退款.
+ *
+ * Deliberately an `@change` handler, not a `watch(isRefund)`: the watch would also
+ * fire during the edit-load path and override the category a saved refund already has.
+ */
+function onRefundChange(): void {
+  if (!isRefund.value || isEdit.value) return;
+  const refundCategory =
+    meta.incomeCategories.find((c) => c.id === 'builtin-income-refund') ??
+    meta.incomeCategories.find((c) => c.name === '退款');
+  if (refundCategory) categoryId.value = refundCategory.id;
 }
 
 function addTag(): void {
@@ -141,6 +158,11 @@ function toggleOriginal(candidateId: string): void {
   }
 }
 
+/** Opens the read-only detail modal for a candidate expense. */
+function showCandidateDetail(candidateId: string): void {
+  detailModalTxId.value = candidateId;
+}
+
 async function save(): Promise<void> {
   errorMessage.value = null;
 
@@ -153,7 +175,7 @@ async function save(): Promise<void> {
     errorMessage.value = '请选择分类。';
     return;
   }
-  if (isRefund.value && type.value === TYPE_EXPENSE && refundLinkedTxIds.value.length === 0) {
+  if (isRefund.value && type.value === TYPE_INCOME && refundLinkedTxIds.value.length === 0) {
     errorMessage.value = '退款需要关联至少一笔原始支出。';
     return;
   }
@@ -176,8 +198,8 @@ async function save(): Promise<void> {
     date,
     note: note.value.trim(),
     tags: tags.value,
-    isRefund: type.value === TYPE_EXPENSE ? isRefund.value : false,
-    refundLinkedTxIds: type.value === TYPE_EXPENSE && isRefund.value ? refundLinkedTxIds.value : [],
+    isRefund: type.value === TYPE_INCOME ? isRefund.value : false,
+    refundLinkedTxIds: type.value === TYPE_INCOME && isRefund.value ? refundLinkedTxIds.value : [],
   };
 
   saving.value = true;
@@ -313,30 +335,37 @@ async function remove(): Promise<void> {
       </div>
     </fieldset>
 
-    <label v-if="type === TYPE_EXPENSE" class="field checkbox">
-      <input v-model="isRefund" type="checkbox" />
-      <span>这是退款 / 别人还我钱（从净支出中扣减，不计入收入）</span>
+    <label v-if="type === TYPE_INCOME" class="field checkbox">
+      <input v-model="isRefund" type="checkbox" @change="onRefundChange" />
+      <span>这是退款 / 别人还我钱（计入收入，可关联原始支出）</span>
     </label>
 
-    <fieldset v-if="type === TYPE_EXPENSE && isRefund" class="field">
+    <fieldset v-if="type === TYPE_INCOME && isRefund" class="field">
       <legend>关联原始支出</legend>
       <small>选择这笔退款对应的原始支出（可多选）</small>
-      <div v-if="candidateExpenses.length > 0" class="tag-list" style="margin-bottom: 0">
-        <button
+      <div v-if="candidateExpenses.length > 0" class="candidate-list">
+        <div
           v-for="item in candidateExpenses"
           :key="item.id"
-          type="button"
-          class="tag"
-          :style="
-            isSelected(item.id)
-              ? 'border-color:var(--accent);background:var(--accent-subtle);font-weight:600'
-              : ''
-          "
-          @click="toggleOriginal(item.id)"
+          class="candidate-row"
+          :class="{ selected: isSelected(item.id) }"
         >
-          {{ isSelected(item.id) ? '✓ ' : '' }}{{ meta.categoryName(item.categoryId) }} ·
-          {{ formatYuan(item.amountCents) }}
-        </button>
+          <button type="button" class="candidate-select" @click="toggleOriginal(item.id)">
+            <span class="candidate-check">{{ isSelected(item.id) ? '✓' : '○' }}</span>
+            <span class="candidate-info">
+              <span class="candidate-cat">{{ meta.categoryName(item.categoryId) }}</span>
+              <span class="candidate-date">{{ formatDayLabel(item.date) }}</span>
+            </span>
+            <span class="candidate-amount">{{ formatYuan(item.amountCents) }}</span>
+          </button>
+          <button
+            type="button"
+            class="candidate-detail"
+            @click.stop="showCandidateDetail(item.id)"
+          >
+            详情
+          </button>
+        </div>
       </div>
       <p v-else class="muted">没有可关联的支出记录。</p>
     </fieldset>
@@ -353,6 +382,11 @@ async function remove(): Promise<void> {
       </button>
     </div>
   </form>
+  <TransactionDetailModal
+    v-if="detailModalTxId !== null"
+    :tx-id="detailModalTxId"
+    @close="detailModalTxId = null"
+  />
 </template>
 
 <style scoped>
@@ -594,5 +628,96 @@ small.invalid {
 
 .muted {
   color: var(--muted);
+}
+</style>
+
+<style scoped>
+/* Refund candidate list: each row is a select-toggle plus a detail button */
+.candidate-list {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.candidate-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  overflow: hidden;
+  background: var(--bg);
+  transition: border-color var(--dur-quick), background var(--dur-quick);
+}
+
+.candidate-row.selected {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.candidate-select {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 48px;
+  padding: 0.4rem 0.65rem;
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.candidate-check {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  font-size: 1rem;
+  color: var(--accent);
+  text-align: center;
+}
+
+.candidate-info {
+  flex: 1;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.candidate-cat {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.candidate-row.selected .candidate-cat {
+  font-weight: 600;
+}
+
+.candidate-date {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.candidate-amount {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+
+.candidate-detail {
+  flex: 0 0 auto;
+  min-width: 52px;
+  min-height: 48px;
+  padding: 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--accent);
+  background: var(--surface);
+  border: 0;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.candidate-detail:hover {
+  background: var(--accent-subtle);
 }
 </style>

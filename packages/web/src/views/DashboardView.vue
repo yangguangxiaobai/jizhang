@@ -11,15 +11,14 @@
  * `@jizhang/shared`. Adding the returned rows up here would be a second implementation
  * of the net-expense rule, and that is how two pages start disagreeing.
  *
- * The one thing this file does compute is the *sign* used for display on a refund row
- * (`displayAmountCents`), and it does that through the shared contribution helpers so
- * the rule still has a single source.
+ * The one row-level computation this file owns is the display sign: refunds read as
+ * positive "money back" rows here, while the shared net-expense rule still keeps them
+ * as negative spending for totals and budgets.
  */
 import AppIcon from '../components/AppIcon.vue';
-import { incomeContribution, expenseContribution } from '@jizhang/shared';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { api, TYPE_EXPENSE } from '../api/client.js';
+import { api, TYPE_EXPENSE, TYPE_INCOME } from '../api/client.js';
 import type { Transaction } from '../api/client.js';
 import { useBalanceStore } from '../stores/balances.js';
 import { useBudgetStore } from '../stores/budget.js';
@@ -142,21 +141,14 @@ function rowTitle(item: Transaction): string {
   return note === '' ? meta.categoryName(item.categoryId) : note;
 }
 
-/**
- * The row's signed amount, in the ledger's own polarity: spending is negative and a
- * refund shows as a negative expense that shrank the month.
- *
- * Deliberately NOT flipped to a positive "money back" figure. A negative amount
- * sitting among other expenses is unambiguous, and it keeps the sign identical to the
- * transaction list, so the same row never reads `-400` on one screen and `+400` on
- * another.
- */
-function displayAmountCents(item: Transaction): number {
-  return item.type === TYPE_EXPENSE ? expenseContribution(item) : incomeContribution(item);
+/** Signed row amount, matching the transaction list: income and refunds read as credits. */
+function displayAmount(item: Transaction): string {
+  if (item.type === TYPE_INCOME) return `+${formatYuan(item.amountCents)}`;
+  return `-${formatYuan(item.amountCents)}`;
 }
 
 function isRefund(item: Transaction): boolean {
-  return item.type === TYPE_EXPENSE && item.isRefund;
+  return item.isRefund;
 }
 </script>
 
@@ -330,9 +322,9 @@ function isRefund(item: Transaction): boolean {
             </span>
             <span
               class="txn-amount"
-              :class="{ negative: displayAmountCents(item) < 0, refund: isRefund(item) }"
+              :class="{ negative: item.type === TYPE_EXPENSE, refund: isRefund(item) }"
             >
-              {{ formatYuan(displayAmountCents(item)) }}
+              {{ displayAmount(item) }}
             </span>
           </button>
         </li>

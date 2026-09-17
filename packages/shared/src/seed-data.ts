@@ -99,10 +99,15 @@ export const SEED_EXPENSE_CATEGORIES: readonly SeedCategory[] = [
   { id: 'builtin-expense-other', name: '其他', type: CATEGORY_TYPE_EXPENSE, icon: 'other', color: paletteSlot(6).argb, sortOrder: 5 },
 ];
 
-/** Two preset income categories (`seed_service.dart:43-46`), palette slots 7–8. */
+/** Three preset income categories — 工资/其他收入 transcribed from the reference app
+ * (`seed_service.dart:43-46`), palette slots 7–8. 「退款」 is the one deliberate
+ * addition, NOT transcribed from the reference app: refunds are income-typed
+ * transactions (see `transaction-service.ts`), and every migrated legacy refund row
+ * is filed under this category. Palette slot 9. */
 export const SEED_INCOME_CATEGORIES: readonly SeedCategory[] = [
   { id: 'builtin-income-salary', name: '工资', type: CATEGORY_TYPE_INCOME, icon: 'salary', color: paletteSlot(7).argb, sortOrder: 0 },
   { id: 'builtin-income-other', name: '其他收入', type: CATEGORY_TYPE_INCOME, icon: 'other', color: paletteSlot(8).argb, sortOrder: 1 },
+  { id: 'builtin-income-refund', name: '退款', type: CATEGORY_TYPE_INCOME, icon: 'refund', color: paletteSlot(9).argb, sortOrder: 2 },
 ];
 
 /** All preset categories, expense first. */

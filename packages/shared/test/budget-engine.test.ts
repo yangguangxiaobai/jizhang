@@ -29,6 +29,8 @@ import {
 } from '../src/budget-engine.js';
 import { monthKey } from '../src/date-utils.js';
 import {
+  expenseContribution,
+  incomeContribution,
   TYPE_EXPENSE,
   TYPE_INCOME,
   type BudgetAllocation,
@@ -392,21 +394,22 @@ describe('computeCarryoverPool', () => {
 });
 
 // ---------------------------------------------------------------------------
-// R1-R3  退款抵扣（§21 净支出 = 支出 − 退款）
+// 退款是收入（已修订：不再冲减支出，计入收入）
 // ---------------------------------------------------------------------------
 
-describe('退款抵扣（§21 净支出 = 支出 − 退款）', () => {
-  it('R1 模块使用抵扣退款：退款为 −amount', () => {
+describe('退款计入收入（不再冲减支出）', () => {
+  it('R1 模块支出是毛口径：退款不再冲减', () => {
     const current = allocation({ date: at(2026, 8, 1), modules: [['food', 400000]] });
     const txns = [
       txn({ id: 't1', categoryId: 'food', amountCents: 150000, date: at(2026, 8, 3) }),
-      // 退款 500 元：支出净额 1500 − 500 = 1000 元
+      // 退款 500 元是收入：模块支出保持 1500 元
       txn({
         id: 'r1',
         categoryId: 'food',
         amountCents: 50000,
         date: at(2026, 8, 4),
         isRefund: true,
+        type: TYPE_INCOME,
       }),
     ];
 
@@ -416,22 +419,23 @@ describe('退款抵扣（§21 净支出 = 支出 − 退款）', () => {
       cycle: NATURAL,
     });
     const food = views[0]!;
-    expect(food.spentCents).toBe(100000);
-    expect(food.remainingCents).toBe(300000);
+    expect(food.spentCents).toBe(150000);
+    expect(food.remainingCents).toBe(250000);
     expect(food.spentCents > food.budgetCents).toBe(false);
   });
 
-  it('R2 退款多于支出的模块：已用为净额，不再误判超支', () => {
+  it('R2 超支按毛支出判断：退款不能把超支变不超支', () => {
     const current = allocation({ date: at(2026, 8, 1), modules: [['food', 100000]] });
     const txns = [
       txn({ id: 't1', categoryId: 'food', amountCents: 120000, date: at(2026, 8, 3) }),
-      // 退款 800 → 净支出 1200 − 800 = 400，不超支
+      // 退款 800 元是收入：支出仍是 1200，超支
       txn({
         id: 'r1',
         categoryId: 'food',
         amountCents: 80000,
         date: at(2026, 8, 4),
         isRefund: true,
+        type: TYPE_INCOME,
       }),
     ];
 
@@ -440,11 +444,11 @@ describe('退款抵扣（§21 净支出 = 支出 − 退款）', () => {
       transactions: txns,
       cycle: NATURAL,
     });
-    expect(views[0]!.spentCents).toBe(40000);
-    expect(views[0]!.spentCents > views[0]!.budgetCents).toBe(false);
+    expect(views[0]!.spentCents).toBe(120000);
+    expect(views[0]!.spentCents > views[0]!.budgetCents).toBe(true);
   });
 
-  it('R3 结余池：最早分配前的退款反向加回（不虚减池）', () => {
+  it('R3 结余池：分配前的支出照常扣减，退款是收入、不进池子计算', () => {
     const alloc = allocation({ id: 'a1', date: at(2026, 8, 10), modules: [['food', 100000]] });
     const beforeRefund = txn({
       id: 'br',
@@ -452,6 +456,7 @@ describe('退款抵扣（§21 净支出 = 支出 − 退款）', () => {
       amountCents: 20000,
       date: at(2026, 8, 1),
       isRefund: true,
+      type: TYPE_INCOME,
     });
 
     const pool = computeCarryoverPool({
@@ -460,11 +465,11 @@ describe('退款抵扣（§21 净支出 = 支出 − 退款）', () => {
       cycle: NATURAL,
     });
 
-    // 池 −= (−200 元) → 池 = +200 元
-    expect(pool).toBe(20000);
+    // 退款不再冲减支出（贡献为 0）：池不因它变化。
+    expect(pool).toBe(0);
   });
 
-  it('退款不计收入：收入聚合为 0', () => {
+  it('退款计入收入：收入贡献为 +amount', () => {
     const refundAsIncome = txn({
       id: 'ri',
       categoryId: 'food',
@@ -473,9 +478,11 @@ describe('退款抵扣（§21 净支出 = 支出 − 退款）', () => {
       isRefund: true,
       type: TYPE_INCOME,
     });
-    // 直接验证口径：收入贡献在退款时为 0
+    // 直接验证口径：退款是收入型账单，计入收入
     expect(refundAsIncome.type).toBe(TYPE_INCOME);
     expect(refundAsIncome.isRefund).toBe(true);
+    expect(incomeContribution(refundAsIncome)).toBe(50000);
+    expect(expenseContribution(refundAsIncome)).toBe(0);
   });
 });
 
@@ -683,7 +690,7 @@ describe('computePoolTrend 与 computeCarryoverPool 口径一致', () => {
     expect(trend[trend.length - 1]!.poolCents).toBe(400000);
   });
 
-  it('趋势按周期起点升序，且包含最早分配前的退款抵扣', () => {
+  it('趋势按周期起点升序，退款不再进入池子计算', () => {
     const alloc = allocation({ id: 'a1', date: at(2026, 8, 10), modules: [['food', 100000]] });
     const beforeRefund = txn({
       id: 'br',
@@ -691,6 +698,7 @@ describe('computePoolTrend 与 computeCarryoverPool 口径一致', () => {
       amountCents: 20000,
       date: at(2026, 8, 1),
       isRefund: true,
+      type: TYPE_INCOME,
     });
     const trend = computePoolTrend({
       allocationsDesc: [alloc],
@@ -698,9 +706,9 @@ describe('computePoolTrend 与 computeCarryoverPool 口径一致', () => {
       cycle: NATURAL,
     });
     // 只有一个周期时，趋势只有"该周期开始"这一个点：
-    // 池 = 分配前退款反向加回 = +200 元（当前周期自身的 1000 元分配尚未进池）
+    // 退款是收入、贡献为 0，池不因它变化 = 0（当前周期自身的 1000 元分配尚未进池）
     expect(trend).toHaveLength(1);
-    expect(trend[0]!.poolCents).toBe(20000);
+    expect(trend[0]!.poolCents).toBe(0);
 
     // 一致性契约：最后一点 === 引擎池（引擎池含该分配前的退款抵扣）
     const pool = computeCarryoverPool({

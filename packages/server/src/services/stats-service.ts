@@ -4,11 +4,11 @@
  * ## The one rule that matters
  *
  * Every aggregate goes through the shared `expenseContribution` /
- * `incomeContribution` helpers. A refund is a NEGATIVE expense and is NEVER income
- * (reference `transaction.dart:44-51`), so:
+ * `incomeContribution` helpers. A refund is an INCOME-typed row (revised model —
+ * it counts as income and no longer reduces expenses), so:
  *
- *   - "spend" figures are net of refunds and may legitimately be negative;
- *   - income figures exclude refunds entirely.
+ *   - "spend" figures are gross and never negative;
+ *   - income figures include refunds.
  *
  * Re-deriving that here — even "just for the chart" — is exactly how the numbers on
  * the charts page would drift away from the budget page.
