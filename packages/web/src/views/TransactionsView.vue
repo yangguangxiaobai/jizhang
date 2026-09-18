@@ -200,8 +200,10 @@ function signedAmount(item: Transaction): string {
     <header class="group-head">
       <span>{{ group.label }}</span>
       <span class="group-total">
-        支出 {{ formatYuan(group.netExpenseCents) }}
-        <template v-if="group.incomeCents > 0">· 收入 {{ formatYuan(group.incomeCents) }}</template>
+        <span class="expense">支出 {{ formatYuan(group.netExpenseCents) }}</span>
+        <template v-if="group.incomeCents > 0">
+          · <span class="income">收入 {{ formatYuan(group.incomeCents) }}</span>
+        </template>
       </span>
     </header>
 
@@ -230,7 +232,13 @@ function signedAmount(item: Transaction): string {
               <span v-for="tag in item.tags" :key="tag" class="tag">{{ tag }}</span>
             </span>
           </span>
-         <span class="amount" :class="{ income: item.type === TYPE_INCOME, refund: item.isRefund }">
+         <span
+           class="amount"
+           :class="{
+             income: item.type === TYPE_INCOME || item.isRefund,
+             expense: item.type !== TYPE_INCOME && !item.isRefund,
+           }"
+         >
            {{ signedAmount(item) }}
          </span>
           <span
@@ -526,8 +534,12 @@ li:last-child {
   font-size: 0.95rem;
 }
 
-.amount.income,
-.amount.refund {
+.amount.expense,
+.amount:not(.income) {
+  color: var(--danger);
+}
+
+.amount.income {
   color: var(--ok);
 }
 

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Statistics: category share, monthly trend, and the carryover-pool series.
  *
@@ -84,6 +84,7 @@ const positiveSlices = computed<Slice[]>(() =>
     .map((item) => ({
       label: item.categoryName,
       value: item.amountCents,
+      amountLabel: formatYuan(item.amountCents),
       // A palette token, so the slice follows the theme; a custom colour passes through.
       color: categoryCssColor(item.color),
     })),
@@ -171,7 +172,13 @@ const topCategory = computed(() => {
         </template>
       </p>
 
-      <DonutChart v-if="positiveSlices.length > 0" :slices="positiveSlices" />
+      <DonutChart
+        v-if="positiveSlices.length > 0"
+        :slices="positiveSlices"
+        :size="200"
+        :center-value="formatYuan(share?.totalCents ?? 0)"
+        center-label="净支出"
+      />
 
       <p v-else class="empty">
         {{ windowLabel }}没有支出记录。
@@ -195,8 +202,8 @@ const topCategory = computed(() => {
         <thead>
           <tr>
             <th scope="col">月份</th>
-            <th scope="col">收入</th>
-            <th scope="col">净支出</th>
+            <th scope="col" class="num">收入</th>
+            <th scope="col" class="num">净支出</th>
           </tr>
         </thead>
         <tbody>
@@ -337,6 +344,11 @@ select {
   font-weight: 500;
   color: var(--muted);
   border-bottom: 1px solid var(--border);
+}
+
+.trend-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .trend-table td {

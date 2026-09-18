@@ -46,6 +46,7 @@ const isRefund = ref(false);
 const refundLinkedTxIds = ref<string[]>([]);
 const candidateExpenses = ref<Transaction[]>([]);
 const candidatesLoaded = ref(false);
+const candidateQuery = ref('');
 const detailModalTxId = ref<string | null>(null);
 
 /** Loads candidate expenses the first time the refund checkbox is turned on. */
@@ -162,6 +163,23 @@ function toggleOriginal(candidateId: string): void {
 function showCandidateDetail(candidateId: string): void {
   detailModalTxId.value = candidateId;
 }
+
+/** Candidates after the free-text filter (note / category / amount / date). */
+const filteredCandidates = computed(() => {
+  const q = candidateQuery.value.trim().toLowerCase();
+  if (q === '') return candidateExpenses.value;
+  return candidateExpenses.value.filter((item) => {
+    const hay = [
+      item.note,
+      meta.categoryName(item.categoryId),
+      formatYuan(item.amountCents),
+      formatDayLabel(item.date),
+    ]
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(q);
+  });
+});
 
 async function save(): Promise<void> {
   errorMessage.value = null;
@@ -343,9 +361,18 @@ async function remove(): Promise<void> {
     <fieldset v-if="type === TYPE_INCOME && isRefund" class="field">
       <legend>关联原始支出</legend>
       <small>选择这笔退款对应的原始支出（可多选）</small>
-      <div v-if="candidateExpenses.length > 0" class="candidate-list">
+      <label v-if="candidateExpenses.length > 5" class="field candidate-search">
+        <span class="visually-hidden">搜索支出</span>
+        <input
+          v-model="candidateQuery"
+          type="search"
+          placeholder="搜索备注 / 分类 / 金额"
+          autocomplete="off"
+        />
+      </label>
+      <div v-if="filteredCandidates.length > 0" class="candidate-list">
         <div
-          v-for="item in candidateExpenses"
+          v-for="item in filteredCandidates"
           :key="item.id"
           class="candidate-row"
           :class="{ selected: isSelected(item.id) }"
@@ -353,7 +380,10 @@ async function remove(): Promise<void> {
           <button type="button" class="candidate-select" @click="toggleOriginal(item.id)">
             <span class="candidate-check">{{ isSelected(item.id) ? '✓' : '○' }}</span>
             <span class="candidate-info">
-              <span class="candidate-cat">{{ meta.categoryName(item.categoryId) }}</span>
+              <span class="candidate-cat">
+                {{ meta.categoryName(item.categoryId) }}
+                <span v-if="item.note" class="candidate-note">{{ item.note }}</span>
+              </span>
               <span class="candidate-date">{{ formatDayLabel(item.date) }}</span>
             </span>
             <span class="candidate-amount">{{ formatYuan(item.amountCents) }}</span>
@@ -367,6 +397,7 @@ async function remove(): Promise<void> {
           </button>
         </div>
       </div>
+      <p v-else-if="candidateExpenses.length > 0" class="muted">没有匹配的支出记录。</p>
       <p v-else class="muted">没有可关联的支出记录。</p>
     </fieldset>
 
@@ -684,9 +715,52 @@ small.invalid {
   min-width: 0;
 }
 
+.candidate-search {
+  margin-bottom: 0.35rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.candidate-search input {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  padding: 0 0.75rem;
+}
+
 .candidate-cat {
   font-size: 0.88rem;
   font-weight: 500;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.candidate-note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .candidate-row.selected .candidate-cat {

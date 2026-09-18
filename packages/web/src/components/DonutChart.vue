@@ -16,6 +16,8 @@ export interface Slice {
   readonly label: string;
   readonly value: number;
   readonly color: string;
+  /** Optional pre-formatted amount for the legend (e.g. `¥12.34`). */
+  readonly amountLabel?: string;
 }
 
 const props = withDefaults(
@@ -24,8 +26,12 @@ const props = withDefaults(
     /** Inner radius as a fraction of the outer one; 0 renders a full pie. */
     innerRatio?: number;
     size?: number;
+    /** Large number in the hole, e.g. the window total. */
+    centerValue?: string;
+    /** Caption under `centerValue`. */
+    centerLabel?: string;
   }>(),
-  { innerRatio: 0.58, size: 180 },
+  { innerRatio: 0.58, size: 180, centerValue: '', centerLabel: '' },
 );
 
 const RADIUS = 50;
@@ -123,7 +129,14 @@ function percent(ratio: number): string {
       </path>
     </svg>
 
-    <slot name="center" />
+    <div v-if="arcs.length === 0" class="center">
+      <span class="center-label">暂无数据</span>
+    </div>
+    <div v-else-if="centerValue !== ''" class="center">
+      <span class="center-value">{{ centerValue }}</span>
+      <span v-if="centerLabel !== ''" class="center-label">{{ centerLabel }}</span>
+    </div>
+    <slot v-else name="center" />
   </div>
 
   <ul class="legend">
@@ -135,6 +148,7 @@ function percent(ratio: number): string {
     >
       <span class="swatch" :style="{ background: arc.color }" aria-hidden="true" />
       <span class="label">{{ arc.label }}</span>
+      <span v-if="arc.amountLabel" class="amount">{{ arc.amountLabel }}</span>
       <span class="ratio">{{ percent(arc.ratio) }}</span>
     </li>
   </ul>
@@ -222,8 +236,39 @@ svg {
   white-space: nowrap;
 }
 
+.amount {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+
 .ratio {
+  flex-shrink: 0;
+  min-width: 3.2rem;
+  text-align: right;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+  gap: 0.15rem;
+}
+
+.center-value {
+  font-size: 1.05rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.center-label {
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 </style>

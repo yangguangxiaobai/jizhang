@@ -108,7 +108,10 @@ function onKey(event: KeyboardEvent): void {
             </div>
             <span
               class="header-amount"
-              :class="{ income: txn.type === TYPE_INCOME, refund: txn.isRefund }"
+              :class="{
+                income: txn.type === TYPE_INCOME || txn.isRefund,
+                expense: txn.type !== TYPE_INCOME && !txn.isRefund,
+              }"
             >
               {{ txn.isRefund || txn.type === TYPE_INCOME ? '+' : '-'
               }}{{ formatYuan(txn.amountCents) }}
@@ -202,13 +205,15 @@ function onKey(event: KeyboardEvent): void {
 .modal-close:hover{color:var(--danger);border-color:var(--danger)}
 .modal-edit{position:absolute;top:.6rem;right:3.4rem;min-height:36px;padding:0 .8rem;font-size:.88rem;color:var(--accent);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-control);cursor:pointer}
 .modal-edit:hover{border-color:var(--accent)}
-.detail-header{display:flex;align-items:center;gap:.65rem;margin-bottom:1rem}
+/* Reserve room for the absolute top-right actions so the amount is never clipped. */
+.detail-header{display:flex;align-items:center;gap:.65rem;margin-bottom:1rem;padding-right:5.75rem}
 .dot{width:.65rem;height:.65rem;border-radius:50%;flex-shrink:0}
 .dot-sm{width:.5rem;height:.5rem;border-radius:50%;flex-shrink:0}
 .header-info{flex:1;display:grid;gap:.15rem;min-width:0}
 .header-title{font-size:1.05rem;font-weight:600}
 .header-sub{font-size:.78rem;color:var(--muted)}
 .header-amount{flex-shrink:0;font-size:1.2rem;font-weight:600;font-variant-numeric:tabular-nums}
+.header-amount.expense,.header-amount:not(.income):not(.refund){color:var(--danger)}
 .header-amount.income,.header-amount.refund{color:var(--ok)}
 .badge{margin-left:.35rem;padding:.05rem .35rem;font-size:.7rem;color:var(--accent);background:var(--accent-subtle);border:1px solid var(--accent);border-radius:.35rem}
 .badge.income{color:var(--ok);background:var(--ok-subtle);border-color:var(--ok)}

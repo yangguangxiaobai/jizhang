@@ -225,7 +225,7 @@ function isRefund(item: Transaction): boolean {
         </div>
         <div class="figure">
           <span class="label">支出</span>
-          <strong>{{ formatYuan(netExpenseCents) }}</strong>
+          <strong class="expense">{{ formatYuan(netExpenseCents) }}</strong>
         </div>
         <div class="figure">
           <span class="label">结余</span>
@@ -485,7 +485,9 @@ h2 {
   color: var(--ok);
 }
 
+.expense,
 .negative,
+.txn-amount.negative,
 .error {
   color: var(--danger);
 }
