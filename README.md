@@ -2,7 +2,7 @@
 
 单用户记账 Web PWA:Vue 3 + Vite 前端、Fastify 后端、SQLite 存储,**单容器**部署(后端同源托管前端产物)。
 
-> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-import-modal`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`;微信/支付宝导入在独立弹窗中预览勾选)。
+> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-home-balances`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`)。
 > 日常用法请看 [USAGE.md](./USAGE.md);部署与升级请看 [DEPLOY.md](./DEPLOY.md)。
 
 ## 功能
@@ -342,7 +342,7 @@ restore <file.db>            用备份替换在线数据库
 
 ## 部署与运维要点
 
-- 线上:`https://jz.yansuu1.com`,目录 `/opt/jizhang`,镜像 `jizhang:2026-09-18-import-modal`。
+- 线上:`https://jz.yansuu1.com`,目录 `/opt/jizhang`,镜像 `jizhang:2026-09-18-home-balances`。
 - 升级见 [DEPLOY.md §6](./DEPLOY.md):构建镜像 → 改 compose 的 `image` tag → `up -d` → 核对 `sqlite ready`、`/api/v1/health` 与前端 chunk 标记。
 - **公网带宽很慢时**优先「上传源码 zip → 在服务器 `docker build`」(约 0.5–1.5MB),不要 `docker save` 整镜像(约 90MB+)。生产 compose 无 `build:`、无宿主机端口,由 Caddy 按容器名 `jizhang:8081` 反代。
 - 容器环境必须含 **`TZ: Asia/Shanghai`**(见「口径与日历」)。生产 compose、仓库 `Dockerfile` / `docker-compose.yml` / `.env.example` 均已默认写入。

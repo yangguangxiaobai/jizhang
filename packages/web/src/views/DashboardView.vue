@@ -47,11 +47,16 @@ onMounted(async () => {
   loading.value = true;
   errorMessage.value = null;
   try {
+    // Balances ride the same wave as the month summary. Loading them after the first
+    // paint left a gap where the asset card was missing until /accounts/balances
+    // returned — the page looked like it had lost the total. The store swallows its
+    // own errors, so a balance failure cannot take down the rest of the dashboard.
     const [trend, list] = await Promise.all([
       api.stats.monthlyTrend(1),
       api.transactions.list({ limit: RECENT_LIMIT }),
       budget.loadOverview(),
       meta.load(),
+      balances.load(true),
     ]);
 
     // The trend always ends with the current month. `noUncheckedIndexedAccess` is on,
@@ -70,14 +75,8 @@ onMounted(async () => {
   }
 
   // Recurring bills are a separate concern and must not be able to break the dashboard:
-  // this generates any due occurrences and loads the count for the reminder card. The
-  // store swallows its own errors, so a failure here leaves the rest of the page intact.
-  await recurring.generateAndReload();
-
-  // Balances are loaded the same defensive way, and forced: this page is one of only two
-  // that shows the total, so a stale cache would be a wrong number on the first screen the
-  // user sees. The card simply does not render if this fails — see the template.
-  await balances.load(true);
+  // this generates any due occurrences and loads the count for the reminder card.
+  void recurring.generateAndReload();
 });
 
 /** Label straight off the server's own month key, so the header cannot drift. */
@@ -164,8 +163,9 @@ function isRefund(item: Transaction): boolean {
       exists right now. They are deliberately separate blocks with separate headings, because
       putting a total beside "结余" is how the two get read as the same number.
 
-      Rendered only once the server's figures have arrived. A failed load shows the error
-      rather than a card: printing ¥0.00 would be reporting a number that was never computed.
+      Numbers only once the server has answered. While balances are still in flight the
+      card keeps its place as a skeleton — removing it made the first paint look broken.
+      Printing ¥0.00 would report a figure that was never computed.
     -->
     <section v-if="balances.loaded" class="theme-card card asset">
       <div class="row section-head asset-head">
@@ -209,7 +209,22 @@ function isRefund(item: Transaction): boolean {
       </button>
     </section>
 
-    <p v-else-if="balances.errorMessage !== null" class="error" role="alert">
+    <section
+      v-else-if="balances.errorMessage === null"
+      class="theme-card card asset asset-skeleton"
+      aria-busy="true"
+    >
+      <div class="row section-head asset-head">
+        <h2><AppIcon name="wallet" /> 总余额</h2>
+        <span class="asset-caption">所有账户</span>
+      </div>
+      <div class="skeleton-line skeleton-total" aria-hidden="true" />
+      <div class="skeleton-line" aria-hidden="true" />
+      <div class="skeleton-line short" aria-hidden="true" />
+      <p class="muted skeleton-hint">总余额加载中…</p>
+    </section>
+
+    <p v-else class="error" role="alert">
       总余额读取失败：{{ balances.errorMessage }}
     </p>
 
@@ -403,6 +418,34 @@ h2 {
   font-size: clamp(2rem, 8.5vw, 2.65rem);
   font-weight: 650;
   line-height: 1.2;
+}
+
+/* Placeholder while /accounts/balances is in flight — keeps the card's height so
+   the month summary does not jump when the real numbers arrive. */
+.asset-skeleton {
+  padding-bottom: 1.25rem;
+}
+
+.skeleton-line {
+  height: 0.85rem;
+  margin-bottom: 0.65rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--hero-muted) 28%, transparent);
+}
+
+.skeleton-line.skeleton-total {
+  width: 55%;
+  height: 2.4rem;
+  margin-bottom: 1.15rem;
+}
+
+.skeleton-line.short {
+  width: 40%;
+}
+
+.skeleton-hint {
+  margin: 0.25rem 0 0;
+  color: var(--hero-muted);
 }
 
 .asset-rows {
