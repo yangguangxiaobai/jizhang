@@ -2,7 +2,7 @@
 
 单用户记账 Web PWA:Vue 3 + Vite 前端、Fastify 后端、SQLite 存储,**单容器**部署(后端同源托管前端产物)。
 
-> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-platform-import`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`;含微信/支付宝账单导入)。
+> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-import-preview`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`;含微信/支付宝账单导入：预览→勾选→改分类→确认)。
 > 日常用法请看 [USAGE.md](./USAGE.md);部署与升级请看 [DEPLOY.md](./DEPLOY.md)。
 
 ## 功能
@@ -17,9 +17,28 @@
   不静默入账
 - **统计**:分类占比环形图(中心总额 + 图例金额/占比)、月度收入与净支出柱状图、结余池趋势
 - **回收站**:删除的账单可恢复,或彻底删除
-- **数据**:CSV 导出/导入(账单、转账、工资、周期规则,带 BOM,Excel 直接打开中文不乱码)、**微信/支付宝账单导入**(GBK/xlsx、关键字分类、自动建账户、幂等去重)、整库备份
+- **数据**:
+  - CSV 导出/导入(账单、转账、工资、周期规则,带 BOM,Excel 直接打开中文不乱码)
+  - **微信/支付宝账单导入**:上传平台导出文件(xlsx / GBK CSV),自动识别来源、过滤提现理财与「不计收支」;**预览明细表 → 勾选 → 改分类 → 确认导入所选**;自动创建「微信」「支付宝」账户,按交易单号幂等去重
+  - 整库备份(SQLite 快照)
 - **外观**:深浅色(跟随系统/浅色/深色)、三套主色预设(钛蓝/森林绿/极简黑白)
 - **PWA**:可"添加到主屏幕"作为独立 App 使用,离线可查看已打开的页面
+
+### 微信 / 支付宝账单导入(速查)
+
+| 项 | 说明 |
+|---|---|
+| 入口 | **我的 → 导出与备份 → 微信/支付宝** |
+| 流程 | 选文件 → **预览**（明细表）→ **勾选** → **改分类** → **确认导入所选** |
+| 来源 | 自动识别 / 微信 / 支付宝 |
+| 微信 | 账单页 →「···」→ 下载账单,得到 `.xlsx` 或 CSV |
+| 支付宝 | 账单 → 开具交易流水证明,得到 **GBK** `.csv`;直接上传原文件,勿用 Excel 另存 |
+| 过滤 | 提现/充值/理财/零钱通、支付宝「不计收支」「投资理财」「信用借还」、已退款、0 元、失败状态 |
+| 分类 | 默认关键字粗分;预览表可逐行改分类,导入后也可再改 |
+| 去重 | 稳定 id:`wx-<交易单号>` / `ali-<交易订单号>`,已存在行不可勾选,重复导入不重复入账 |
+| API | `POST /api/v1/import/platform-bills`;JSON body:`fileBase64` + `source` + `dryRun` + `selectedIds` + `categoryOverrides` |
+
+更完整的导出步骤与过滤说明见 [USAGE.md §12](./USAGE.md)。
 
 ## 口径与日历(重要)
 
@@ -59,32 +78,35 @@ jizhang/
 ├─ DEPLOY.md                  # 部署到 VPS(含反代共存、备份与回滚)
 ├─ USAGE.md                   # 面向使用者的日常用法
 └─ packages/
-   ├─ shared/                 # 领域模型 + 纯函数(预算引擎、周期日期、CSV、色板)
+   ├─ shared/                 # 领域模型 + 纯函数(预算引擎、周期日期、CSV、色板、平台账单解析)
    │  ├─ src/                 # 无 IO,所以同一份代码能在浏览器里跑
-   │  └─ test/                # vitest:预算引擎、周期、CSV、色板、预算完整性
+   │  │  └─ platform-bills.ts # 微信/支付宝账单:表头定位、过滤、关键字分类、稳定 id
+   │  └─ test/                # vitest:预算引擎、周期、CSV、色板、平台账单、预算完整性
    ├─ server/                 # Fastify API + 静态托管
    │  ├─ src/
    │  │  ├─ index.ts          # 启动 / 优雅退出
-   │  │  ├─ app.ts            # Fastify 装配(可 inject 测试,不 listen)
+   │  │  ├─ app.ts            # Fastify 装配(可 inject 测试,不 listen;text/csv 与 octet-stream)
    │  │  ├─ config.ts         # 环境变量解析与校验
    │  │  ├─ cli.ts            # set-password / backup / verify / restore
    │  │  ├─ db/               # better-sqlite3 连接、PRAGMA、迁移
    │  │  ├─ plugins/          # 会话、CSRF、静态托管等 Fastify 插件
    │  │  ├─ routes/           # auth / transactions / budget / master-data /
    │  │  │                    # stats / trash / recurring / portability
-   │  │  └─ services/         # 业务逻辑
-   │  ├─ test/                # vitest(11 个套件)
-   │  └─ scripts/             # 容器内 e2e 套件(e2e-*.mjs,12 个)
+   │  │  │                    # (portability 含 POST /import/platform-bills)
+   │  │  └─ services/         # 业务逻辑;bill-decode / xlsx-lite 解 GBK 与微信 xlsx
+   │  ├─ test/                # vitest(14 个套件,含 platform-import)
+   │  ├─ test/fixtures/       # 真实结构的微信/支付宝样例(已脱敏)
+   │  └─ scripts/             # 容器内 e2e 套件(e2e-*.mjs,13 个)
    └─ web/                    # Vue 3 + Vite
       ├─ src/
-      │  ├─ api/              # 类型化 API 客户端
+      │  ├─ api/              # 类型化 API 客户端(含 importPlatformBills,原始字节上传)
       │  ├─ components/       # DonutChart / BarChart / TransactionDetailModal / OfflineBanner / InstallHint
       │  ├─ composables/      # useTheme / useNetwork
       │  ├─ router/           # 路由与登录门禁
       │  ├─ stores/           # Pinia:auth / budget / meta / transactions
       │  ├─ styles/main.css   # 主题令牌(颜色、动效、高度)
-      │  ├─ utils/            # budget-tone / category-color
-      │  └─ views/            # 17 个视图(含 AppShell 外壳)
+      │  ├─ utils/            # budget-tone / category-color / money
+      │  └─ views/            # 19 个视图(含 AppShell;DataView 含平台账单导入)
       ├─ e2e/                 # Playwright:iPhone 视口下的真实表单链路
       └─ scripts/             # 构建期静态审计 + 浏览器实测套件 + 图标生成
 ```
@@ -246,12 +268,13 @@ docker compose exec jizhang whoami     # → node(非 root)
   manifest/meta/图标/主题脚本同源
 - `check-pwa.mjs` — manifest、图标尺寸、service worker、缓存策略、包体积
 
-**容器内 e2e 套件**(12 个,需先 `docker compose up -d`):
+**容器内 e2e 套件**(13 个,需先 `docker compose up -d`):
 
 ```bash
 docker compose exec -T -w /app/packages/server/scripts jizhang node e2e-home.mjs
 # 换成 e2e-auth / e2e-budget / e2e-master-data / e2e-periods / e2e-portability /
-#      e2e-pwa / e2e-recurring / e2e-stats / e2e-transactions / e2e-trash / e2e-backup
+#      e2e-pwa / e2e-recurring / e2e-stats / e2e-transactions / e2e-trash /
+#      e2e-backup / e2e-transfers
 ```
 
 这些套件会**清空容器内的数据库并重设密码**,只对开发容器使用,不要对存有真实账本的实例运行。
@@ -301,7 +324,9 @@ pnpm test:iphone:only         # 跳过构建
 | 标签 | `GET /tags`、`PATCH /tags`(重命名)、`DELETE /tags/:id` |
 | 周期账单 | `GET/POST /recurring/rules`、`PATCH/DELETE /recurring/rules/:id`、`POST /recurring/rules/:id/enabled`、`POST /recurring/generate`、`GET /recurring/occurrences`、`POST /recurring/occurrences/:id/confirm`、`POST /recurring/occurrences/:id/ignore`、`GET /recurring/pending` |
 | 统计 | `GET /stats/category-share`、`GET /stats/monthly-trend`、`GET /stats/month-window`、`GET /stats/pool-trend`、`GET /stats/range` |
-| 导入导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`GET /export/transfers.csv`、`POST /import/transactions`、`POST /import/transfers`、`POST /import/platform-bills?source=auto\|wechat\|alipay&dryRun=1`(body 为账单原文/字节;支持微信 xlsx 与支付宝 GBK CSV) |
+| 导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`GET /export/transfers.csv` |
+| 导入(本应用 CSV) | `POST /import/transactions`、`POST /import/transfers`(`Content-Type: text/csv`,body 为文件全文) |
+| 导入(微信/支付宝) | `POST /import/platform-bills`。JSON:`{ fileBase64, source, dryRun, fileName?, selectedIds?, categoryOverrides? }`；也支持 octet-stream/text 原文 + query。`selectedIds:null`=全部可入账，`[]`=不导入；`categoryOverrides` 为 `{行id: 分类名}`。dry-run 返回 `rows` 明细表 |
 | 备份 | `GET /backups`、`POST /backups` |
 | 设置 | `GET /settings`、`PUT /settings`(预算周期起点) |
 
@@ -316,13 +341,17 @@ restore <file.db>            用备份替换在线数据库
 
 ## 部署与运维要点
 
-- 线上目录 `/opt/jizhang`;升级见 [DEPLOY.md §6](./DEPLOY.md):构建镜像 → 改 compose 的 `image` tag → `up -d` → 核对 `migrationsApplied` 与 `/api/v1/health`。
-- **公网带宽很慢时**优先「上传源码 → 在服务器 `docker build`」(约 1.5MB 源码包),不要 `docker save` 整镜像(约 90MB+)。
-- 容器环境必须含 **`TZ: Asia/Shanghai`**(见「口径与日历」)。生产 compose 已加;本地仓库的 `docker-compose.yml` / `Dockerfile` 也已默认写入。
-- 迁移会在启动时自动跑,并把升级前的库备份到 `/data/backups/`。
+- 线上:`https://jz.yansuu1.com`,目录 `/opt/jizhang`,镜像 `jizhang:2026-09-18-import-preview`。
+- 升级见 [DEPLOY.md §6](./DEPLOY.md):构建镜像 → 改 compose 的 `image` tag → `up -d` → 核对 `sqlite ready`、`/api/v1/health` 与前端 chunk 标记。
+- **公网带宽很慢时**优先「上传源码 zip → 在服务器 `docker build`」(约 0.5–1.5MB),不要 `docker save` 整镜像(约 90MB+)。生产 compose 无 `build:`、无宿主机端口,由 Caddy 按容器名 `jizhang:8081` 反代。
+- 容器环境必须含 **`TZ: Asia/Shanghai`**(见「口径与日历」)。生产 compose、仓库 `Dockerfile` / `docker-compose.yml` / `.env.example` 均已默认写入。
+- 迁移会在启动时自动跑,并把升级前的库备份到 `/data/backups/`。回滚只改 `image` tag,不降级迁移。
+- 平台账单导入**无新迁移**;误导入可在应用内删除或走回收站/备份恢复。
 
 已知限制(有意如此,不是遗漏):
 
 - **不做系统通知/Web Push**:iOS 上 PWA 无可靠的本地通知等价物,到期提醒改为应用内"待确认"
 - **不做应用锁 PIN**:客户端 PIN 不是安全边界,真正的边界是登录密码与会话(用户已确认删除)
 - **不支持多用户、多币种、共享账本、日历视图、批量操作、账单模板**——单用户单账本
+- **平台账单分类是关键字粗分**,不是平台官方分类的逐条映射;分不准会落到「其他」,导入后可改
+- **平台导入不改写既有本应用 CSV 导入**:两者 id 空间与校验策略不同(平台按行忽略,本应用 CSV 全有或全无)

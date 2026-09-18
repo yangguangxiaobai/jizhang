@@ -80,13 +80,72 @@ describe('importPlatformBills — WeChat UTF-8 CSV', () => {
     expect(liveTxnCount()).toBe(24);
   });
 
-  it('dry-run reports counts without writing', () => {
+  it('dry-run reports counts without writing, and returns a preview table', () => {
     const preview = service.importPlatformBills(wechatText, { source: 'auto', dryRun: true });
     expect(preview.dryRun).toBe(true);
     expect(preview.inserted).toBe(24);
+    expect(preview.selected).toBe(24);
     expect(preview.accountsCreated).toBe(1);
+    expect(preview.rows).toHaveLength(34);
+    const importablePreview = preview.rows.filter((r) => !r.ignored && !r.alreadyExists);
+    expect(importablePreview).toHaveLength(24);
+    expect(importablePreview[0]?.categoryName).toBeTruthy();
     expect(liveTxnCount()).toBe(0);
     expect(findAccountByName('微信')).toBeUndefined();
+  });
+
+  it('honours selectedIds: only the chosen subset is written', () => {
+    const preview = service.importPlatformBills(wechatText, { source: 'auto', dryRun: true });
+    const candidates = preview.rows.filter((r) => !r.ignored && !r.alreadyExists);
+    const first = candidates[0];
+    const third = candidates[2];
+    expect(first).toBeDefined();
+    expect(third).toBeDefined();
+
+    const result = service.importPlatformBills(wechatText, {
+      source: 'wechat',
+      selectedIds: [first!.id, third!.id],
+    });
+    expect(result.inserted).toBe(2);
+    expect(result.selected).toBe(2);
+    expect(liveTxnCount()).toBe(2);
+
+    const ids = (
+      db.prepare('SELECT id FROM transactions WHERE deleted = 0').all() as { id: string }[]
+    ).map((r) => r.id);
+    expect(ids).toContain(first!.id);
+    expect(ids).toContain(third!.id);
+  });
+
+  it('applies categoryOverrides on confirm', () => {
+    const preview = service.importPlatformBills(wechatText, { source: 'auto', dryRun: true });
+    const expenseRow = preview.rows.find((r) => !r.ignored && r.type === 0);
+    expect(expenseRow).toBeDefined();
+
+    service.importPlatformBills(wechatText, {
+      source: 'wechat',
+      selectedIds: [expenseRow!.id],
+      categoryOverrides: { [expenseRow!.id]: '娱乐' },
+    });
+
+    const row = db
+      .prepare(
+        `SELECT c.name AS category_name FROM transactions t
+           JOIN categories c ON c.id = t.category_id
+          WHERE t.id = ?`,
+      )
+      .get(expenseRow!.id) as { category_name: string };
+    expect(row.category_name).toBe('娱乐');
+  });
+
+  it('empty selectedIds writes nothing', () => {
+    const result = service.importPlatformBills(wechatText, {
+      source: 'wechat',
+      selectedIds: [],
+    });
+    expect(result.inserted).toBe(0);
+    expect(result.selected).toBe(0);
+    expect(liveTxnCount()).toBe(0);
   });
 });
 

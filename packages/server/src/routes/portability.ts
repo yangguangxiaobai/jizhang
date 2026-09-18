@@ -113,21 +113,95 @@ export async function registerPortabilityRoutes(
   /**
    * WeChat / Alipay platform bill import.
    *
-   * Body is the raw file bytes (`application/octet-stream` / xlsx) or UTF-8 CSV text.
-   * GBK Alipay exports must arrive as bytes — a browser `File.text()` would corrupt them.
-   * Query: `source=auto|wechat|alipay`, `dryRun=1` for a preview without writes.
+   * Two body shapes:
+   *   1. Raw bytes (`application/octet-stream` / xlsx) or UTF-8 CSV text — full-file import.
+   *      Query: `source=auto|wechat|alipay`, `dryRun=1`.
+   *   2. JSON — used by the preview/confirm UI:
+   *      `{ fileBase64 | text, source, dryRun, fileName, selectedIds?, categoryOverrides? }`.
+   *      `selectedIds: null` = all importable; `[]` = none; overrides map row id → category name.
+   *
+   * GBK Alipay exports must arrive as bytes/base64 — `File.text()` would corrupt them.
    */
   app.post(
     '/api/v1/import/platform-bills',
     async (request: FastifyRequest, reply: FastifyReply) => {
       const query = request.query as { source?: string; dryRun?: string; fileName?: string };
-      const sourceRaw = query.source ?? 'auto';
-      if (sourceRaw !== 'auto' && sourceRaw !== 'wechat' && sourceRaw !== 'alipay') {
-        throw new ValidationError('source must be auto, wechat, or alipay.');
-      }
-      const dryRun = query.dryRun === '1' || query.dryRun === 'true';
-
       const body = request.body;
+
+      const parseSource = (raw: unknown): 'auto' | 'wechat' | 'alipay' => {
+        const value = typeof raw === 'string' && raw !== '' ? raw : 'auto';
+        if (value !== 'auto' && value !== 'wechat' && value !== 'alipay') {
+          throw new ValidationError('source must be auto, wechat, or alipay.');
+        }
+        return value;
+      };
+      const parseDryRun = (raw: unknown, fromQuery?: string): boolean => {
+        if (typeof raw === 'boolean') return raw;
+        if (typeof raw === 'string') return raw === '1' || raw === 'true';
+        return fromQuery === '1' || fromQuery === 'true';
+      };
+
+      if (body !== null && typeof body === 'object' && !Buffer.isBuffer(body) && !Array.isArray(body)) {
+        const json = body as {
+          fileBase64?: unknown;
+          text?: unknown;
+          source?: unknown;
+          dryRun?: unknown;
+          fileName?: unknown;
+          selectedIds?: unknown;
+          categoryOverrides?: unknown;
+        };
+
+        let payload: Buffer | string;
+        if (typeof json.fileBase64 === 'string' && json.fileBase64 !== '') {
+          payload = Buffer.from(json.fileBase64, 'base64');
+        } else if (typeof json.text === 'string' && json.text.trim() !== '') {
+          payload = json.text;
+        } else {
+          throw new ValidationError(
+            'JSON body requires fileBase64 (raw bill bytes) or text (UTF-8 CSV).',
+          );
+        }
+
+        let selectedIds: string[] | null | undefined;
+        if (json.selectedIds === undefined || json.selectedIds === null) {
+          selectedIds = json.selectedIds === null ? null : undefined;
+        } else if (Array.isArray(json.selectedIds)) {
+          selectedIds = json.selectedIds.map((id) => String(id));
+        } else {
+          throw new ValidationError('selectedIds must be an array of ids or null.');
+        }
+
+        let categoryOverrides: Record<string, string> | undefined;
+        if (json.categoryOverrides !== undefined && json.categoryOverrides !== null) {
+          if (typeof json.categoryOverrides !== 'object' || Array.isArray(json.categoryOverrides)) {
+            throw new ValidationError('categoryOverrides must be an object of id → category name.');
+          }
+          categoryOverrides = {};
+          for (const [id, name] of Object.entries(json.categoryOverrides as Record<string, unknown>)) {
+            if (typeof name === 'string' && name.trim() !== '') categoryOverrides[id] = name.trim();
+          }
+        }
+
+        return reply.send(
+          service.importPlatformBills(payload, {
+            source: parseSource(json.source ?? query.source),
+            dryRun: parseDryRun(json.dryRun, query.dryRun),
+            fileName:
+              typeof json.fileName === 'string' && json.fileName !== ''
+                ? json.fileName
+                : typeof query.fileName === 'string'
+                  ? query.fileName
+                  : undefined,
+            selectedIds,
+            categoryOverrides,
+          }),
+        );
+      }
+
+      const sourceRaw = parseSource(query.source);
+      const dryRun = parseDryRun(undefined, query.dryRun);
+
       let payload: Buffer | string;
       if (Buffer.isBuffer(body)) {
         payload = body;
@@ -135,7 +209,7 @@ export async function registerPortabilityRoutes(
         payload = body;
       } else {
         throw new ValidationError(
-          'Send the bill file as the request body (CSV text, or raw bytes for GBK/xlsx).',
+          'Send the bill file as the request body (CSV text, raw bytes, or JSON with fileBase64).',
         );
       }
 

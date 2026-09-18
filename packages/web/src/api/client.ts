@@ -307,6 +307,22 @@ export interface ImportResult {
   readonly total: number;
 }
 
+/** One preview row from the platform bill import dry-run. */
+export interface PlatformImportRow {
+  readonly id: string;
+  readonly dateLabel: string;
+  readonly type: number;
+  readonly amountCents: number;
+  readonly note: string;
+  readonly counterparty: string;
+  readonly sourceCategory: string;
+  readonly categoryName: string;
+  readonly accountName: string;
+  readonly ignored: boolean;
+  readonly ignoreReason: string | null;
+  readonly alreadyExists: boolean;
+}
+
 /** WeChat / Alipay platform bill import response. */
 export interface PlatformImportResult {
   readonly source: 'wechat' | 'alipay';
@@ -316,6 +332,8 @@ export interface PlatformImportResult {
   readonly ignored: number;
   readonly total: number;
   readonly importable: number;
+  /** Rows that will be / were written after selection + overrides. */
+  readonly selected: number;
   readonly accountsCreated: number;
   readonly categoriesCreated: number;
   readonly dateFrom: string | null;
@@ -324,6 +342,18 @@ export interface PlatformImportResult {
   readonly incomeCents: number;
   readonly encoding: string;
   readonly warnings: readonly string[];
+  readonly rows: readonly PlatformImportRow[];
+}
+
+export interface PlatformImportRequest {
+  readonly bytes: ArrayBuffer | Uint8Array;
+  readonly source?: 'auto' | 'wechat' | 'alipay';
+  readonly dryRun?: boolean;
+  readonly fileName?: string;
+  /** Omitted → all importable; `[]` → none. */
+  readonly selectedIds?: readonly string[] | null;
+  /** Row id → category name override. */
+  readonly categoryOverrides?: Readonly<Record<string, string>>;
 }
 
 export interface MeResponse {
@@ -783,39 +813,28 @@ export const api = {
         rawBody: { contentType: 'text/csv', body: csvText },
       }),
     /**
-     * Imports a WeChat/Alipay bill file.
+     * Preview or confirm a WeChat/Alipay bill import.
      *
-     * Always sent as raw bytes: Alipay exports are GBK and WeChat may be xlsx —
-     * decoding happens on the server (`bill-decode`), not with `File.text()`.
+     * Sent as JSON with `fileBase64` so GBK/xlsx bytes survive, and so the confirm
+     * call can carry `selectedIds` + per-row `categoryOverrides` without a second file format.
      */
-    importPlatformBills: (
-      bytes: ArrayBuffer | Uint8Array,
-      options?: {
-        readonly source?: 'auto' | 'wechat' | 'alipay';
-        readonly dryRun?: boolean;
-        readonly fileName?: string;
-      },
-    ) => {
-      // Always a standalone ArrayBuffer: Alipay GBK / WeChat xlsx must not go through
-      // File.text(), and DOM BodyInit typing is picky about ArrayBufferLike views.
-      const buffer =
-        bytes instanceof ArrayBuffer
-          ? bytes
-          : (() => {
-              const copy = new Uint8Array(bytes.byteLength);
-              copy.set(bytes);
-              return copy.buffer;
-            })();
+    importPlatformBills: (input: PlatformImportRequest) => {
+      const bytes = input.bytes;
+      const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < view.length; i += chunk) {
+        binary += String.fromCharCode(...view.subarray(i, i + chunk));
+      }
       return request<PlatformImportResult>('/api/v1/import/platform-bills', {
         method: 'POST',
-        query: {
-          source: options?.source ?? 'auto',
-          dryRun: options?.dryRun ? '1' : undefined,
-          fileName: options?.fileName,
-        },
-        rawBody: {
-          contentType: 'application/octet-stream',
-          body: buffer,
+        body: {
+          fileBase64: btoa(binary),
+          source: input.source ?? 'auto',
+          dryRun: input.dryRun === true,
+          fileName: input.fileName,
+          selectedIds: input.selectedIds === undefined ? null : input.selectedIds,
+          categoryOverrides: input.categoryOverrides ?? {},
         },
       });
     },

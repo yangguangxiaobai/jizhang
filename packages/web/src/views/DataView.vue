@@ -2,29 +2,39 @@
 /**
  * Data: export, import (app CSV + WeChat/Alipay), and backups.
  *
- * Platform bills are posted as raw bytes so GBK/xlsx survive the trip; the server
- * decodes, classifies, and may auto-create the 微信/支付宝 account. Dry-run previews
- * counts before any write.
+ * Platform bills: dry-run posts the file and returns a row table; the user selects
+ * rows, may override categories, then confirm re-posts the same file with
+ * selectedIds + categoryOverrides. Bytes go as base64 JSON so GBK/xlsx stay intact.
  */
 import { computed, onMounted, ref } from 'vue';
 import { ApiError, api } from '../api/client.js';
-import type { BackupFile, ImportResult, PlatformImportResult } from '../api/client.js';
+import type {
+  BackupFile,
+  ImportResult,
+  PlatformImportResult,
+  PlatformImportRow,
+} from '../api/client.js';
 import { formatCents } from '../utils/money.js';
+import { useMetaStore } from '../stores/meta.js';
+import { TYPE_INCOME } from '../api/client.js';
 
+const meta = useMetaStore();
 const backups = ref<BackupFile[]>([]);
 const loading = ref(false);
 const busy = ref(false);
 const errorMessage = ref<string | null>(null);
-/** The outcome of the last app-CSV import, or null before one has run. */
 const importResult = ref<ImportResult | null>(null);
-/** The outcome of the last platform bill import / dry-run. */
 const platformResult = ref<PlatformImportResult | null>(null);
-/** The chosen file's name and size, shown before the user commits. */
 const chosen = ref<{ name: string; sizeBytes: number; text: string } | null>(null);
-/** Platform bill file kept as bytes (GBK / xlsx safe). */
 const platformFile = ref<{ name: string; sizeBytes: number; bytes: ArrayBuffer } | null>(null);
 const importMode = ref<'transactions' | 'transfers' | 'platform'>('transactions');
 const platformSource = ref<'auto' | 'wechat' | 'alipay'>('auto');
+/** Preview-only: true until a confirm write finishes. */
+const platformPreviewOnly = ref(true);
+/** Row ids currently checked for import. */
+const selectedRowIds = ref<Set<string>>(new Set());
+/** Row id → category name override. */
+const categoryOverrides = ref<Record<string, string>>({});
 
 const RESTORE_COMMAND =
   'docker compose stop jizhang\n' +
@@ -33,7 +43,81 @@ const RESTORE_COMMAND =
 
 const isOffline = computed(() => typeof navigator !== 'undefined' && navigator.onLine === false);
 
-const platformAccept = '.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const platformAccept =
+  '.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+const platformCandidateRows = computed(() =>
+  (platformResult.value?.rows ?? []).filter(
+    (row) => !row.ignored && !row.alreadyExists && row.amountCents > 0,
+  ),
+);
+
+const platformIgnoredRows = computed(() =>
+  (platformResult.value?.rows ?? []).filter((row) => row.ignored || row.alreadyExists),
+);
+
+const selectedCount = computed(() => selectedRowIds.value.size);
+
+const selectedExpenseCents = computed(() => {
+  let sum = 0;
+  for (const row of platformCandidateRows.value) {
+    if (selectedRowIds.value.has(row.id) && row.type !== TYPE_INCOME) sum += row.amountCents;
+  }
+  return sum;
+});
+
+const selectedIncomeCents = computed(() => {
+  let sum = 0;
+  for (const row of platformCandidateRows.value) {
+    if (selectedRowIds.value.has(row.id) && row.type === TYPE_INCOME) sum += row.amountCents;
+  }
+  return sum;
+});
+
+function categoryOptionsFor(type: number): { id: string; name: string }[] {
+  const list = type === TYPE_INCOME ? meta.incomeCategories : meta.expenseCategories;
+  return list.map((c) => ({ id: c.id, name: c.name }));
+}
+
+function effectiveCategoryName(row: PlatformImportRow): string {
+  return categoryOverrides.value[row.id] ?? row.categoryName;
+}
+
+function onCategoryChange(row: PlatformImportRow, event: Event): void {
+  const target = event.target as HTMLSelectElement;
+  const next = target.value;
+  if (next === '' || next === row.categoryName) {
+    const copy = { ...categoryOverrides.value };
+    delete copy[row.id];
+    categoryOverrides.value = copy;
+    return;
+  }
+  categoryOverrides.value = { ...categoryOverrides.value, [row.id]: next };
+}
+
+function toggleRow(id: string): void {
+  const next = new Set(selectedRowIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selectedRowIds.value = next;
+}
+
+function selectAllCandidates(on: boolean): void {
+  if (on) {
+    selectedRowIds.value = new Set(platformCandidateRows.value.map((row) => row.id));
+  } else {
+    selectedRowIds.value = new Set();
+  }
+}
+
+function seedSelectionFromPreview(result: PlatformImportResult): void {
+  selectedRowIds.value = new Set(
+    result.rows
+      .filter((row) => !row.ignored && !row.alreadyExists && row.amountCents > 0)
+      .map((row) => row.id),
+  );
+  categoryOverrides.value = {};
+}
 
 function record(error: unknown): void {
   if (error instanceof ApiError && error.isUnauthorized) return;
@@ -52,7 +136,10 @@ async function loadBackups(): Promise<void> {
   }
 }
 
-onMounted(loadBackups);
+onMounted(() => {
+  void loadBackups();
+  void meta.load();
+});
 
 function chooseImportMode(mode: 'transactions' | 'transfers' | 'platform'): void {
   importMode.value = mode;
@@ -60,10 +147,12 @@ function chooseImportMode(mode: 'transactions' | 'transfers' | 'platform'): void
   platformFile.value = null;
   importResult.value = null;
   platformResult.value = null;
+  platformPreviewOnly.value = true;
+  selectedRowIds.value = new Set();
+  categoryOverrides.value = {};
   errorMessage.value = null;
 }
 
-/** Bytes → a short human string. Display only; no accounting involved. */
 function sizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -89,17 +178,14 @@ async function takeBackup(): Promise<void> {
   }
 }
 
-/**
- * Reads the chosen app-CSV file into memory as text.
- *
- * Reading before submitting is what lets the screen state what is about to happen, and it
- * is required anyway: the import posts the text, not a multipart upload.
- */
 async function onFileChosen(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   importResult.value = null;
   platformResult.value = null;
+  platformPreviewOnly.value = true;
+  selectedRowIds.value = new Set();
+  categoryOverrides.value = {};
   errorMessage.value = null;
   if (file === undefined) {
     chosen.value = null;
@@ -142,17 +228,53 @@ async function runImport(): Promise<void> {
   }
 }
 
-async function runPlatformImport(dryRun: boolean): Promise<void> {
+async function runPlatformPreview(): Promise<void> {
   if (platformFile.value === null || busy.value) return;
   busy.value = true;
   errorMessage.value = null;
-  if (dryRun) platformResult.value = null;
+  platformResult.value = null;
   try {
-    platformResult.value = await api.portability.importPlatformBills(platformFile.value.bytes, {
+    const result = await api.portability.importPlatformBills({
+      bytes: platformFile.value.bytes,
       source: platformSource.value,
-      dryRun,
+      dryRun: true,
       fileName: platformFile.value.name,
+      selectedIds: null,
+      categoryOverrides: {},
     });
+    platformResult.value = result;
+    platformPreviewOnly.value = true;
+    seedSelectionFromPreview(result);
+  } catch (error) {
+    record(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function runPlatformConfirm(): Promise<void> {
+  if (platformFile.value === null || busy.value) return;
+  busy.value = true;
+  errorMessage.value = null;
+  try {
+    const overrides: Record<string, string> = {};
+    for (const row of platformCandidateRows.value) {
+      if (!selectedRowIds.value.has(row.id)) continue;
+      const name = categoryOverrides.value[row.id];
+      if (typeof name === 'string' && name !== '' && name !== row.categoryName) {
+        overrides[row.id] = name;
+      }
+    }
+    const result = await api.portability.importPlatformBills({
+      bytes: platformFile.value.bytes,
+      source: platformSource.value,
+      dryRun: false,
+      fileName: platformFile.value.name,
+      selectedIds: [...selectedRowIds.value],
+      categoryOverrides: overrides,
+    });
+    platformResult.value = result;
+    platformPreviewOnly.value = false;
   } catch (error) {
     record(error);
   } finally {
@@ -165,6 +287,9 @@ function clearImport(): void {
   platformFile.value = null;
   importResult.value = null;
   platformResult.value = null;
+  platformPreviewOnly.value = true;
+  selectedRowIds.value = new Set();
+  categoryOverrides.value = {};
   errorMessage.value = null;
 }
 </script>
@@ -175,30 +300,17 @@ function clearImport(): void {
     <p class="hint">
       下载 CSV 文件，可直接用 Excel 打开（中文不会乱码）。金额为元；账单含退款标记，转账带出入账户。
     </p>
-    <!--
-      Plain links rather than fetch + Blob: these are file downloads behind the session
-      cookie, and following a link avoids loading the whole CSV into memory first.
-    -->
-    <a class="action" :href="api.portability.exportUrl('transactions')" download>
-      导出账单
-    </a>
-    <a class="action" :href="api.portability.exportUrl('salaries')" download>
-      导出工资记录
-    </a>
-    <a class="action" :href="api.portability.exportUrl('recurring')" download>
-      导出周期账单规则
-    </a>
-    <a class="action" :href="api.portability.exportUrl('transfers')" download>
-      导出转账
-    </a>
+    <a class="action" :href="api.portability.exportUrl('transactions')" download>导出账单</a>
+    <a class="action" :href="api.portability.exportUrl('salaries')" download>导出工资记录</a>
+    <a class="action" :href="api.portability.exportUrl('recurring')" download>导出周期账单规则</a>
+    <a class="action" :href="api.portability.exportUrl('transfers')" download>导出转账</a>
   </section>
 
   <section class="card">
     <h2>导入数据</h2>
     <p class="hint">
       支持本应用导出的账单/转账 CSV，以及<strong>微信 / 支付宝</strong>账单文件。
-      已有相同 id 的记录会被跳过，重复导入不会重复入账。平台导入会自动过滤提现、理财、不计收支等条目；
-      分类按关键字粗分，不准的会落在「其他」，导入后可再改。
+      平台导入支持<strong>预览 → 勾选 → 改分类 → 确认</strong>；已存在 id 会跳过，重复导入不重复入账。
     </p>
 
     <div class="mode-switch mode-switch-3" role="group" aria-label="导入类型">
@@ -256,8 +368,8 @@ function clearImport(): void {
         </button>
       </div>
       <p class="hint">
-        微信：账单页 → 右上角「···」→ 下载账单；支付宝：账单 → 开具交易流水证明。
-        支持 .csv 与微信 .xlsx；支付宝 GBK 文件请直接上传，不要先用 Excel 另存。
+        微信：账单页 →「···」→ 下载账单；支付宝：账单 → 开具交易流水证明。
+        支持 .csv 与微信 .xlsx；支付宝 GBK 请直接上传原文件。
       </p>
     </template>
 
@@ -287,45 +399,153 @@ function clearImport(): void {
     <template v-if="importMode === 'platform' && platformFile !== null">
       <p class="preview">
         已选择 <strong>{{ platformFile.name }}</strong>（{{ sizeLabel(platformFile.sizeBytes) }}）。
-        建议先「预览」看将写入多少笔，再确认导入。
+        先点「预览」查看明细，再勾选并确认。
       </p>
       <div class="actions actions-3">
-        <button type="button" class="ghost" :disabled="busy || isOffline" @click="runPlatformImport(true)">
+        <button
+          type="button"
+          class="ghost"
+          :disabled="busy || isOffline"
+          @click="runPlatformPreview"
+        >
           {{ busy ? '处理中…' : '预览' }}
         </button>
-        <button type="button" :disabled="busy || isOffline" @click="runPlatformImport(false)">
-          {{ busy ? '导入中…' : '确认导入' }}
+        <button
+          type="button"
+          :disabled="busy || isOffline || platformResult === null || !platformPreviewOnly || selectedCount === 0"
+          @click="runPlatformConfirm"
+        >
+          {{ busy ? '导入中…' : `确认导入所选（${selectedCount}）` }}
         </button>
         <button type="button" class="ghost" :disabled="busy" @click="clearImport">取消</button>
       </div>
     </template>
 
-    <p v-if="importResult !== null" class="result notice notice-ok" role="status">
-      导入完成：新增 {{ importResult.inserted }} 条，跳过 {{ importResult.skipped }} 条（已存在），
-      共读取 {{ importResult.total }} 条。
-    </p>
-
-    <div v-if="platformResult !== null" class="result notice notice-ok" role="status">
+    <div
+      v-if="platformResult !== null && platformPreviewOnly"
+      class="result notice notice-ok"
+      role="status"
+    >
       <p>
-        {{ platformResult.dryRun ? '预览（未写入）' : '导入完成' }}：来源
-        {{ platformResult.source === 'wechat' ? '微信' : '支付宝' }}，将新增/已新增
-        <strong>{{ platformResult.inserted }}</strong> 条，
-        跳过 {{ platformResult.skipped }} 条（已存在），过滤 {{ platformResult.ignored }} 条，
-        共读取 {{ platformResult.total }} 条。
+        <strong>预览（未写入）</strong>：来源
+        {{ platformResult.source === 'wechat' ? '微信' : '支付宝' }}，
+        可入账 {{ platformCandidateRows.length }} 条，过滤/已存在 {{ platformIgnoredRows.length }} 条，
+        共读取 {{ platformResult.total }} 条。当前勾选
+        <strong>{{ selectedCount }}</strong> 条 —
+        支出 {{ formatCents(selectedExpenseCents) }} 元、收入 {{ formatCents(selectedIncomeCents) }} 元。
+      </p>
+      <div class="table-actions">
+        <button type="button" class="ghost" @click="selectAllCandidates(true)">全选可导入</button>
+        <button type="button" class="ghost" @click="selectAllCandidates(false)">全不选</button>
+      </div>
+
+      <div v-if="platformCandidateRows.length > 0" class="bill-table-wrap">
+        <table class="bill-table">
+          <thead>
+            <tr>
+              <th scope="col">选</th>
+              <th scope="col">日期</th>
+              <th scope="col">说明</th>
+              <th scope="col">金额</th>
+              <th scope="col">分类</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in platformCandidateRows" :key="row.id">
+              <td>
+                <input
+                  type="checkbox"
+                  :checked="selectedRowIds.has(row.id)"
+                  :aria-label="`选择 ${row.dateLabel} ${row.note}`"
+                  @change="toggleRow(row.id)"
+                />
+              </td>
+              <td class="cell-date">{{ row.dateLabel }}</td>
+              <td class="cell-note">
+                <div>{{ row.note }}</div>
+                <div class="cell-sub">
+                  {{ row.counterparty }}
+                  <span v-if="row.sourceCategory"> · {{ row.sourceCategory }}</span>
+                  <span v-if="effectiveCategoryName(row) !== row.categoryName">
+                    · 建议「{{ row.categoryName }}」→「{{ effectiveCategoryName(row) }}」
+                  </span>
+                </div>
+              </td>
+              <td class="cell-amount" :class="row.type === TYPE_INCOME ? 'income' : 'expense'">
+                {{ row.type === TYPE_INCOME ? '+' : '−' }}{{ formatCents(row.amountCents) }}
+              </td>
+              <td>
+                <select
+                  class="cat-select"
+                  :value="effectiveCategoryName(row)"
+                  :aria-label="`分类 ${row.note}`"
+                  @change="onCategoryChange(row, $event)"
+                >
+                  <option
+                    v-for="opt in categoryOptionsFor(row.type)"
+                    :key="opt.id"
+                    :value="opt.name"
+                  >
+                    {{ opt.name }}
+                  </option>
+                  <option
+                    v-if="!categoryOptionsFor(row.type).some((o) => o.name === effectiveCategoryName(row))"
+                    :value="effectiveCategoryName(row)"
+                  >
+                    {{ effectiveCategoryName(row) }}
+                  </option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="hint">没有可导入的明细（可能全部被过滤或已存在）。</p>
+
+      <details v-if="platformIgnoredRows.length > 0" class="ignored">
+        <summary>已过滤 / 已存在（{{ platformIgnoredRows.length }}）</summary>
+        <ul class="ignored-list">
+          <li v-for="row in platformIgnoredRows" :key="row.id">
+            {{ row.dateLabel }} · {{ row.note || row.counterparty }} ·
+            {{ formatCents(row.amountCents) }} —
+            {{ row.alreadyExists ? '账本中已存在' : row.ignoreReason || '已过滤' }}
+          </li>
+        </ul>
+      </details>
+
+      <p v-if="platformResult.warnings.length > 0" class="hint">
+        {{ platformResult.warnings.join('；') }}
+      </p>
+      <p v-if="platformResult.accountsCreated > 0" class="hint">
+        若「微信 / 支付宝」账户不存在，确认导入时会自动创建。
+      </p>
+    </div>
+
+    <div v-if="platformResult !== null && !platformPreviewOnly" class="result notice notice-ok" role="status">
+      <p>
+        <strong>导入完成</strong>：来源
+        {{ platformResult.source === 'wechat' ? '微信' : '支付宝' }}，
+        新增 <strong>{{ platformResult.inserted }}</strong> 条，
+        跳过 {{ platformResult.skipped }} 条（已存在），
+        过滤 {{ platformResult.ignored }} 条，共读取 {{ platformResult.total }} 条。
       </p>
       <p>
-        日期范围 {{ platformResult.dateFrom ?? '—' }} ～ {{ platformResult.dateTo ?? '—' }}；
-        支出合计 {{ formatCents(platformResult.expenseCents) }} 元，
-        收入合计 {{ formatCents(platformResult.incomeCents) }} 元。
+        本次所选合计：支出 {{ formatCents(platformResult.expenseCents) }} 元、
+        收入 {{ formatCents(platformResult.incomeCents) }} 元。
+        日期范围 {{ platformResult.dateFrom ?? '—' }} ～ {{ platformResult.dateTo ?? '—' }}。
       </p>
       <p v-if="platformResult.accountsCreated > 0 || platformResult.categoriesCreated > 0">
-        将新建账户 {{ platformResult.accountsCreated }} 个、分类 {{ platformResult.categoriesCreated }} 个
-        （例如「微信」「支付宝」）。
+        新建账户 {{ platformResult.accountsCreated }} 个、分类 {{ platformResult.categoriesCreated }} 个。
       </p>
       <ul v-if="platformResult.warnings.length > 0" class="warnings">
         <li v-for="(w, i) in platformResult.warnings" :key="i">{{ w }}</li>
       </ul>
     </div>
+
+    <p v-if="importResult !== null" class="result notice notice-ok" role="status">
+      导入完成：新增 {{ importResult.inserted }} 条，跳过 {{ importResult.skipped }} 条（已存在），
+      共读取 {{ importResult.total }} 条。
+    </p>
 
     <p v-if="isOffline" class="hint" role="status">离线状态下无法导入，请先连接网络。</p>
   </section>
@@ -381,7 +601,6 @@ h2 {
   color: var(--muted);
 }
 
-/* Block-level so each export is a full-width target rather than an inline link. */
 .action {
   display: flex;
   align-items: center;
@@ -431,7 +650,6 @@ h2 {
   border-color: var(--accent);
 }
 
-/* 16px minimum: below it, iOS Safari zooms the page on focus. */
 input[type='file'] {
   width: 100%;
   min-height: 44px;
@@ -450,7 +668,6 @@ input[type='file'] {
   line-height: 1.6;
 }
 
-/* A completed import is a confirmation: the `ok` notice from main.css, placed here. */
 .result {
   margin: 0.75rem 0 0;
   font-size: 0.82rem;
@@ -473,7 +690,108 @@ input[type='file'] {
 }
 
 .actions-3 {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1.4fr 1fr;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.55rem 0;
+}
+
+.bill-table-wrap {
+  overflow-x: auto;
+  margin: 0.4rem 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+}
+
+.bill-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.bill-table th,
+.bill-table td {
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.bill-table th {
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.bill-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.cell-date {
+  white-space: nowrap;
+}
+
+.cell-note {
+  min-width: 10rem;
+  max-width: 16rem;
+  word-break: break-word;
+}
+
+.cell-sub {
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.cell-amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-amount.expense {
+  color: var(--danger);
+}
+
+.cell-amount.income {
+  color: var(--ok);
+}
+
+.cat-select {
+  min-height: 44px;
+  min-width: 6.5rem;
+  max-width: 9rem;
+  padding: 0.25rem 0.35rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+}
+
+.ignored {
+  margin-top: 0.4rem;
+}
+
+.ignored summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ignored-list {
+  margin: 0.3rem 0 0.5rem;
+  padding-left: 1.1rem;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: var(--muted);
 }
 
 button {

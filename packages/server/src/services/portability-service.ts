@@ -35,7 +35,6 @@ import {
   parsePlatformBills,
   ACCOUNT_TYPE_ALIPAY,
   ACCOUNT_TYPE_WECHAT,
-  CATEGORY_TYPE_EXPENSE,
   CATEGORY_TYPE_INCOME,
   type CsvRow,
   type PlatformBillSource,
@@ -89,6 +88,25 @@ export interface ImportResult {
   readonly total: number;
 }
 
+/** One platform bill row as shown in the import preview table. */
+export interface PlatformImportRowDto {
+  readonly id: string;
+  readonly dateLabel: string;
+  /** 0 expense, 1 income — before ignore rules. */
+  readonly type: number;
+  readonly amountCents: number;
+  readonly note: string;
+  readonly counterparty: string;
+  readonly sourceCategory: string;
+  /** Keyword-suggested category name; the client may override before confirm. */
+  readonly categoryName: string;
+  readonly accountName: string;
+  readonly ignored: boolean;
+  readonly ignoreReason: string | null;
+  /** True when a transaction with this id already exists (will be skipped). */
+  readonly alreadyExists: boolean;
+}
+
 /** Result of a WeChat/Alipay platform bill import (or dry-run). */
 export interface PlatformImportResult {
   readonly source: PlatformBillSource;
@@ -100,20 +118,32 @@ export interface PlatformImportResult {
   readonly total: number;
   /** Rows that passed the platform ignore rules (may still be skipped as duplicates). */
   readonly importable: number;
+  /** Importable + not-yet-existing + in the selection — what confirm will write. */
+  readonly selected: number;
   readonly accountsCreated: number;
   readonly categoriesCreated: number;
   readonly dateFrom: string | null;
   readonly dateTo: string | null;
+  /** Expense/income totals for the *selected* set (not the whole file). */
   readonly expenseCents: number;
   readonly incomeCents: number;
   readonly encoding: string;
   readonly warnings: string[];
+  /** Full preview table (ignored + importable) for the UI. */
+  readonly rows: readonly PlatformImportRowDto[];
 }
 
 export interface PlatformImportOptions {
   readonly source?: 'auto' | PlatformBillSource;
   readonly dryRun?: boolean;
   readonly fileName?: string;
+  /**
+   * When omitted/null → import every importable non-duplicate row.
+   * When an array (including empty) → import only ids in the set.
+   */
+  readonly selectedIds?: readonly string[] | null;
+  /** Per-row category name overrides, keyed by platform row id. */
+  readonly categoryOverrides?: Readonly<Record<string, string>>;
 }
 
 export interface BackupFileDto {
@@ -689,9 +719,10 @@ export class PortabilityService {
    *   * **Lenient row-level ignore** — 提现/理财/不计收支/失败 rows are reported, not fatal.
    *   * **Auto-creates** the 微信 / 支付宝 account when missing (user decision for this feature).
    *   * **Keyword coarse categorisation** — wrong category falls to 其他/其他收入; the user
-   *     can re-file after import.
+   *     can override per row before confirm (`categoryOverrides`) or re-file after import.
    *   * **Encoding** — GBK Alipay CSV and WeChat xlsx are decoded server-side via `bill-decode`.
    *   * **Idempotent** — platform order ids become stable `wx-*` / `ali-*` transaction ids.
+   *   * **Selection** — `selectedIds` limits the write to a subset of the preview table.
    */
   importPlatformBills(
     payload: Buffer | string,
@@ -699,6 +730,8 @@ export class PortabilityService {
   ): PlatformImportResult {
     const dryRun = options.dryRun === true;
     const warnings: string[] = [];
+    const selectedIds = options.selectedIds;
+    const overrides = options.categoryOverrides ?? {};
 
     let text: string;
     let encoding = 'utf-8';
@@ -729,8 +762,44 @@ export class PortabilityService {
       (this.db.prepare('SELECT id FROM transactions').all() as { id: string }[]).map((r) => r.id),
     );
 
-    const importableRows = parsed.rows.filter((row) => !row.ignored && row.amountCents > 0);
-    const categoryNames = new Set(importableRows.map((row) => row.categoryName));
+    const previewRows: PlatformImportRowDto[] = parsed.rows.map((row) => ({
+      id: row.id,
+      dateLabel: row.dateLabel,
+      type: row.type,
+      amountCents: row.amountCents,
+      note: row.note,
+      counterparty: row.counterparty,
+      sourceCategory: row.sourceCategory,
+      categoryName: row.categoryName,
+      accountName: row.accountName,
+      ignored: row.ignored,
+      ignoreReason: row.ignoreReason,
+      alreadyExists: existingIds.has(row.id),
+    }));
+
+    /** Effective category name after the client's per-row override. */
+    const effectiveCategory = (row: (typeof parsed.rows)[number]): string => {
+      const override = overrides[row.id];
+      if (typeof override === 'string' && override.trim() !== '') return override.trim();
+      return row.categoryName;
+    };
+
+    const isSelected = (id: string): boolean =>
+      selectedIds === undefined || selectedIds === null ? true : selectedIds.includes(id);
+
+    // Candidate write set: platform-importable, not already in the ledger, and selected.
+    const importableRows = parsed.rows.filter((row) => {
+      if (row.ignored || row.amountCents <= 0) return false;
+      if (existingIds.has(row.id)) return false;
+      return isSelected(row.id);
+    });
+
+    // Category names actually needed for the write set (after overrides).
+    const categoryPlan = new Map<string, { name: string; type: number }>();
+    for (const row of importableRows) {
+      const name = effectiveCategory(row);
+      categoryPlan.set(`${row.type}:${name}`, { name, type: row.type });
+    }
 
     // Dry-run resolves names without writing; write path runs everything in one transaction.
     const resolve = (): {
@@ -739,17 +808,13 @@ export class PortabilityService {
       categoriesCreated: number;
       categoryIds: Map<string, string>;
     } => {
-      let accountsCreated = 0;
       let categoriesCreated = 0;
       const account = this.ensureNamedAccount(accountName, accountType, dryRun);
-      accountsCreated = account.created ? 1 : 0;
+      const accountsCreated = account.created ? 1 : 0;
       const categoryIds = new Map<string, string>();
-      for (const name of categoryNames) {
-        const type = importableRows.find((r) => r.categoryName === name)?.type === 1
-          ? CATEGORY_TYPE_INCOME
-          : CATEGORY_TYPE_EXPENSE;
-        const ensured = this.ensureNamedCategory(name, type, dryRun);
-        categoryIds.set(`${type}:${name}`, ensured.id);
+      for (const [key, plan] of categoryPlan) {
+        const ensured = this.ensureNamedCategory(plan.name, plan.type, dryRun);
+        categoryIds.set(key, ensured.id);
         if (ensured.created) categoriesCreated += 1;
       }
       return { accountId: account.id, accountsCreated, categoriesCreated, categoryIds };
@@ -757,6 +822,8 @@ export class PortabilityService {
 
     let insertable = 0;
     let skipped = 0;
+    let expenseCents = 0;
+    let incomeCents = 0;
     const pending: {
       id: string;
       type: number;
@@ -775,29 +842,37 @@ export class PortabilityService {
       const resolved = resolve();
       insertable = 0;
       skipped = 0;
+      expenseCents = 0;
+      incomeCents = 0;
       pending.length = 0;
 
-      for (const row of importableRows) {
-        if (existingIds.has(row.id)) {
-          skipped += 1;
-          continue;
+      // Duplicates that were selected still count as skipped for the user.
+      if (selectedIds !== undefined && selectedIds !== null) {
+        for (const id of selectedIds) {
+          if (existingIds.has(id)) skipped += 1;
         }
+      } else {
+        for (const row of parsed.rows) {
+          if (!row.ignored && row.amountCents > 0 && existingIds.has(row.id)) skipped += 1;
+        }
+      }
+
+      for (const row of importableRows) {
         const date = parseDateLabel(row.dateLabel);
         if (date === null) {
           warnings.push(`跳过无法解析日期的行：${row.dateLabel}`);
           continue;
         }
         const type = row.type;
-        const categoryId =
-          resolved.categoryIds.get(`${type}:${row.categoryName}`) ??
-          resolved.categoryIds.get(
-            `${type === 1 ? CATEGORY_TYPE_INCOME : CATEGORY_TYPE_EXPENSE}:${row.categoryName}`,
-          );
+        const name = effectiveCategory(row);
+        const categoryId = resolved.categoryIds.get(`${type}:${name}`);
         if (categoryId === undefined) {
-          warnings.push(`缺少分类「${row.categoryName}」，跳过：${row.note}`);
+          warnings.push(`缺少分类「${name}」，跳过：${row.note}`);
           continue;
         }
         insertable += 1;
+        if (type === 1) incomeCents += row.amountCents;
+        else expenseCents += row.amountCents;
         pending.push({
           id: row.id,
           type,
@@ -805,8 +880,7 @@ export class PortabilityService {
           categoryId,
           note: row.note,
           date,
-          // Platform “退款” income matches the app’s income-refund model when keyword-mapped.
-          isRefund: type === 1 && row.categoryName === '退款',
+          isRefund: type === 1 && name === '退款',
         });
       }
 
@@ -855,14 +929,16 @@ export class PortabilityService {
       ignored: parsed.ignored,
       total: parsed.total,
       importable: parsed.importable,
+      selected: insertable,
       accountsCreated: resolved.accountsCreated,
       categoriesCreated: resolved.categoriesCreated,
       dateFrom: parsed.dateFrom,
       dateTo: parsed.dateTo,
-      expenseCents: parsed.expenseCents,
-      incomeCents: parsed.incomeCents,
+      expenseCents,
+      incomeCents,
       encoding,
       warnings,
+      rows: previewRows,
     };
   }
 
