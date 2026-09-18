@@ -2,7 +2,7 @@
 
 单用户记账 Web PWA:Vue 3 + Vite 前端、Fastify 后端、SQLite 存储,**单容器**部署(后端同源托管前端产物)。
 
-> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-budget-cycle`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`)。
+> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-platform-import`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`;含微信/支付宝账单导入)。
 > 日常用法请看 [USAGE.md](./USAGE.md);部署与升级请看 [DEPLOY.md](./DEPLOY.md)。
 
 ## 功能
