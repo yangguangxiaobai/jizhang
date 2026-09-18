@@ -49,6 +49,7 @@ ENV NODE_ENV=production \
     PORT=8081 \
     DATA_DIR=/data \
     WEB_DIST_DIR=/app/public \
+    TZ=Asia/Shanghai \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 WORKDIR /app

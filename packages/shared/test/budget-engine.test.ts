@@ -553,6 +553,29 @@ describe('computeModuleViews：配置周期模式', () => {
     expect(views).toHaveLength(1);
     expect(views[0]!.budgetCents).toBe(700000);
   });
+
+  it('C6b 9/9 记工资、起算日 10：工资供 9/10 周期，9 月中支出计入已用', () => {
+    const salary = allocation({
+      id: 'sep9',
+      date: at(2026, 9, 9),
+      modules: [['food', 564285]],
+    });
+    const txns = [
+      txn({ id: 'e1', categoryId: 'food', amountCents: 51719, date: at(2026, 9, 15) }),
+      // 起算日前的支出仍属上一周期，不进本周期已用
+      txn({ id: 'e0', categoryId: 'food', amountCents: 10000, date: at(2026, 9, 5) }),
+    ];
+
+    const views = computeModuleViews({
+      allocationsDesc: [salary],
+      transactions: txns,
+      cycle: startDay(10),
+    });
+
+    expect(views).toHaveLength(1);
+    expect(views[0]!.budgetCents).toBe(564285);
+    expect(views[0]!.spentCents).toBe(51719);
+  });
 });
 
 describe('computeCarryoverPool：配置周期模式', () => {

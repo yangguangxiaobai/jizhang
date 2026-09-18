@@ -92,7 +92,10 @@ JIZHANG_PASSWORD_HASH=placeholder-required-to-boot-but-never-read
 SESSION_TTL_DAYS=30
 LOG_LEVEL=info
 TRUST_PROXY=true
+TZ=Asia/Shanghai
 ```
+
+⚠️ **`TZ` 必须是用户日历时区**（中国用 `Asia/Shanghai`）。容器默认 UTC 时，北京时间 9/10 00:00 会被算成 9/9，工资被划进上一预算周期，当期「已用」会一直是 0。生产 compose 的 `environment` 里也应有 `TZ: Asia/Shanghai`。
 
 ⚠️ **`JIZHANG_PASSWORD_HASH` 必须存在，否则容器起不来**——它在 `config.ts` 的 `REQUIRED`
 列表里，缺失时服务打印配置错误并退出 1，容器会一直在 `Restarting`。但它的**值不参与任何逻辑**

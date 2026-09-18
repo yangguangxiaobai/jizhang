@@ -110,6 +110,24 @@ export function periodStartOf(startDay: number, date: number): number {
   return candidate;
 }
 
+/**
+ * 工资/预算分配归属的周期起点：始终是发薪日**所在自然月**的起算日。
+ *
+ * 与 `periodStartOf` 不同：账单用 `periodStartOf`（早于起算日 → 上一周期）；
+ * 工资用本函数（9/9 记工资、起算日 10 → 周期从 9/10 起算，而不是 8/10）。
+ * 产品语义是「这笔钱供接下来的预算周期使用」。
+ */
+export function allocationPeriodStart(startDay: number, date: number): number {
+  const d = new Date(dateOnly(date));
+  const year = d.getFullYear();
+  const monthIndex = d.getMonth();
+  return dayStart(
+    year,
+    monthIndex,
+    clampToMonth(startDay, year, monthIndex),
+  );
+}
+
 /** 配置 `startDay` 下，周期起点 `start` 的下一周期起点（同样按目标月 clamp）。 */
 export function nextPeriodStart(startDay: number, start: number): number {
   const d = new Date(dateOnly(start));

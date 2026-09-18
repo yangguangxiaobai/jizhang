@@ -23,6 +23,7 @@
  */
 
 import {
+  allocationPeriodStart,
   cycleStartOf,
   dateOnly,
   daysInMonth,
@@ -104,8 +105,10 @@ function groupByMonth(
 }
 
 /**
- * 配置起始日模式分组：按 `periodStartOf(day, date)` 分组，最新周期在前。
- * 参考 `_groupByPeriod`,`:251-262`。
+ * 配置起始日模式分组：按 `allocationPeriodStart(day, date)` 分组，最新周期在前。
+ *
+ * 工资归属「发薪当月」的起算日：9/9 记工资、起算日 10 → 周期 9/10 起。
+ * 账单窗口仍用 `[start, nextPeriodStart)`，早于起算日的支出不会算进该周期。
  */
 function groupByPeriod(
   allocationsDesc: readonly BudgetAllocation[],
@@ -113,7 +116,7 @@ function groupByPeriod(
 ): PeriodGroup[] {
   const groups = new Map<number, BudgetAllocation[]>();
   for (const a of allocationsDesc) {
-    const key = periodStartOf(startDay, a.date);
+    const key = allocationPeriodStart(startDay, a.date);
     const bucket = groups.get(key);
     if (bucket) bucket.push(a);
     else groups.set(key, [a]);
@@ -197,7 +200,7 @@ export function currentCycleRange(
   }
   const anchor = current.allocations[0];
   if (anchor === undefined) return null;
-  const start = periodStartOf(cycle.day, anchor.date);
+  const start = allocationPeriodStart(cycle.day, anchor.date);
   return { start, end: nextPeriodStart(cycle.day, start) };
 }
 
@@ -340,7 +343,7 @@ export function computeCarryoverPool(
   const currentStart =
     cycle.kind === 'natural-month'
       ? current.start
-      : periodStartOf(cycle.day, anchor.date);
+      : allocationPeriodStart(cycle.day, anchor.date);
 
   let pool = 0;
 
@@ -354,7 +357,7 @@ export function computeCarryoverPool(
     const start =
       cycle.kind === 'natural-month'
         ? group.start
-        : periodStartOf(cycle.day, groupAnchor.date);
+        : allocationPeriodStart(cycle.day, groupAnchor.date);
     for (const view of moduleViewsInWindow(group.allocations, input.transactions, start, nextStart)) {
       pool += view.remainingCents;
     }
@@ -370,7 +373,7 @@ export function computeCarryoverPool(
   const earliestStart =
     cycle.kind === 'natural-month'
       ? dateOnly(oldest.date)
-      : periodStartOf(cycle.day, oldest.date);
+      : allocationPeriodStart(cycle.day, oldest.date);
 
   for (const txn of input.transactions) {
     if (
@@ -450,7 +453,7 @@ export function computePoolTrend(
   const earliestStart =
     cycle.kind === 'natural-month'
       ? dateOnly(oldest.date)
-      : periodStartOf(cycle.day, oldest.date);
+      : allocationPeriodStart(cycle.day, oldest.date);
 
   let pool = 0;
   for (const txn of input.transactions) {
@@ -477,7 +480,7 @@ export function computePoolTrend(
     const start =
       cycle.kind === 'natural-month'
         ? group.start
-        : periodStartOf(cycle.day, anchor.date);
+        : allocationPeriodStart(cycle.day, anchor.date);
 
     // 先记录"本周期开始时"的池余额。
     points.push({ periodStart: start, poolCents: pool });
@@ -495,7 +498,7 @@ export function computePoolTrend(
           ? next.start
           : nextAnchor === undefined
             ? null
-            : periodStartOf(cycle.day, nextAnchor.date);
+            : allocationPeriodStart(cycle.day, nextAnchor.date);
     }
 
     for (const view of moduleViewsInWindow(group.allocations, input.transactions, start, end)) {
@@ -548,4 +551,4 @@ export function parseYuanToCents(input: string): number | null {
   return cents > 0 ? cents : null;
 }
 
-export { daysInMonth, monthKey, periodStartOf, nextPeriodStart, cycleStartOf };
+export { daysInMonth, monthKey, periodStartOf, allocationPeriodStart, nextPeriodStart, cycleStartOf };

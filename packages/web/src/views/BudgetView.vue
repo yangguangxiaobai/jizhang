@@ -5,8 +5,10 @@
  * Every number here comes from the server's engine, so what the user sees matches
  * the salary page and (later) the charts for the same period.
  */
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { nextPeriodStart } from '@jizhang/shared';
+import { TYPE_EXPENSE, api } from '../api/client.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { budgetTone, budgetToneLabel } from '../utils/budget-tone.js';
 import { formatMonthLabel, formatYuan } from '../utils/money.js';
@@ -14,9 +16,68 @@ import { formatMonthLabel, formatYuan } from '../utils/money.js';
 const budget = useBudgetStore();
 const router = useRouter();
 
+/** Expense cents after the displayed cycle's end, not yet in any live allocation window. */
+const outsideCycleExpenseCents = ref(0);
+const outsideCycleFrom = ref<number | null>(null);
+
 onMounted(() => {
-  void budget.loadAll();
+  void budget.loadAll().then(() => {
+    void loadOutsideCycleExpense();
+  });
 });
+
+watch(
+  () => [budget.currentPeriodStart, budget.selectedPeriodStart, budget.displayedOverview?.hasBudget],
+  () => {
+    void loadOutsideCycleExpense();
+  },
+);
+
+/**
+ * Plan A: surface expenses that fall after the displayed cycle's end.
+ *
+ * The engine attributes a salary to `periodStartOf(cycle.day, salaryDate)`. A salary
+ * dated the day before the start day therefore funds the PREVIOUS cycle, and later
+ * expenses sit outside the overview — not because they were ignored. Showing the
+ * amount makes that gap readable without changing the accounting rule.
+ */
+async function loadOutsideCycleExpense(): Promise<void> {
+  const overview = budget.displayedOverview;
+  const start = budget.viewingHistory
+    ? budget.selectedPeriodStart
+    : budget.currentPeriodStart;
+  if (overview === null || start === null || !overview.hasBudget) {
+    outsideCycleExpenseCents.value = 0;
+    outsideCycleFrom.value = null;
+    return;
+  }
+
+  const cycle = overview.cycle;
+  const end =
+    cycle.kind === 'natural-month' ? null : nextPeriodStart(cycle.day, start);
+  if (end === null) {
+    outsideCycleExpenseCents.value = 0;
+    outsideCycleFrom.value = null;
+    return;
+  }
+
+  try {
+    const result = await api.transactions.list({
+      type: TYPE_EXPENSE,
+      from: end,
+      limit: 200,
+    });
+    let sum = 0;
+    for (const item of result.items) {
+      if (item.isRefund !== true) sum += item.amountCents;
+    }
+    outsideCycleExpenseCents.value = sum;
+    outsideCycleFrom.value = sum > 0 ? end : null;
+  } catch {
+    outsideCycleExpenseCents.value = 0;
+    outsideCycleFrom.value = null;
+  }
+}
 
 /**
  * Progress bar length, capped so an overspent module does not overflow its track.
@@ -42,6 +103,30 @@ const cycleLabel = computed(() => {
     ? '自然月周期'
     : `每月 ${cycle.day} 号起算`;
 });
+
+/** e.g. `8月10日 – 9月9日` for the cycle currently on screen. */
+const cycleRangeLabel = computed(() => {
+  const overview = budget.displayedOverview;
+  const startTs = budget.viewingHistory
+    ? budget.selectedPeriodStart
+    : budget.currentPeriodStart;
+  if (overview === null || startTs === null || !overview.hasBudget) return '';
+  const cycle = overview.cycle;
+  if (cycle.kind === 'natural-month') {
+    return formatMonthLabel(startTs);
+  }
+  const endTs = nextPeriodStart(cycle.day, startTs);
+  return `${formatDayShort(startTs)} – ${formatDayShort(endTs - 1)}`;
+});
+
+function formatDayShort(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function formatOutsideFrom(ts: number): string {
+  return formatDayShort(ts);
+}
 
 const poolLabel = computed(() =>
   formatYuan(budget.displayedOverview?.carryoverPoolCents ?? 0),
@@ -157,7 +242,20 @@ const historyLoading = computed(
             }}
           </strong>
         </div>
-        <p class="cycle">{{ cycleLabel }}</p>
+        <p class="cycle">
+          {{ cycleLabel }}
+          <template v-if="cycleRangeLabel"> · {{ cycleRangeLabel }}</template>
+        </p>
+      </section>
+
+      <section
+        v-if="!budget.viewingHistory && outsideCycleExpenseCents > 0 && outsideCycleFrom !== null"
+        class="notice notice-warning outside-cycle"
+        role="status"
+      >
+        <strong>{{ formatOutsideFrom(outsideCycleFrom) }}</strong>
+        起还有 <strong>{{ formatYuan(outsideCycleExpenseCents) }}</strong> 支出未纳入本周期预算。
+        工资若记在起算日之前，会划入上一周期；把工资日期改到起算日当天或之后，或再记一笔新周期工资即可。
       </section>
 
       <section class="pool card" :class="{ borrowed: budget.poolIsNegative }">
@@ -316,6 +414,12 @@ const historyLoading = computed(
    colours come from `.notice` in main.css; this rule only places it. */
 .history-note {
   margin: 0 0 1rem;
+}
+
+.outside-cycle {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
 }
 
 .summary .row {

@@ -18,6 +18,9 @@ services:
         required: false
 
     environment:
+      # Calendar math (budget cycle day, month labels) is local-time. Without this
+      # the container runs UTC and a China-midnight timestamp lands on the previous day.
+      TZ: Asia/Shanghai
       NODE_ENV: production
       PORT: '8081'
       DATA_DIR: /data
