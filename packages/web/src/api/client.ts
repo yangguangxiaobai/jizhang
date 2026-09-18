@@ -321,6 +321,9 @@ export interface PlatformImportRow {
   readonly ignored: boolean;
   readonly ignoreReason: string | null;
   readonly alreadyExists: boolean;
+  /** Soft match: similar bill already on the platform account (default unchecked). */
+  readonly possibleDuplicate: boolean;
+  readonly duplicateOfNote: string | null;
 }
 
 /** WeChat / Alipay platform bill import response. */

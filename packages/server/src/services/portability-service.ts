@@ -105,6 +105,14 @@ export interface PlatformImportRowDto {
   readonly ignoreReason: string | null;
   /** True when a transaction with this id already exists (will be skipped). */
   readonly alreadyExists: boolean;
+  /**
+   * Soft match: same platform account + local date + type + amount already in the
+   * ledger under a *different* id (typically a hand-entered bill). Still importable,
+   * but the UI defaults these to unchecked.
+   */
+  readonly possibleDuplicate: boolean;
+  /** Note of the first matching ledger row, for the preview hint. */
+  readonly duplicateOfNote: string | null;
 }
 
 /** Result of a WeChat/Alipay platform bill import (or dry-run). */
@@ -762,20 +770,61 @@ export class PortabilityService {
       (this.db.prepare('SELECT id FROM transactions').all() as { id: string }[]).map((r) => r.id),
     );
 
-    const previewRows: PlatformImportRowDto[] = parsed.rows.map((row) => ({
-      id: row.id,
-      dateLabel: row.dateLabel,
-      type: row.type,
-      amountCents: row.amountCents,
-      note: row.note,
-      counterparty: row.counterparty,
-      sourceCategory: row.sourceCategory,
-      categoryName: row.categoryName,
-      accountName: row.accountName,
-      ignored: row.ignored,
-      ignoreReason: row.ignoreReason,
-      alreadyExists: existingIds.has(row.id),
-    }));
+    // Soft-duplicate index: live rows on the target platform account, keyed by
+    // local-date|type|amount. Catches hand-entered bills the platform id cannot see.
+    const softDup = new Map<string, string>();
+    const liveAccountId = (
+      this.db
+        .prepare(
+          'SELECT id FROM accounts WHERE name = ? AND deleted = 0 ORDER BY sort_order LIMIT 1',
+        )
+        .get(accountName) as { id: string } | undefined
+    )?.id;
+    if (liveAccountId !== undefined) {
+      const ledger = this.db
+        .prepare(
+          `SELECT date, type, amount_cents, note FROM transactions
+            WHERE account_id = ? AND deleted = 0`,
+        )
+        .all(liveAccountId) as {
+        date: number;
+        type: number;
+        amount_cents: number;
+        note: string;
+      }[];
+      for (const item of ledger) {
+        const date = new Date(item.date);
+        const label = [
+          date.getFullYear(),
+          String(date.getMonth() + 1).padStart(2, '0'),
+          String(date.getDate()).padStart(2, '0'),
+        ].join('-');
+        const key = `${label}|${item.type}|${item.amount_cents}`;
+        if (!softDup.has(key)) softDup.set(key, item.note);
+      }
+    }
+
+    const previewRows: PlatformImportRowDto[] = parsed.rows.map((row) => {
+      const alreadyExists = existingIds.has(row.id);
+      const softKey = `${row.dateLabel}|${row.type}|${row.amountCents}`;
+      const dupNote = alreadyExists ? null : (softDup.get(softKey) ?? null);
+      return {
+        id: row.id,
+        dateLabel: row.dateLabel,
+        type: row.type,
+        amountCents: row.amountCents,
+        note: row.note,
+        counterparty: row.counterparty,
+        sourceCategory: row.sourceCategory,
+        categoryName: row.categoryName,
+        accountName: row.accountName,
+        ignored: row.ignored,
+        ignoreReason: row.ignoreReason,
+        alreadyExists,
+        possibleDuplicate: dupNote !== null,
+        duplicateOfNote: dupNote,
+      };
+    });
 
     /** Effective category name after the client's per-row override. */
     const effectiveCategory = (row: (typeof parsed.rows)[number]): string => {

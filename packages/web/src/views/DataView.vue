@@ -104,16 +104,27 @@ function toggleRow(id: string): void {
 
 function selectAllCandidates(on: boolean): void {
   if (on) {
-    selectedRowIds.value = new Set(platformCandidateRows.value.map((row) => row.id));
+    selectedRowIds.value = new Set(
+      platformCandidateRows.value
+        .filter((row) => !row.possibleDuplicate)
+        .map((row) => row.id),
+    );
   } else {
     selectedRowIds.value = new Set();
   }
 }
 
 function seedSelectionFromPreview(result: PlatformImportResult): void {
+  // Soft-duplicates stay visible but unchecked so the user must opt in.
   selectedRowIds.value = new Set(
     result.rows
-      .filter((row) => !row.ignored && !row.alreadyExists && row.amountCents > 0)
+      .filter(
+        (row) =>
+          !row.ignored &&
+          !row.alreadyExists &&
+          row.amountCents > 0 &&
+          !row.possibleDuplicate,
+      )
       .map((row) => row.id),
   );
   categoryOverrides.value = {};
@@ -470,6 +481,11 @@ function clearImport(): void {
                     · 建议「{{ row.categoryName }}」→「{{ effectiveCategoryName(row) }}」
                   </span>
                 </div>
+                <div v-if="row.possibleDuplicate" class="dup-hint">
+                  可能与已有账单重复{{
+                    row.duplicateOfNote ? `（已有备注：${row.duplicateOfNote}）` : ''
+                  }}，已默认不勾选
+                </div>
               </td>
               <td class="cell-amount" :class="row.type === TYPE_INCOME ? 'income' : 'expense'">
                 {{ row.type === TYPE_INCOME ? '+' : '−' }}{{ formatCents(row.amountCents) }}
@@ -745,6 +761,13 @@ input[type='file'] {
   margin-top: 0.15rem;
   font-size: 0.7rem;
   color: var(--muted);
+}
+
+.dup-hint {
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--warning);
 }
 
 .cell-amount {

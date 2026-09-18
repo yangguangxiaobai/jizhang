@@ -149,6 +149,31 @@ describe('importPlatformBills — WeChat UTF-8 CSV', () => {
   });
 });
 
+describe('importPlatformBills — soft duplicate (hand-entered bill)', () => {
+  it('flags same account+date+type+amount already in the ledger', () => {
+    db.prepare(
+      `INSERT INTO accounts (id, name, type, initial_balance_cents, sort_order, is_builtin, deleted, updated_at)
+       VALUES ('acc-alipay', '支付宝', 3, 0, 1, 0, 0, 1)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO transactions
+         (id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund, deleted, updated_at)
+       VALUES ('manual-meituan-14', 0, 1400, 'builtin-expense-other', 'acc-alipay',
+               ?, '跑腿', '[]', 0, 0, ?)`,
+    ).run(new Date(2026, 8, 15).getTime(), Date.now());
+
+    const preview = service.importPlatformBills(alipayGbk, { source: 'alipay', dryRun: true });
+    const meituan = preview.rows.find((r) => r.counterparty === '美团' && !r.ignored);
+    expect(meituan).toBeDefined();
+    expect(meituan?.alreadyExists).toBe(false);
+    expect(meituan?.possibleDuplicate).toBe(true);
+    expect(meituan?.duplicateOfNote).toBe('跑腿');
+
+    const pupu = preview.rows.find((r) => r.counterparty === '朴朴超市' && !r.ignored);
+    expect(pupu?.possibleDuplicate).toBe(false);
+  });
+});
+
 describe('importPlatformBills — Alipay GBK bytes', () => {
   it('decodes GBK and imports only the three bookable rows', () => {
     const result = service.importPlatformBills(alipayGbk, { source: 'auto' });
