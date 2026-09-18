@@ -6,7 +6,7 @@
  * index.ts own the process lifecycle (port binding, signals, shutdown).
  */
 import fastifyStatic from '@fastify/static';
-import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { AppConfig } from './config.js';
@@ -69,6 +69,22 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     (_request, body, done) => {
       done(null, body);
     },
+  );
+
+  // Platform bill import: Alipay GBK CSV and WeChat xlsx must arrive as raw bytes.
+  // A browser File.text() would corrupt GBK; the server decodes after the body lands.
+  const bufferParser = (
+    _request: FastifyRequest,
+    body: Buffer,
+    done: (err: Error | null, body?: unknown) => void,
+  ): void => {
+    done(null, body);
+  };
+  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, bufferParser);
+  app.addContentTypeParser(
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    { parseAs: 'buffer' },
+    bufferParser,
   );
 
   // ── Unified error contract: { error: { code, message } } (design.md §5) ──────

@@ -61,7 +61,10 @@ interface RequestOptions {
    * `JSON.stringify` would change its bytes. Mutating rules still apply (offline check,
    * CSRF header), because this is still a write.
    */
-  readonly rawBody?: { readonly contentType: string; readonly body: string };
+  readonly rawBody?: {
+    readonly contentType: string;
+    readonly body: string | ArrayBuffer | Blob;
+  };
 }
 
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
@@ -302,6 +305,25 @@ export interface ImportResult {
   readonly inserted: number;
   readonly skipped: number;
   readonly total: number;
+}
+
+/** WeChat / Alipay platform bill import response. */
+export interface PlatformImportResult {
+  readonly source: 'wechat' | 'alipay';
+  readonly dryRun: boolean;
+  readonly inserted: number;
+  readonly skipped: number;
+  readonly ignored: number;
+  readonly total: number;
+  readonly importable: number;
+  readonly accountsCreated: number;
+  readonly categoriesCreated: number;
+  readonly dateFrom: string | null;
+  readonly dateTo: string | null;
+  readonly expenseCents: number;
+  readonly incomeCents: number;
+  readonly encoding: string;
+  readonly warnings: readonly string[];
 }
 
 export interface MeResponse {
@@ -760,6 +782,43 @@ export const api = {
         method: 'POST',
         rawBody: { contentType: 'text/csv', body: csvText },
       }),
+    /**
+     * Imports a WeChat/Alipay bill file.
+     *
+     * Always sent as raw bytes: Alipay exports are GBK and WeChat may be xlsx —
+     * decoding happens on the server (`bill-decode`), not with `File.text()`.
+     */
+    importPlatformBills: (
+      bytes: ArrayBuffer | Uint8Array,
+      options?: {
+        readonly source?: 'auto' | 'wechat' | 'alipay';
+        readonly dryRun?: boolean;
+        readonly fileName?: string;
+      },
+    ) => {
+      // Always a standalone ArrayBuffer: Alipay GBK / WeChat xlsx must not go through
+      // File.text(), and DOM BodyInit typing is picky about ArrayBufferLike views.
+      const buffer =
+        bytes instanceof ArrayBuffer
+          ? bytes
+          : (() => {
+              const copy = new Uint8Array(bytes.byteLength);
+              copy.set(bytes);
+              return copy.buffer;
+            })();
+      return request<PlatformImportResult>('/api/v1/import/platform-bills', {
+        method: 'POST',
+        query: {
+          source: options?.source ?? 'auto',
+          dryRun: options?.dryRun ? '1' : undefined,
+          fileName: options?.fileName,
+        },
+        rawBody: {
+          contentType: 'application/octet-stream',
+          body: buffer,
+        },
+      });
+    },
     listBackups: () => request<{ items: BackupFile[] }>('/api/v1/backups'),
     createBackup: () => request<BackupFile>('/api/v1/backups', { method: 'POST' }),
   },

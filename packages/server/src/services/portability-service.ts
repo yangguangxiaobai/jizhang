@@ -24,16 +24,25 @@
  * local code page and every Chinese character is garbage. `packages/shared/src/csv.ts`
  * owns the escaping rules.
  */
+import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import { mkdirSync, readdirSync, statSync } from 'node:fs';
 import {
   encodeCsvWithBom,
   formatCents,
+  paletteSlot,
   parseCsvWithHeader,
+  parsePlatformBills,
+  ACCOUNT_TYPE_ALIPAY,
+  ACCOUNT_TYPE_WECHAT,
+  CATEGORY_TYPE_EXPENSE,
+  CATEGORY_TYPE_INCOME,
   type CsvRow,
+  type PlatformBillSource,
 } from '@jizhang/shared';
 import { createBackup } from '../cli-db.js';
 import type { Db } from '../db/index.js';
+import { decodeBillFile } from './bill-decode.js';
 import { ValidationError } from './transaction-service.js';
 
 /** The columns of the transactions export. Order is the file's contract. */
@@ -78,6 +87,33 @@ export interface ImportResult {
   readonly skipped: number;
   /** Data rows read from the file. */
   readonly total: number;
+}
+
+/** Result of a WeChat/Alipay platform bill import (or dry-run). */
+export interface PlatformImportResult {
+  readonly source: PlatformBillSource;
+  readonly dryRun: boolean;
+  readonly inserted: number;
+  readonly skipped: number;
+  readonly ignored: number;
+  /** All data rows seen, including ignored ones. */
+  readonly total: number;
+  /** Rows that passed the platform ignore rules (may still be skipped as duplicates). */
+  readonly importable: number;
+  readonly accountsCreated: number;
+  readonly categoriesCreated: number;
+  readonly dateFrom: string | null;
+  readonly dateTo: string | null;
+  readonly expenseCents: number;
+  readonly incomeCents: number;
+  readonly encoding: string;
+  readonly warnings: string[];
+}
+
+export interface PlatformImportOptions {
+  readonly source?: 'auto' | PlatformBillSource;
+  readonly dryRun?: boolean;
+  readonly fileName?: string;
 }
 
 export interface BackupFileDto {
@@ -644,6 +680,273 @@ export class PortabilityService {
     insertMany(pendingRows);
 
     return { inserted: pendingRows.length, skipped, total: parsed.records.length };
+  }
+
+  /**
+   * Imports a WeChat or Alipay platform bill export.
+   *
+   * Deliberately different from `importTransactionsCsv`:
+   *   * **Lenient row-level ignore** — 提现/理财/不计收支/失败 rows are reported, not fatal.
+   *   * **Auto-creates** the 微信 / 支付宝 account when missing (user decision for this feature).
+   *   * **Keyword coarse categorisation** — wrong category falls to 其他/其他收入; the user
+   *     can re-file after import.
+   *   * **Encoding** — GBK Alipay CSV and WeChat xlsx are decoded server-side via `bill-decode`.
+   *   * **Idempotent** — platform order ids become stable `wx-*` / `ali-*` transaction ids.
+   */
+  importPlatformBills(
+    payload: Buffer | string,
+    options: PlatformImportOptions = {},
+  ): PlatformImportResult {
+    const dryRun = options.dryRun === true;
+    const warnings: string[] = [];
+
+    let text: string;
+    let encoding = 'utf-8';
+    if (typeof payload === 'string') {
+      text = payload;
+    } else if (payload.length === 0) {
+      throw new ValidationError('账单文件为空。');
+    } else {
+      const decoded = decodeBillFile(payload, options.fileName);
+      text = decoded.text;
+      encoding = decoded.encoding;
+    }
+
+    let parsed;
+    try {
+      parsed = parsePlatformBills(text, options.source ?? 'auto');
+    } catch (error) {
+      throw new ValidationError(
+        error instanceof Error ? error.message : '无法解析该账单文件。',
+      );
+    }
+
+    const accountType =
+      parsed.source === 'wechat' ? ACCOUNT_TYPE_WECHAT : ACCOUNT_TYPE_ALIPAY;
+    const accountName = parsed.source === 'wechat' ? '微信' : '支付宝';
+
+    const existingIds = new Set(
+      (this.db.prepare('SELECT id FROM transactions').all() as { id: string }[]).map((r) => r.id),
+    );
+
+    const importableRows = parsed.rows.filter((row) => !row.ignored && row.amountCents > 0);
+    const categoryNames = new Set(importableRows.map((row) => row.categoryName));
+
+    // Dry-run resolves names without writing; write path runs everything in one transaction.
+    const resolve = (): {
+      accountId: string;
+      accountsCreated: number;
+      categoriesCreated: number;
+      categoryIds: Map<string, string>;
+    } => {
+      let accountsCreated = 0;
+      let categoriesCreated = 0;
+      const account = this.ensureNamedAccount(accountName, accountType, dryRun);
+      accountsCreated = account.created ? 1 : 0;
+      const categoryIds = new Map<string, string>();
+      for (const name of categoryNames) {
+        const type = importableRows.find((r) => r.categoryName === name)?.type === 1
+          ? CATEGORY_TYPE_INCOME
+          : CATEGORY_TYPE_EXPENSE;
+        const ensured = this.ensureNamedCategory(name, type, dryRun);
+        categoryIds.set(`${type}:${name}`, ensured.id);
+        if (ensured.created) categoriesCreated += 1;
+      }
+      return { accountId: account.id, accountsCreated, categoriesCreated, categoryIds };
+    };
+
+    let insertable = 0;
+    let skipped = 0;
+    const pending: {
+      id: string;
+      type: number;
+      amountCents: number;
+      categoryId: string;
+      note: string;
+      date: number;
+      isRefund: boolean;
+    }[] = [];
+
+    const runWrite = this.db.transaction((): {
+      accountId: string;
+      accountsCreated: number;
+      categoriesCreated: number;
+    } => {
+      const resolved = resolve();
+      insertable = 0;
+      skipped = 0;
+      pending.length = 0;
+
+      for (const row of importableRows) {
+        if (existingIds.has(row.id)) {
+          skipped += 1;
+          continue;
+        }
+        const date = parseDateLabel(row.dateLabel);
+        if (date === null) {
+          warnings.push(`跳过无法解析日期的行：${row.dateLabel}`);
+          continue;
+        }
+        const type = row.type;
+        const categoryId =
+          resolved.categoryIds.get(`${type}:${row.categoryName}`) ??
+          resolved.categoryIds.get(
+            `${type === 1 ? CATEGORY_TYPE_INCOME : CATEGORY_TYPE_EXPENSE}:${row.categoryName}`,
+          );
+        if (categoryId === undefined) {
+          warnings.push(`缺少分类「${row.categoryName}」，跳过：${row.note}`);
+          continue;
+        }
+        insertable += 1;
+        pending.push({
+          id: row.id,
+          type,
+          amountCents: row.amountCents,
+          categoryId,
+          note: row.note,
+          date,
+          // Platform “退款” income matches the app’s income-refund model when keyword-mapped.
+          isRefund: type === 1 && row.categoryName === '退款',
+        });
+      }
+
+      if (dryRun) {
+        return {
+          accountId: resolved.accountId,
+          accountsCreated: resolved.accountsCreated,
+          categoriesCreated: resolved.categoriesCreated,
+        };
+      }
+
+      const at = Date.now();
+      const insert = this.db.prepare(
+        `INSERT INTO transactions
+           (id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund, deleted, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      );
+      for (const item of pending) {
+        insert.run(
+          item.id,
+          item.type,
+          item.amountCents,
+          item.categoryId,
+          resolved.accountId,
+          item.date,
+          item.note,
+          JSON.stringify([]),
+          item.isRefund ? 1 : 0,
+          at,
+        );
+      }
+      return {
+        accountId: resolved.accountId,
+        accountsCreated: resolved.accountsCreated,
+        categoriesCreated: resolved.categoriesCreated,
+      };
+    });
+
+    const resolved = runWrite();
+
+    return {
+      source: parsed.source,
+      dryRun,
+      inserted: dryRun ? insertable : pending.length,
+      skipped,
+      ignored: parsed.ignored,
+      total: parsed.total,
+      importable: parsed.importable,
+      accountsCreated: resolved.accountsCreated,
+      categoriesCreated: resolved.categoriesCreated,
+      dateFrom: parsed.dateFrom,
+      dateTo: parsed.dateTo,
+      expenseCents: parsed.expenseCents,
+      incomeCents: parsed.incomeCents,
+      encoding,
+      warnings,
+    };
+  }
+
+  /** Live account by name, else restore a soft-deleted twin, else insert. */
+  private ensureNamedAccount(
+    name: string,
+    type: number,
+    dryRun: boolean,
+  ): { id: string; created: boolean } {
+    const live = this.db
+      .prepare('SELECT id FROM accounts WHERE name = ? AND deleted = 0 ORDER BY sort_order LIMIT 1')
+      .get(name) as { id: string } | undefined;
+    if (live !== undefined) return { id: live.id, created: false };
+
+    const soft = this.db
+      .prepare('SELECT id FROM accounts WHERE name = ? AND deleted = 1 ORDER BY sort_order LIMIT 1')
+      .get(name) as { id: string } | undefined;
+    if (soft !== undefined) {
+      if (!dryRun) {
+        this.db
+          .prepare('UPDATE accounts SET deleted = 0, updated_at = ? WHERE id = ?')
+          .run(Date.now(), soft.id);
+      }
+      return { id: soft.id, created: false };
+    }
+
+    if (dryRun) return { id: `dry-run-account-${name}`, created: true };
+
+    const id = randomUUID();
+    const max = (
+      this.db.prepare('SELECT MAX(sort_order) AS m FROM accounts').get() as { m: number | null }
+    ).m;
+    this.db
+      .prepare(
+        `INSERT INTO accounts (id, name, type, initial_balance_cents, sort_order, is_builtin, deleted, updated_at)
+         VALUES (?, ?, ?, 0, ?, 0, 0, ?)`,
+      )
+      .run(id, name, type, (max ?? -1) + 1, Date.now());
+    return { id, created: true };
+  }
+
+  /** Live category by name+type, else restore soft-deleted, else insert a custom row. */
+  private ensureNamedCategory(
+    name: string,
+    type: number,
+    dryRun: boolean,
+  ): { id: string; created: boolean } {
+    const live = this.db
+      .prepare(
+        'SELECT id FROM categories WHERE name = ? AND type = ? AND deleted = 0 ORDER BY sort_order LIMIT 1',
+      )
+      .get(name, type) as { id: string } | undefined;
+    if (live !== undefined) return { id: live.id, created: false };
+
+    const soft = this.db
+      .prepare(
+        'SELECT id FROM categories WHERE name = ? AND type = ? AND deleted = 1 ORDER BY sort_order LIMIT 1',
+      )
+      .get(name, type) as { id: string } | undefined;
+    if (soft !== undefined) {
+      if (!dryRun) {
+        this.db
+          .prepare('UPDATE categories SET deleted = 0, updated_at = ? WHERE id = ?')
+          .run(Date.now(), soft.id);
+      }
+      return { id: soft.id, created: false };
+    }
+
+    if (dryRun) return { id: `dry-run-category-${type}-${name}`, created: true };
+
+    const id = randomUUID();
+    const max = (
+      this.db
+        .prepare('SELECT MAX(sort_order) AS m FROM categories WHERE type = ?')
+        .get(type) as { m: number | null }
+    ).m;
+    const color = (type === CATEGORY_TYPE_INCOME ? paletteSlot(8) : paletteSlot(6)).argb;
+    this.db
+      .prepare(
+        `INSERT INTO categories (id, name, type, icon, color, sort_order, is_builtin, deleted, updated_at)
+         VALUES (?, ?, ?, 'other', ?, ?, 0, 0, ?)`,
+      )
+      .run(id, name, type, color, (max ?? -1) + 1, Date.now());
+    return { id, created: true };
   }
 
   // ── backups ────────────────────────────────────────────────────────────────

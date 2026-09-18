@@ -7,6 +7,7 @@
  *   GET  /api/v1/export/transfers.csv      account-to-account transfers
  *   POST /api/v1/import/transactions       import a transactions CSV (body is the file text)
  *   POST /api/v1/import/transfers          import a transfers CSV (body is the file text)
+ *   POST /api/v1/import/platform-bills     WeChat/Alipay bill import (bytes or CSV text)
  *   GET  /api/v1/backups                   list archives (file names only)
  *   POST /api/v1/backups                   take an archive now
  *
@@ -106,6 +107,45 @@ export async function registerPortabilityRoutes(
         );
       }
       return reply.send(service.importTransfersCsv(body));
+    },
+  );
+
+  /**
+   * WeChat / Alipay platform bill import.
+   *
+   * Body is the raw file bytes (`application/octet-stream` / xlsx) or UTF-8 CSV text.
+   * GBK Alipay exports must arrive as bytes — a browser `File.text()` would corrupt them.
+   * Query: `source=auto|wechat|alipay`, `dryRun=1` for a preview without writes.
+   */
+  app.post(
+    '/api/v1/import/platform-bills',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const query = request.query as { source?: string; dryRun?: string; fileName?: string };
+      const sourceRaw = query.source ?? 'auto';
+      if (sourceRaw !== 'auto' && sourceRaw !== 'wechat' && sourceRaw !== 'alipay') {
+        throw new ValidationError('source must be auto, wechat, or alipay.');
+      }
+      const dryRun = query.dryRun === '1' || query.dryRun === 'true';
+
+      const body = request.body;
+      let payload: Buffer | string;
+      if (Buffer.isBuffer(body)) {
+        payload = body;
+      } else if (typeof body === 'string' && body.trim() !== '') {
+        payload = body;
+      } else {
+        throw new ValidationError(
+          'Send the bill file as the request body (CSV text, or raw bytes for GBK/xlsx).',
+        );
+      }
+
+      return reply.send(
+        service.importPlatformBills(payload, {
+          source: sourceRaw,
+          dryRun,
+          fileName: typeof query.fileName === 'string' ? query.fileName : undefined,
+        }),
+      );
     },
   );
 

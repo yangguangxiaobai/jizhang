@@ -2,7 +2,7 @@
 
 单用户记账 Web PWA:Vue 3 + Vite 前端、Fastify 后端、SQLite 存储,**单容器**部署(后端同源托管前端产物)。
 
-> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-17-refund-income`,迁移 v6 已执行)。
+> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-budget-cycle`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`)。
 > 日常用法请看 [USAGE.md](./USAGE.md);部署与升级请看 [DEPLOY.md](./DEPLOY.md)。
 
 ## 功能
@@ -10,16 +10,32 @@
 按**信封预算法**记账:每月工资按模板分配到各分类模块,日常支出从模块额度里扣,超支从累积
 结余池借用。
 
-- **账单**:记收入/支出、多账户、标签、退款(记在收入下,计入收入,可关联原始支出)、按月筛选
+- **账单**:记收入/支出、多账户、标签、退款(**收入**下勾选,计入收入,可关联/搜索原始支出)、按月筛选
 - **预算**:工资录入 + 分配模板(比例和必须为 100%)、模块已用/剩余、80%–100% 预警与超支提示、
-  累积结余池、**历史周期回看**
+  累积结余池、**历史周期回看**、周期区间与未纳入支出提示
 - **周期账单**:房租/订阅这类固定账单按日/周/月/季/年自动到期,到期后进入**待确认**由你确认,
   不静默入账
-- **统计**:分类占比环形图、月度收入与净支出柱状图、结余池趋势
+- **统计**:分类占比环形图(中心总额 + 图例金额/占比)、月度收入与净支出柱状图、结余池趋势
 - **回收站**:删除的账单可恢复,或彻底删除
-- **数据**:CSV 导出/导入(账单、转账、工资、周期规则,带 BOM,Excel 直接打开中文不乱码)、整库备份
+- **数据**:CSV 导出/导入(账单、转账、工资、周期规则,带 BOM,Excel 直接打开中文不乱码)、**微信/支付宝账单导入**(GBK/xlsx、关键字分类、自动建账户、幂等去重)、整库备份
 - **外观**:深浅色(跟随系统/浅色/深色)、三套主色预设(钛蓝/森林绿/极简黑白)
 - **PWA**:可"添加到主屏幕"作为独立 App 使用,离线可查看已打开的页面
+
+## 口径与日历(重要)
+
+这些规则决定首页/账单/预算/统计里的数字是否对得上,改代码时不要各算各的。
+
+| 主题 | 规则 |
+|---|---|
+| **退款** | 记在**收入**下并勾「退款」;计入收入与账户余额,**不冲减**模块/分类的毛支出 |
+| **支出聚合** | `expenseContribution`:仅 `type=支出` 计 `+amount`;退款(收入)贡献为 0 |
+| **收入聚合** | `incomeContribution`:收入 `+amount`(**含退款**);支出为 0 |
+| **预算周期(起始日模式)** | 工资/分配归属**发薪日所在自然月**的起算日(`allocationPeriodStart`):起算日 10 时,9/10 记的工资供 **9/10–10/9** 周期 |
+| **账单入周期** | 支出落在 `[周期起点, 下一周期起点)`;起算日**之前**的支出不进本周期已用 |
+| **时区** | 服务端按本地日算账单/周期。容器**必须**设 `TZ`(`Asia/Shanghai`)。默认 UTC 会把北京时间 9/10 00:00 算成 9/9,导致工资被划进上一周期、当期已用为 0 |
+| **转账** | 不算收入也不算支出,只改两个账户余额 |
+
+`packages/shared` 是这些规则的唯一实现(无 IO);web/server 都调用它,禁止在视图里手写聚合。
 
 ## 在 iPhone 上使用
 
@@ -38,7 +54,7 @@ jizhang/
 ├─ tsconfig.base.json         # 三包共享的严格模式 TS 基础配置
 ├─ eslint.config.mjs          # 根 ESLint(TS + Vue essential),Prettier 管格式
 ├─ Dockerfile                 # 多阶段:builder → runtime(同一基础镜像)
-├─ docker-compose.yml         # 只发布 127.0.0.1:8081
+├─ docker-compose.yml         # 只发布 127.0.0.1:8081;默认 TZ=Asia/Shanghai
 ├─ .env.example               # 全部环境变量 + 说明
 ├─ DEPLOY.md                  # 部署到 VPS(含反代共存、备份与回滚)
 ├─ USAGE.md                   # 面向使用者的日常用法
@@ -62,7 +78,7 @@ jizhang/
    └─ web/                    # Vue 3 + Vite
       ├─ src/
       │  ├─ api/              # 类型化 API 客户端
-      │  ├─ components/       # DonutChart / BarChart / OfflineBanner / InstallHint
+      │  ├─ components/       # DonutChart / BarChart / TransactionDetailModal / OfflineBanner / InstallHint
       │  ├─ composables/      # useTheme / useNetwork
       │  ├─ router/           # 路由与登录门禁
       │  ├─ stores/           # Pinia:auth / budget / meta / transactions
@@ -73,8 +89,7 @@ jizhang/
       └─ scripts/             # 构建期静态审计 + 浏览器实测套件 + 图标生成
 ```
 
-依赖方向:`web` / `server` → `shared`(`shared` 不依赖任何包,且不含 IO,
-所以同一份代码能在浏览器里跑)。
+- `shared` **无 IO**:同一份代码能在浏览器里跑;预算/退款/周期规则只在这里实现一次。
 
 ## 环境要求
 
@@ -174,6 +189,7 @@ mkdir -p data && sudo chown -R 1000:1000 data
 | `DATA_DIR` | | `./data`(容器 `/data`) | SQLite 所在目录 |
 | `PORT` | | `8081` | 容器内监听端口 |
 | `HOST` | | `0.0.0.0` | 容器内必须绑 0.0.0.0 |
+| `TZ` | | `Asia/Shanghai`(compose/Dockerfile) | **账单日历与预算周期按此本地日计算**;勿用 UTC |
 | `TRUST_PROXY` | | `false`(compose `true`) | 信任反代下发的 `X-Forwarded-*` |
 | `LOG_LEVEL` | | `info` | pino 日志级别 |
 | `SESSION_TTL_DAYS` | | `30` | 会话有效期 |
@@ -285,7 +301,7 @@ pnpm test:iphone:only         # 跳过构建
 | 标签 | `GET /tags`、`PATCH /tags`(重命名)、`DELETE /tags/:id` |
 | 周期账单 | `GET/POST /recurring/rules`、`PATCH/DELETE /recurring/rules/:id`、`POST /recurring/rules/:id/enabled`、`POST /recurring/generate`、`GET /recurring/occurrences`、`POST /recurring/occurrences/:id/confirm`、`POST /recurring/occurrences/:id/ignore`、`GET /recurring/pending` |
 | 统计 | `GET /stats/category-share`、`GET /stats/monthly-trend`、`GET /stats/month-window`、`GET /stats/pool-trend`、`GET /stats/range` |
-| 导入导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`GET /export/transfers.csv`、`POST /import/transactions`、`POST /import/transfers` |
+| 导入导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`GET /export/transfers.csv`、`POST /import/transactions`、`POST /import/transfers`、`POST /import/platform-bills?source=auto\|wechat\|alipay&dryRun=1`(body 为账单原文/字节;支持微信 xlsx 与支付宝 GBK CSV) |
 | 备份 | `GET /backups`、`POST /backups` |
 | 设置 | `GET /settings`、`PUT /settings`(预算周期起点) |
 
@@ -298,9 +314,12 @@ verify <file.db>             检查备份文件是否是可用的数据库
 restore <file.db>            用备份替换在线数据库
 ```
 
-## 下一步
+## 部署与运维要点
 
-已上线。升级方式见 [DEPLOY.md §6](./DEPLOY.md):本地或服务器构建镜像 → 改 `/opt/jizhang/docker-compose.yml` 的 tag → `docker compose up -d` → 确认 `migrationsApplied` 与健康检查。
+- 线上目录 `/opt/jizhang`;升级见 [DEPLOY.md §6](./DEPLOY.md):构建镜像 → 改 compose 的 `image` tag → `up -d` → 核对 `migrationsApplied` 与 `/api/v1/health`。
+- **公网带宽很慢时**优先「上传源码 → 在服务器 `docker build`」(约 1.5MB 源码包),不要 `docker save` 整镜像(约 90MB+)。
+- 容器环境必须含 **`TZ: Asia/Shanghai`**(见「口径与日历」)。生产 compose 已加;本地仓库的 `docker-compose.yml` / `Dockerfile` 也已默认写入。
+- 迁移会在启动时自动跑,并把升级前的库备份到 `/data/backups/`。
 
 已知限制(有意如此,不是遗漏):
 
