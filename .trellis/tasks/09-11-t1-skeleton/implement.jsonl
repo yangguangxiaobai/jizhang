@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/09-11-web-pwa/design.md", "reason": "架构总览、monorepo 结构、Docker 多阶段构建与反代共存方案（§1 §2 §7）"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "前端目录约定目标文件（当前为占位模板，本任务需填入真实约定）"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "后端目录约定目标文件（当前为占位模板，本任务需填入真实约定）"}

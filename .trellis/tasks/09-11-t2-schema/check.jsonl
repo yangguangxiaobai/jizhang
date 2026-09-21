@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/09-11-t2-schema/prd.md", "reason": "T2 的 8 条验收标准（AC1-AC8），逐条核对：表齐全、播种幂等、迁移单事务失败回滚、PRAGMA 生效"}
+{"file": ".trellis/tasks/09-11-web-pwa/research/reference-project-rules.md", "reason": "核对播种的 8 个分类与默认模板比例是否与参考项目逐字一致，且 color 十进制值是否为机器核对值"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "验收时核对是否已填入真实约定（父任务 AC11 要求 spec 不再是占位）"}

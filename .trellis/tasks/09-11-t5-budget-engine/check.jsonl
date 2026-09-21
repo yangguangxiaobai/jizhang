@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/09-11-web-pwa/research/budget-engine-behavior-spec.md", "reason": "最高风险项验收基准：逐条核对 21 个用例是否全部转写且有对应断言，重点查 R1/R2（退款不计收入）、P2（池为负不归零）、X1（整数键非字符串键）、C2（短月 clamp）"}
+{"file": ".trellis/tasks/09-11-t5-budget-engine/prd.md", "reason": "T5 的 12 条验收标准（AC1-AC12），含「packages/shared 不得 import fs/db/fetch」的纯净性检查"}

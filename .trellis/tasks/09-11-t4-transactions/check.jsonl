@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/09-11-t4-transactions/prd.md", "reason": "T4 的 11 条验收标准（AC1-AC11），重点核对 AC4 非整数分被拒、AC6 标签去重保序、AC7 退款贡献为负、AC9 关键词中的 % 不被当通配符"}
+{"file": ".trellis/tasks/09-11-web-pwa/research/reference-project-rules.md", "reason": "核对标签解析与净支出口径是否与参考项目逐字一致"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/09-18-wechat-alipay-import/prd.md", "reason": "验收标准 AC1–AC9"}
+{"file": ".trellis/spec/backend/index.md", "reason": "质量门与测试要求"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "数据页 UI 约定"}
+{"file": "packages/server/test/portability.test.ts", "reason": "既有导入回归不得破坏"}

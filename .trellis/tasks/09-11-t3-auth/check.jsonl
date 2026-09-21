@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/09-11-t3-auth/prd.md", "reason": "T3 的 11 条验收标准（AC1-AC11），重点核对 AC3 不泄露用户是否存在、AC7 改密码后旧会话失效、AC9 CSRF 头校验"}
+{"file": ".trellis/tasks/09-11-web-pwa/design.md", "reason": "核对 Cookie 属性（httpOnly/Secure/SameSite=Lax）与 sessions.token_hash 是否只存哈希"}

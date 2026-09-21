@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/09-18-wechat-alipay-import/prd.md", "reason": "需求、过滤规则、验收标准"}
+{"file": ".trellis/tasks/09-18-wechat-alipay-import/design.md", "reason": "解析管线、ID/账户/分类策略、API 形状"}
+{"file": ".trellis/spec/backend/index.md", "reason": "服务端与导入/端口约定"}
+{"file": "packages/server/src/services/portability-service.ts", "reason": "既有 CSV 导入事务与去重风格"}
+{"file": "packages/shared/src/csv.ts", "reason": "复用 CSV 解析"}

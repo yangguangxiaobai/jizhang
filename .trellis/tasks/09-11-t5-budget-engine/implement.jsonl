@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/09-11-web-pwa/research/budget-engine-behavior-spec.md", "reason": "21 个行为用例的精确期望值（M1-M3/S1-S2/X1/P1-P4/R1-R3/C1-C10）。必须先逐条转写为 Vitest 测试再写实现"}
+{"file": ".trellis/tasks/09-11-web-pwa/research/reference-project-rules.md", "reason": "§4 预算引擎算法逐行锚点（结余池三步、半开区间、私有辅助方法）；§5 净支出口径定义"}
+{"file": ".trellis/tasks/09-11-web-pwa/design.md", "reason": "§4.1 函数签名契约；§4.2 必须复刻的规则；§4.3 验证策略与四个必避的坑"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量约定目标文件（当前为占位模板，本任务需填入真实约定）"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/09-11-web-pwa/research/reference-project-rules.md", "reason": "§5 净支出口径（expenseContribution/incomeContribution）与标签解析规则（trim/去空/去重保序）；§3 transactions 字段权威定义"}
+{"file": ".trellis/tasks/09-11-web-pwa/design.md", "reason": "§3 transactions 表与索引；§5 API 契约；§6 前端金额输入必须 Math.round 的浮点陷阱"}
+{"file": ".trellis/tasks/09-11-web-pwa/prd.md", "reason": "R2 账单记账需求组与 AC6 无浮点误差的验收锚点"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "软删除与默认过滤 deleted=0 的约定（当前为占位模板，本任务需填入真实约定）"}

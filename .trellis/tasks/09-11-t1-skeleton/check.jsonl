@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/09-11-t1-skeleton/prd.md", "reason": "T1 的 12 条验收标准（AC1-AC12），逐条核对"}
+{"file": ".trellis/tasks/09-11-web-pwa/implement.md", "reason": "风险检查点 R1（容器内 better-sqlite3 ABI）与验证命令清单"}

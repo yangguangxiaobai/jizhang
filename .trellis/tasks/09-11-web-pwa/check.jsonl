@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/09-11-web-pwa/research/budget-engine-behavior-spec.md", "reason": "验收时逐条核对预算语义是否复刻：退款抵扣、结余池可为负、短月 clamp、year*100+month 整数分组"}
+{"file": ".trellis/tasks/09-11-web-pwa/research/reference-project-rules.md", "reason": "核对净支出口径与数据模型字段语义是否与参考项目一致"}
