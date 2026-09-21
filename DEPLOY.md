@@ -93,6 +93,8 @@ SESSION_TTL_DAYS=30
 LOG_LEVEL=info
 TRUST_PROXY=true
 TZ=Asia/Shanghai
+# Optional: 64 hex chars (32 bytes) to encrypt the AI provider key saved in Settings.
+JIZHANG_AI_ENCRYPTION_KEY=
 ```
 
 ⚠️ **`TZ` 必须是用户日历时区**（中国用 `Asia/Shanghai`）。容器默认 UTC 时，北京时间 9/10 00:00 会被算成 9/9，工资被划进上一预算周期，当期「已用」会一直是 0。生产 compose 的 `environment` 里也应有 `TZ: Asia/Shanghai`。
@@ -100,6 +102,14 @@ TZ=Asia/Shanghai
 ⚠️ **`JIZHANG_PASSWORD_HASH` 必须存在，否则容器起不来**——它在 `config.ts` 的 `REQUIRED`
 列表里，缺失时服务打印配置错误并退出 1，容器会一直在 `Restarting`。但它的**值不参与任何逻辑**
 （`config.passwordHash` 被读进配置后无人使用），所以随便填一个占位串即可。
+
+AI provider 的 API key 通过应用内「我的 → AI 助手」配置，但只有设置了
+`JIZHANG_AI_ENCRYPTION_KEY` 才能保存或使用密钥。该密钥不写入 SQLite 备份；如果更换或丢失，
+数据库里的旧 provider 密文将无法解密，需要重新输入 API key。生成命令：
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
 
 > 真正用于登录的凭据在数据库的 `users` 表里，只有下面这条命令会写它：
 >
@@ -523,3 +533,4 @@ docker compose up -d
 | `JIZHANG_USERNAME` | **必需** | 单用户登录名 |
 | `JIZHANG_PASSWORD_HASH` | **必需** | 占位即可，真实密码用 `set-password` 写入数据库 |
 | `SESSION_TTL_DAYS` | `30` | 会话有效期 |
+| `JIZHANG_AI_ENCRYPTION_KEY` | 可选 | 64 位十六进制；加密设置页保存的 AI API key |

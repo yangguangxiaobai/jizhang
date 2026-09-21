@@ -32,6 +32,8 @@ export interface AppConfig {
   readonly username: string;
   readonly passwordHash: string;
   readonly sessionTtlDays: number;
+  /** Optional hex-encoded 32-byte key used to encrypt the AI provider secret. */
+  readonly aiEncryptionKey: string | undefined;
 }
 
 export class ConfigError extends Error {
@@ -157,5 +159,6 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     username: read('JIZHANG_USERNAME') ?? '',
     passwordHash: read('JIZHANG_PASSWORD_HASH') ?? '',
     sessionTtlDays,
+    aiEncryptionKey: read('JIZHANG_AI_ENCRYPTION_KEY'),
   };
 }

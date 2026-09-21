@@ -19,6 +19,7 @@ export const test = base.extend({
     const config = loadConfig({
       NODE_ENV: 'test', LOG_LEVEL: 'silent', JIZHANG_USERNAME: username,
       JIZHANG_PASSWORD_HASH: 'unused-existing-test-user', DATA_DIR: dataDir,
+      JIZHANG_AI_ENCRYPTION_KEY: 'ab'.repeat(32),
       WEB_DIST_DIR: resolve(dirname(fileURLToPath(import.meta.url)), '../dist'),
     });
     let db;

@@ -21,6 +21,7 @@
   - CSV 导出/导入(账单、转账、工资、周期规则,带 BOM,Excel 直接打开中文不乱码)
   - **微信/支付宝账单导入**:上传平台导出文件(xlsx / GBK CSV),自动识别来源、过滤提现理财与「不计收支」;**预览明细表 → 勾选 → 改分类 → 确认导入所选**;自动创建「微信」「支付宝」账户,按交易单号幂等去重
   - 整库备份(SQLite 快照)
+- **AI 助手**:在「我的」里配置 OpenAI-compatible、Responses 或自定义 HTTP provider;「记一笔」可用自然语言生成**待确认**草稿,不会自动写入账本
 - **外观**:深浅色(跟随系统/浅色/深色)、三套主色预设(钛蓝/森林绿/极简黑白)
 - **PWA**:可"添加到主屏幕"作为独立 App 使用,离线可查看已打开的页面
 
@@ -217,6 +218,7 @@ mkdir -p data && sudo chown -R 1000:1000 data
 | `LOG_LEVEL` | | `info` | pino 日志级别 |
 | `SESSION_TTL_DAYS` | | `30` | 会话有效期 |
 | `WEB_DIST_DIR` | | `packages/web/dist` | 静态产物目录(镜像内 `/app/public`) |
+| `JIZHANG_AI_ENCRYPTION_KEY` | | — | 64 位十六进制(32 字节),用于加密设置页保存的 AI API key;不配置则 AI 不可用 |
 
 必需变量缺失或取值非法时,服务**启动即失败**并打印一份可读的问题清单后退出 1:
 
@@ -325,6 +327,7 @@ pnpm test:iphone:only         # 跳过构建
 | 标签 | `GET /tags`、`PATCH /tags`(重命名)、`DELETE /tags/:id` |
 | 周期账单 | `GET/POST /recurring/rules`、`PATCH/DELETE /recurring/rules/:id`、`POST /recurring/rules/:id/enabled`、`POST /recurring/generate`、`GET /recurring/occurrences`、`POST /recurring/occurrences/:id/confirm`、`POST /recurring/occurrences/:id/ignore`、`GET /recurring/pending` |
 | 统计 | `GET /stats/category-share`、`GET /stats/monthly-trend`、`GET /stats/month-window`、`GET /stats/pool-trend`、`GET /stats/range` |
+| AI 助手 | `GET/PUT /ai/config`、`POST /ai/test`、`POST /ai/transaction-draft`; API key 只在服务端加密保存 |
 | 导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`GET /export/transfers.csv` |
 | 导入(本应用 CSV) | `POST /import/transactions`、`POST /import/transfers`(`Content-Type: text/csv`,body 为文件全文) |
 | 导入(微信/支付宝) | `POST /import/platform-bills`。JSON:`{ fileBase64, source, dryRun, fileName?, selectedIds?, categoryOverrides? }`；也支持 octet-stream/text 原文 + query。`selectedIds:null`=全部可入账，`[]`=不导入；`categoryOverrides` 为 `{行id: 分类名}`。dry-run 返回 `rows` 明细表 |

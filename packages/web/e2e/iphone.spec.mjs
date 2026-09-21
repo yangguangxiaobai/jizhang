@@ -295,6 +295,45 @@ test('server outage is visible, draft survives, and retry saves exactly once', a
   expect(list.items[0].amountCents).toBe(1_999);
 });
 
+test('AI natural-language draft fills the form but waits for normal save', async ({
+  page,
+  ledger,
+}) => {
+  await login(page, ledger);
+  await page.route('**/api/v1/ai/transaction-draft', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        type: 0,
+        amountCents: 3_500,
+        categoryId: 'builtin-expense-food',
+        accountId: 'builtin-default-account',
+        date: Date.UTC(2026, 8, 20),
+        note: '午饭',
+        tags: ['午餐'],
+        confidence: 0.96,
+        reason: '用户描述了午饭消费。',
+        missing: [],
+      }),
+    });
+  });
+
+  await page.goto('/transactions/new');
+  await page.getByLabel('自然语言记账描述').fill('昨天午饭 35 元，默认账户支付');
+  await page.getByRole('button', { name: 'AI 识别', exact: true }).click();
+  await expect(page.getByLabel('金额（元）')).toHaveValue('35.00');
+  await expect(page.getByLabel('备注', { exact: true })).toHaveValue('午饭');
+  await expect(page.getByLabel('分类')).toHaveValue('builtin-expense-food');
+  await expect(page.getByRole('status')).toContainText('填入下方表单');
+
+  const before = await json(page, '/transactions');
+  expect(before.total).toBe(0);
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page).toHaveURL(/\/transactions$/);
+  await expect(page.locator('li').filter({ hasText: '午饭' })).toBeVisible();
+});
+
 test('phone routes, installation hint and light/dark layouts remain usable', async ({
   page,
   ledger,

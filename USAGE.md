@@ -432,6 +432,28 @@ docker compose exec -it jizhang node packages/server/dist/cli.js set-password
 
 分类的 12 个颜色会自动适配深浅色,不需要你分别设两套。
 
+### 13.5 AI 快速记账
+
+首次使用前，部署者需要在 `.env` 设置 `JIZHANG_AI_ENCRYPTION_KEY`（64 位十六进制字符）。
+可用下面的命令生成：
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+然后进入 **我的 → AI 助手**：
+
+- 选择 OpenAI-compatible、Responses 或自定义 HTTP JSON 模式。
+- 填写请求地址、模型、认证方式和 API key；自定义模式还可填写请求体模板与响应字段路径。
+- 保存后可点「测试连接」。测试会真实调用一次 provider，可能消耗少量配额。
+
+在 **记一笔** 页面输入「昨天午饭 35 元，微信支付」这类描述，点「AI 识别」。
+AI 只会把识别结果填入表单，金额、日期、分类和账户都可以手动修改；必须再点普通的
+「保存」按钮才会写入账本。AI 不可用、超时或断网时，原有手动记账流程不受影响。
+
+API key 只在服务端保存，并用 `JIZHANG_AI_ENCRYPTION_KEY` 加密后写入 SQLite；页面不会回显
+完整密钥。更换或丢失加密密钥后，需要重新在设置页输入 API key。
+
 ---
 
 ## 14. 常见问题

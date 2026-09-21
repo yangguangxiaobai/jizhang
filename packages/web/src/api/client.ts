@@ -466,6 +466,57 @@ export interface SettingsResponse {
   readonly key: string;
 }
 
+export type AiProviderMode = 'chat-completions' | 'responses' | 'custom';
+export type AiHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH';
+export type AiAuthKind = 'none' | 'bearer' | 'header';
+
+export interface AiProviderConfigSummary {
+  readonly configured: boolean;
+  readonly enabled: boolean;
+  readonly encryptionKeyConfigured: boolean;
+  readonly hasSecret: boolean;
+  readonly mode: AiProviderMode;
+  readonly name: string;
+  readonly url: string;
+  readonly method: AiHttpMethod;
+  readonly model: string;
+  readonly timeoutMs: number;
+  readonly headers: Record<string, string>;
+  readonly auth: { readonly kind: AiAuthKind; readonly headerName?: string };
+  readonly bodyTemplate: string | null;
+  readonly responsePath: string;
+  readonly updatedAt: number | null;
+}
+
+export interface AiProviderConfigInput {
+  readonly enabled: boolean;
+  readonly mode: AiProviderMode;
+  readonly name: string;
+  readonly url: string;
+  readonly method: AiHttpMethod;
+  readonly model: string;
+  readonly timeoutMs: number;
+  readonly headers: Record<string, string>;
+  readonly auth: { readonly kind: AiAuthKind; readonly headerName?: string };
+  readonly bodyTemplate: string | null;
+  readonly responsePath: string;
+  readonly secret?: string;
+  readonly clearSecret?: boolean;
+}
+
+export interface AiTransactionDraft {
+  readonly type: number | null;
+  readonly amountCents: number | null;
+  readonly categoryId: string | null;
+  readonly accountId: string | null;
+  readonly date: number | null;
+  readonly note: string;
+  readonly tags: string[];
+  readonly confidence: number | null;
+  readonly reason: string | null;
+  readonly missing: Array<'amount' | 'type' | 'category' | 'account' | 'date'>;
+}
+
 export interface SalaryInput {
   readonly amountCents: number;
   readonly date: number;
@@ -775,6 +826,21 @@ export const api = {
       request<{ cycleStartDay: number | null }>('/api/v1/settings', {
         method: 'PUT',
         body: { cycleStartDay },
+      }),
+  },
+
+  ai: {
+    config: () => request<AiProviderConfigSummary>('/api/v1/ai/config'),
+    saveConfig: (input: AiProviderConfigInput) =>
+      request<AiProviderConfigSummary>('/api/v1/ai/config', {
+        method: 'PUT',
+        body: input,
+      }),
+    test: () => request<{ ok: boolean }>('/api/v1/ai/test', { method: 'POST' }),
+    transactionDraft: (input: string) =>
+      request<AiTransactionDraft>('/api/v1/ai/transaction-draft', {
+        method: 'POST',
+        body: { input },
       }),
   },
 

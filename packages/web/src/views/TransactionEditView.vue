@@ -8,10 +8,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { TYPE_EXPENSE, TYPE_INCOME, api } from '../api/client.js';
-import type { Transaction } from '../api/client.js';
+import type { AiTransactionDraft, Transaction } from '../api/client.js';
 import { useBalanceStore } from '../stores/balances.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useTransactionsStore } from '../stores/transactions.js';
+import AiTransactionDraftPanel from '../components/AiTransactionDraftPanel.vue';
 import {
   formatCents,
   formatDayLabel,
@@ -57,6 +58,9 @@ watch(isRefund, (val) => {
 const loading = ref(false);
 const saving = ref(false);
 const errorMessage = ref<string | null>(null);
+const aiBusy = ref(false);
+const aiError = ref<string | null>(null);
+const aiDraft = ref<AiTransactionDraft | null>(null);
 
 const availableCategories = computed(() => {
   const list =
@@ -244,6 +248,31 @@ async function save(): Promise<void> {
   }
 }
 
+async function requestAiDraft(input: string): Promise<void> {
+  aiBusy.value = true;
+  aiError.value = null;
+  aiDraft.value = null;
+  try {
+    const draft = await api.ai.transactionDraft(input);
+    aiDraft.value = draft;
+    if (draft.type !== null) {
+      type.value = draft.type;
+      isRefund.value = false;
+      refundLinkedTxIds.value = [];
+    }
+    categoryId.value = draft.categoryId ?? '';
+    accountId.value = draft.accountId ?? '';
+    if (draft.amountCents !== null) amountText.value = formatCents(draft.amountCents);
+    if (draft.date !== null) dateText.value = toDateInputValue(draft.date);
+    if (draft.note !== '') note.value = draft.note;
+    if (draft.tags.length > 0) tags.value = [...draft.tags];
+  } catch (error) {
+    aiError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    aiBusy.value = false;
+  }
+}
+
 async function remove(): Promise<void> {
   if (id.value === null) return;
   if (!window.confirm('删除这笔账单？')) return;
@@ -261,6 +290,14 @@ async function remove(): Promise<void> {
   <p v-if="loading" class="muted">加载中…</p>
 
   <form v-else class="form" @submit.prevent="save">
+    <AiTransactionDraftPanel
+      v-if="!isEdit"
+      :busy="aiBusy"
+      :error="aiError"
+      :draft="aiDraft"
+      @submit="requestAiDraft"
+    />
+
     <div class="type-switch" role="radiogroup" aria-label="类型">
       <button
         type="button"

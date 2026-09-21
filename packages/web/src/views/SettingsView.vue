@@ -7,8 +7,9 @@
  */
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { api } from '../api/client.js';
+import { api, type AiProviderConfigInput, type AiProviderConfigSummary } from '../api/client.js';
 import AppIcon from '../components/AppIcon.vue';
+import AiSettingsPanel from '../components/AiSettingsPanel.vue';
 import {
   setAccentPreset,
   setThemePreference,
@@ -50,6 +51,12 @@ const cycleDayChoice = ref(0);
 const cycleSaving = ref(false);
 const cycleMessage = ref<string | null>(null);
 const cycleError = ref<string | null>(null);
+
+const aiConfig = ref<AiProviderConfigSummary | null>(null);
+const aiSaving = ref(false);
+const aiTesting = ref(false);
+const aiError = ref<string | null>(null);
+const aiSuccess = ref<string | null>(null);
 
 /** Presentation-only navigation groups keep the settings page scannable without changing routes. */
 const ledgerLinks = [
@@ -101,6 +108,11 @@ onMounted(async () => {
   } catch {
     // Read-only failure: leave the default selected.
   }
+  try {
+    aiConfig.value = await api.ai.config();
+  } catch (error) {
+    aiError.value = error instanceof Error ? error.message : String(error);
+  }
 });
 
 async function saveCycle(): Promise<void> {
@@ -150,6 +162,34 @@ async function changePassword(): Promise<void> {
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
     saving.value = false;
+  }
+}
+
+async function saveAi(input: AiProviderConfigInput): Promise<void> {
+  aiSaving.value = true;
+  aiError.value = null;
+  aiSuccess.value = null;
+  try {
+    aiConfig.value = await api.ai.saveConfig(input);
+    aiSuccess.value = 'AI 配置已保存。';
+  } catch (error) {
+    aiError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    aiSaving.value = false;
+  }
+}
+
+async function testAi(): Promise<void> {
+  aiTesting.value = true;
+  aiError.value = null;
+  aiSuccess.value = null;
+  try {
+    await api.ai.test();
+    aiSuccess.value = 'AI provider 连接测试成功。';
+  } catch (error) {
+    aiError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    aiTesting.value = false;
   }
 }
 
@@ -230,6 +270,16 @@ async function signOut(): Promise<void> {
     </div>
     <p class="hint appearance-note">主色、背景与重点卡片会一起变化，账单状态色保持一致。</p>
   </section>
+
+  <AiSettingsPanel
+    :config="aiConfig"
+    :saving="aiSaving"
+    :testing="aiTesting"
+    :error="aiError"
+    :success="aiSuccess"
+    @save="saveAi"
+    @test="testAi"
+  />
 
   <section class="theme-card card settings-section">
     <div class="section-heading">

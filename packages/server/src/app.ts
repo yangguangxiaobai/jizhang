@@ -19,6 +19,7 @@ import { registerRecurringRoutes } from './routes/recurring.js';
 import { registerPortabilityRoutes } from './routes/portability.js';
 import { registerTransactionRoutes } from './routes/transactions.js';
 import { registerTransferRoutes } from './routes/transfers.js';
+import { registerAiRoutes } from './routes/ai.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
 
@@ -43,6 +44,8 @@ export interface BuildAppOptions {
    * the real clock; tests pin it so "in the future" assertions are deterministic.
    */
   readonly now?: (() => number) | undefined;
+  /** Injectable provider transport for AI route tests. */
+  readonly fetchImpl?: typeof fetch;
 }
 
 /** Everything below this prefix is API and must never answer with index.html. */
@@ -182,6 +185,13 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
             db,
             dataDir: config.dataDir,
             now: options.now,
+          }),
+        (instance) =>
+          registerAiRoutes(instance, {
+            db,
+            config,
+            now: options.now,
+            fetchImpl: options.fetchImpl,
           }),
       ],
     });
