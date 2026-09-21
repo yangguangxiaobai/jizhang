@@ -28,6 +28,14 @@ export const useMetaStore = defineStore('meta', () => {
   const incomeCategories = computed(() =>
     categories.value.filter((category) => category.type === TYPE_INCOME),
   );
+  const budgetModuleCategories = computed(() =>
+    expenseCategories.value.filter((category) => category.parentId === null),
+  );
+  const selectableExpenseCategories = computed(() =>
+    expenseCategories.value.filter(
+      (category) => !expenseCategories.value.some((child) => child.parentId === category.id),
+    ),
+  );
 
   const categoryById = computed(() => {
     const map = new Map<string, Category>();
@@ -71,8 +79,13 @@ export const useMetaStore = defineStore('meta', () => {
     loading.value = true;
     errorMessage.value = null;
     try {
-      const [categoryResponse, accountResponse, deletedCategoryResponse, deletedAccountResponse, tagResponse] =
-        await Promise.all([
+      const [
+        categoryResponse,
+        accountResponse,
+        deletedCategoryResponse,
+        deletedAccountResponse,
+        tagResponse,
+      ] = await Promise.all([
         api.categories.list(),
         api.accounts.list(),
         api.categories.list(undefined, true),
@@ -112,7 +125,7 @@ export const useMetaStore = defineStore('meta', () => {
 
   /** First category of a type, used to preselect in the editor. */
   function firstCategoryId(type: number): string | undefined {
-    const list = type === TYPE_INCOME ? incomeCategories.value : expenseCategories.value;
+    const list = type === TYPE_INCOME ? incomeCategories.value : selectableExpenseCategories.value;
     return list[0]?.id;
   }
 
@@ -125,6 +138,8 @@ export const useMetaStore = defineStore('meta', () => {
     errorMessage,
     expenseCategories,
     incomeCategories,
+    budgetModuleCategories,
+    selectableExpenseCategories,
     categoryById,
     accountById,
     categoryName,

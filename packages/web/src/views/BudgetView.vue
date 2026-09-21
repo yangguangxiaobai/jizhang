@@ -27,7 +27,11 @@ onMounted(() => {
 });
 
 watch(
-  () => [budget.currentPeriodStart, budget.selectedPeriodStart, budget.displayedOverview?.hasBudget],
+  () => [
+    budget.currentPeriodStart,
+    budget.selectedPeriodStart,
+    budget.displayedOverview?.hasBudget,
+  ],
   () => {
     void loadOutsideCycleExpense();
   },
@@ -43,9 +47,7 @@ watch(
  */
 async function loadOutsideCycleExpense(): Promise<void> {
   const overview = budget.displayedOverview;
-  const start = budget.viewingHistory
-    ? budget.selectedPeriodStart
-    : budget.currentPeriodStart;
+  const start = budget.viewingHistory ? budget.selectedPeriodStart : budget.currentPeriodStart;
   if (overview === null || start === null || !overview.hasBudget) {
     outsideCycleExpenseCents.value = 0;
     outsideCycleFrom.value = null;
@@ -53,8 +55,7 @@ async function loadOutsideCycleExpense(): Promise<void> {
   }
 
   const cycle = overview.cycle;
-  const end =
-    cycle.kind === 'natural-month' ? null : nextPeriodStart(cycle.day, start);
+  const end = cycle.kind === 'natural-month' ? null : nextPeriodStart(cycle.day, start);
   if (end === null) {
     outsideCycleExpenseCents.value = 0;
     outsideCycleFrom.value = null;
@@ -99,17 +100,13 @@ function usedPercent(spentCents: number, budgetCents: number): number {
 const cycleLabel = computed(() => {
   const cycle = budget.displayedOverview?.cycle;
   if (cycle === undefined || cycle === null) return '';
-  return cycle.kind === 'natural-month'
-    ? '自然月周期'
-    : `每月 ${cycle.day} 号起算`;
+  return cycle.kind === 'natural-month' ? '自然月周期' : `每月 ${cycle.day} 号起算`;
 });
 
 /** e.g. `8月10日 – 9月9日` for the cycle currently on screen. */
 const cycleRangeLabel = computed(() => {
   const overview = budget.displayedOverview;
-  const startTs = budget.viewingHistory
-    ? budget.selectedPeriodStart
-    : budget.currentPeriodStart;
+  const startTs = budget.viewingHistory ? budget.selectedPeriodStart : budget.currentPeriodStart;
   if (overview === null || startTs === null || !overview.hasBudget) return '';
   const cycle = overview.cycle;
   if (cycle.kind === 'natural-month') {
@@ -128,9 +125,7 @@ function formatOutsideFrom(ts: number): string {
   return formatDayShort(ts);
 }
 
-const poolLabel = computed(() =>
-  formatYuan(budget.displayedOverview?.carryoverPoolCents ?? 0),
-);
+const poolLabel = computed(() => formatYuan(budget.displayedOverview?.carryoverPoolCents ?? 0));
 
 /** `"2026年7月"` for a cycle start, used by the period switcher. */
 function periodLabel(periodStart: number): string {
@@ -161,9 +156,7 @@ const selectedPeriod = computed({
 });
 
 /** True while a historical overview is being fetched for the first time. */
-const historyLoading = computed(
-  () => budget.viewingHistory && budget.displayedOverview === null,
-);
+const historyLoading = computed(() => budget.viewingHistory && budget.displayedOverview === null);
 </script>
 
 <template>
@@ -267,12 +260,8 @@ const historyLoading = computed(
           <template v-if="budget.viewingHistory">
             这是该周期<strong>开始时</strong>的结余池；该周期自己的剩余要等周期结束才进池。
           </template>
-          <template v-else-if="budget.poolIsNegative">
-            本周期超支，已从结余池借用。
-          </template>
-          <template v-else>
-            历史周期未用完的额度会累积到这里，超支时可借用。
-          </template>
+          <template v-else-if="budget.poolIsNegative"> 本周期超支，已从结余池借用。 </template>
+          <template v-else> 历史周期未用完的额度会累积到这里，超支时可借用。 </template>
         </p>
       </section>
 
@@ -342,23 +331,22 @@ const historyLoading = computed(
               · {{ budgetToneLabel(budgetTone(module.spentCents, module.budgetCents)) }}
             </template>
           </small>
+
+          <ul v-if="module.children && module.children.length > 0" class="child-spend">
+            <li v-for="child in module.children" :key="child.categoryId">
+              <span>{{ child.categoryName }}</span>
+              <span>{{ formatYuan(child.spentCents) }}</span>
+            </li>
+          </ul>
         </li>
       </ul>
 
       <div class="actions">
         <button type="button" @click="router.push({ name: 'salary-new' })">记工资</button>
-        <button
-          type="button"
-          class="ghost"
-          @click="router.push({ name: 'salary-records' })"
-        >
+        <button type="button" class="ghost" @click="router.push({ name: 'salary-records' })">
           工资记录
         </button>
-        <button
-          type="button"
-          class="ghost"
-          @click="router.push({ name: 'templates' })"
-        >
+        <button type="button" class="ghost" @click="router.push({ name: 'templates' })">
           分配模板
         </button>
       </div>
@@ -581,6 +569,27 @@ const historyLoading = computed(
 
 .percent.over {
   color: var(--danger);
+}
+.child-spend {
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.55rem 0 0;
+  padding: 0.5rem 0 0 0.7rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+.child-spend li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
 }
 
 .actions {

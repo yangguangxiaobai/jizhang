@@ -40,6 +40,7 @@ const categoryDraft = ref<{
   type: number;
   icon: string;
   color: number;
+  parentId: string | null;
 } | null>(null);
 
 /**
@@ -80,11 +81,10 @@ function isChosen(color: number, swatch: number): boolean {
   return color >>> 0 === swatch >>> 0;
 }
 
-const expenseCategories = computed(() =>
-  meta.categories.filter((c) => c.type === 0),
-);
-const incomeCategories = computed(() =>
-  meta.categories.filter((c) => c.type === 1),
+const expenseCategories = computed(() => meta.categories.filter((c) => c.type === 0));
+const incomeCategories = computed(() => meta.categories.filter((c) => c.type === 1));
+const parentOptions = computed(() =>
+  expenseCategories.value.filter((category) => category.parentId === null),
 );
 
 onMounted(async () => {
@@ -114,6 +114,7 @@ function startCategoryCreate(type: number): void {
     type,
     icon: 'other',
     color: DEFAULT_COLOR,
+    parentId: null,
   };
   errorMessage.value = null;
 }
@@ -125,6 +126,7 @@ function startCategoryEdit(category: Category): void {
     type: category.type,
     icon: category.icon,
     color: category.color >>> 0,
+    parentId: category.parentId,
   };
   errorMessage.value = null;
 }
@@ -146,12 +148,14 @@ async function saveCategory(): Promise<void> {
         type: draft.type,
         icon: draft.icon,
         color: draft.color,
+        parentId: draft.type === 0 ? draft.parentId : null,
       });
     } else {
       await api.categories.update(draft.id, {
         name: draft.name.trim(),
         icon: draft.icon,
         color: draft.color,
+        parentId: draft.type === 0 ? draft.parentId : null,
       });
     }
     categoryDraft.value = null;
@@ -170,11 +174,14 @@ async function deleteCategory(category: Category): Promise<void> {
   try {
     // Tell the user what depends on it before they commit.
     const usage = await api.categories.usage(category.id);
+    const childCount = meta.categories.filter((item) => item.parentId === category.id).length;
     const warning =
       usage.transactions > 0
         ? `\n有 ${usage.transactions} 笔账单使用该分类，删除后历史账单仍会显示名称，但不能再选择它。`
         : '';
-    if (!window.confirm(`删除分类「${category.name}」？${warning}`)) return;
+    const childWarning =
+      childCount > 0 ? `\n该父模块包含 ${childCount} 个子分类，删除后子分类会变为独立分类。` : '';
+    if (!window.confirm(`删除分类「${category.name}」？${warning}${childWarning}`)) return;
 
     await api.categories.remove(category.id);
     await meta.load(true);
@@ -390,6 +397,22 @@ async function deleteTag(tag: TagCount): Promise<void> {
         <input v-model="categoryDraft.name" type="text" maxlength="40" placeholder="例如：宠物" />
       </label>
 
+      <label v-if="categoryDraft.type === 0" class="field">
+        <span>父模块</span>
+        <select v-model="categoryDraft.parentId">
+          <option :value="null">独立分类</option>
+          <option
+            v-for="parent in parentOptions"
+            :key="parent.id"
+            :value="parent.id"
+            :disabled="parent.id === categoryDraft.id"
+          >
+            {{ parent.name }}
+          </option>
+        </select>
+        <small>归入父模块后，预算会共享父模块额度；账单仍选择本分类。</small>
+      </label>
+
       <fieldset class="field">
         <legend>图标</legend>
         <div class="icon-grid">
@@ -432,24 +455,36 @@ async function deleteTag(tag: TagCount): Promise<void> {
     </section>
 
     <template v-else>
-      <section v-for="group in [
-        { type: 0, label: '支出分类', items: expenseCategories },
-        { type: 1, label: '收入分类', items: incomeCategories },
-      ]" :key="group.type" class="group">
+      <section
+        v-for="group in [
+          { type: 0, label: '支出分类', items: expenseCategories },
+          { type: 1, label: '收入分类', items: incomeCategories },
+        ]"
+        :key="group.type"
+        class="group"
+      >
         <header class="group-head">
           <h2>{{ group.label }}</h2>
-          <button type="button" class="link" @click="startCategoryCreate(group.type)">
-            新建
-          </button>
+          <button type="button" class="link" @click="startCategoryCreate(group.type)">新建</button>
         </header>
 
         <ul>
-          <li v-for="(category, index) in group.items" :key="category.id">
+          <li
+            v-for="(category, index) in group.items"
+            :key="category.id"
+            :class="{ 'child-row': category.parentId !== null }"
+          >
             <span class="glyph" :style="{ background: categoryCssColor(category.color) }">
               {{ iconGlyph(category.icon) }}
             </span>
             <span class="name">
+              <span v-if="category.parentId !== null" class="parent-mark">↳</span>
               {{ category.name }}
+              <span
+                v-if="expenseCategories.some((item) => item.parentId === category.id)"
+                class="badge"
+                >父模块</span
+              >
               <span v-if="category.isBuiltin" class="badge">内建</span>
             </span>
             <span class="row-actions">
@@ -495,7 +530,12 @@ async function deleteTag(tag: TagCount): Promise<void> {
 
       <label class="field">
         <span>名称</span>
-        <input v-model="accountDraft.name" type="text" maxlength="40" placeholder="例如：招商银行" />
+        <input
+          v-model="accountDraft.name"
+          type="text"
+          maxlength="40"
+          placeholder="例如：招商银行"
+        />
       </label>
 
       <label class="field">
@@ -549,9 +589,7 @@ async function deleteTag(tag: TagCount): Promise<void> {
               <span>{{ account.name }}</span>
               <span class="muted small">{{ ACCOUNT_TYPES[account.type] }}</span>
               <span v-if="account.isBuiltin" class="badge">内建</span>
-              <span class="muted small">
-                初始 {{ formatYuan(account.initialBalanceCents) }}
-              </span>
+              <span class="muted small"> 初始 {{ formatYuan(account.initialBalanceCents) }} </span>
             </span>
             <span
               class="account-balance"
@@ -596,9 +634,7 @@ async function deleteTag(tag: TagCount): Promise<void> {
   <template v-else>
     <section v-if="tagRenameFrom !== null" class="editor card">
       <h2>重命名标签</h2>
-      <p class="hint">
-        「{{ tagRenameFrom }}」会被改写为新的名字，所有使用它的账单同步更新。
-      </p>
+      <p class="hint">「{{ tagRenameFrom }}」会被改写为新的名字，所有使用它的账单同步更新。</p>
       <label class="field">
         <span>新名称</span>
         <input v-model="tagRenameTo" type="text" maxlength="32" />
@@ -609,9 +645,7 @@ async function deleteTag(tag: TagCount): Promise<void> {
       </div>
     </section>
 
-    <p v-else-if="meta.tags.length === 0" class="empty">
-      还没有标签。记账时可以为账单添加标签。
-    </p>
+    <p v-else-if="meta.tags.length === 0" class="empty">还没有标签。记账时可以为账单添加标签。</p>
 
     <ul v-else>
       <li v-for="tag in meta.tags" :key="tag.name">
@@ -816,6 +850,13 @@ li {
 
 li:last-child {
   border-bottom: 0;
+}
+.group ul li.child-row {
+  padding-left: 1.25rem;
+}
+
+.parent-mark {
+  color: var(--muted);
 }
 
 .glyph {

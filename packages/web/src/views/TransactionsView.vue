@@ -140,7 +140,7 @@ function signedAmount(item: Transaction): string {
         <select v-model="store.filters.categoryId">
           <option :value="undefined">全部</option>
           <optgroup label="支出">
-            <option v-for="c in meta.expenseCategories" :key="c.id" :value="c.id">
+            <option v-for="c in meta.selectableExpenseCategories" :key="c.id" :value="c.id">
               {{ c.name }}
             </option>
           </optgroup>
@@ -212,17 +212,17 @@ function signedAmount(item: Transaction): string {
         <button type="button" class="row" @click="openDetail(item)">
           <span class="dot" :style="{ background: meta.categoryColor(item.categoryId) }" />
           <span class="row-main">
-           <span class="row-title">
-             {{ meta.categoryName(item.categoryId) }}
-             <span v-if="item.isRefund" class="badge">退款</span>
-             <span
-               v-if="!item.isRefund && item.refundSummary && item.refundSummary.refundCount > 0"
-               class="badge refund-badge"
-               @click.stop="detailModalTxId = item.id"
-             >
-               已退{{ formatYuan(item.refundSummary.totalRefundCents) }}
-             </span>
-           </span>
+            <span class="row-title">
+              {{ meta.categoryName(item.categoryId) }}
+              <span v-if="item.isRefund" class="badge">退款</span>
+              <span
+                v-if="!item.isRefund && item.refundSummary && item.refundSummary.refundCount > 0"
+                class="badge refund-badge"
+                @click.stop="detailModalTxId = item.id"
+              >
+                已退{{ formatYuan(item.refundSummary.totalRefundCents) }}
+              </span>
+            </span>
             <span class="row-sub">
               {{ formatDayLabel(item.date) }}
               <template v-if="item.accountId"> · {{ meta.accountName(item.accountId) }}</template>
@@ -232,15 +232,15 @@ function signedAmount(item: Transaction): string {
               <span v-for="tag in item.tags" :key="tag" class="tag">{{ tag }}</span>
             </span>
           </span>
-         <span
-           class="amount"
-           :class="{
-             income: item.type === TYPE_INCOME || item.isRefund,
-             expense: item.type !== TYPE_INCOME && !item.isRefund,
-           }"
-         >
-           {{ signedAmount(item) }}
-         </span>
+          <span
+            class="amount"
+            :class="{
+              income: item.type === TYPE_INCOME || item.isRefund,
+              expense: item.type !== TYPE_INCOME && !item.isRefund,
+            }"
+          >
+            {{ signedAmount(item) }}
+          </span>
           <span
             v-if="!item.isRefund && item.refundSummary && item.refundSummary.refundCount > 0"
             class="net-amount"
@@ -249,12 +249,17 @@ function signedAmount(item: Transaction): string {
           </span>
         </button>
 
-        <button type="button" class="delete" :aria-label="`删除${item.note || '这笔账单'}`" @click="remove(item)">
+        <button
+          type="button"
+          class="delete"
+          :aria-label="`删除${item.note || '这笔账单'}`"
+          @click="remove(item)"
+        >
           ✕
         </button>
       </li>
     </ul>
-</section>
+  </section>
 
   <TransactionDetailModal
     v-if="detailModalTxId !== null"

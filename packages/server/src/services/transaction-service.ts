@@ -151,7 +151,7 @@ export interface CreateTransactionInput {
   readonly note?: unknown;
   readonly tags?: unknown;
   readonly isRefund?: unknown;
-   readonly refundLinkedTxIds?: unknown;
+  readonly refundLinkedTxIds?: unknown;
 }
 
 /**
@@ -264,7 +264,7 @@ export class TransactionService {
     this.db = db;
     this.now = options.now ?? (() => Date.now());
   }
-  
+
   /** Returns the ids of refunds linked TO this original expense (reverse lookup). */
   getRefundsForExpense(originalTxId: string): string[] {
     const rows = this.db
@@ -320,6 +320,14 @@ export class TransactionService {
       .get(categoryId) as { type: number } | undefined;
     if (row === undefined) {
       throw new ValidationError(`Unknown or deleted category: ${categoryId}`);
+    }
+    const child = this.db
+      .prepare('SELECT 1 AS x FROM categories WHERE parent_id = ? AND deleted = 0 LIMIT 1')
+      .get(categoryId) as { x: number } | undefined;
+    if (child !== undefined) {
+      throw new ValidationError(
+        'A parent category cannot be selected for a bill. Choose a child category.',
+      );
     }
   }
 
@@ -661,25 +669,23 @@ export class TransactionService {
 
   /** Permanently deletes every soft-deleted row. Returns how many are gone. */
   purgeAll(): number {
-    const run = this.db.transaction(
-      (): number => {
-        const ids = (
-          this.db.prepare('SELECT id FROM transactions WHERE deleted = 1').all() as {
-            id: string;
-          }[]
-        ).map((row) => row.id);
-        if (ids.length > 0) {
-          const placeholders = ids.map(() => '?').join(',');
-          this.db
-            .prepare(
-              `DELETE FROM refund_links
+    const run = this.db.transaction((): number => {
+      const ids = (
+        this.db.prepare('SELECT id FROM transactions WHERE deleted = 1').all() as {
+          id: string;
+        }[]
+      ).map((row) => row.id);
+      if (ids.length > 0) {
+        const placeholders = ids.map(() => '?').join(',');
+        this.db
+          .prepare(
+            `DELETE FROM refund_links
                 WHERE refund_tx_id IN (${placeholders}) OR original_tx_id IN (${placeholders})`,
-            )
-            .run(...ids, ...ids);
-        }
-        return this.db.prepare('DELETE FROM transactions WHERE deleted = 1').run().changes;
-      },
-    );
+          )
+          .run(...ids, ...ids);
+      }
+      return this.db.prepare('DELETE FROM transactions WHERE deleted = 1').run().changes;
+    });
     return run();
   }
 
@@ -791,13 +797,13 @@ export class TransactionService {
       )
       .all(...params, limit, offset) as TransactionRow[];
 
-   return {
+    return {
       items: this.withRefundSummaries(rows),
-     total: totalRow.c,
-     limit,
-     offset,
-   };
- }
+      total: totalRow.c,
+      limit,
+      offset,
+    };
+  }
 
   /**
    * Batch-attaches refund summaries to non-refund expense rows in a list result.

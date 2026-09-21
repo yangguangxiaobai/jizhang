@@ -20,6 +20,7 @@ import { MIGRATION_003_SALARY_ACCOUNT } from './migrations/003-salary-account.js
 import { MIGRATION_004_TRANSFERS } from './migrations/004-transfers.js';
 import { MIGRATION_005_REFUND_LINKS } from './migrations/005-refund-links.js';
 import { MIGRATION_006_REFUND_INCOME } from './migrations/006-refund-income.js';
+import { MIGRATION_007_CATEGORY_HIERARCHY } from './migrations/007-category-hierarchy.js';
 
 export interface Migration {
   readonly version: number;
@@ -38,6 +39,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 4, name: 'transfers', sql: MIGRATION_004_TRANSFERS },
   { version: 5, name: 'refund-links', sql: MIGRATION_005_REFUND_LINKS },
   { version: 6, name: 'refund-income', sql: MIGRATION_006_REFUND_INCOME },
+  { version: 7, name: 'category-hierarchy', sql: MIGRATION_007_CATEGORY_HIERARCHY },
 ];
 
 interface AppliedRow {

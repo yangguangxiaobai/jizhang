@@ -21,8 +21,7 @@
  * （`budget_engine.dart:39`）。
  */
 export type CycleConfig =
-  | { readonly kind: 'natural-month' }
-  | { readonly kind: 'start-day'; readonly day: number };
+  { readonly kind: 'natural-month' } | { readonly kind: 'start-day'; readonly day: number };
 
 /** 自然月模式的单例式常量，便于调用点少写对象字面量。 */
 export const NATURAL_MONTH: CycleConfig = { kind: 'natural-month' };
@@ -93,6 +92,26 @@ export interface BudgetAllocation {
   readonly updatedAt?: number;
 }
 
+/** Child category id -> its one-level parent budget module id. */
+export type CategoryParentMap = ReadonlyMap<string, string>;
+
+/** Resolves a category to its top-level budget module, with identity fallback. */
+export function topLevelCategoryId(
+  categoryId: string,
+  parentByCategoryId?: CategoryParentMap,
+): string {
+  if (parentByCategoryId === undefined) return categoryId;
+  let current = categoryId;
+  const seen = new Set<string>();
+  while (true) {
+    if (seen.has(current)) return categoryId;
+    seen.add(current);
+    const parent = parentByCategoryId.get(current);
+    if (parent === undefined) return current;
+    current = parent;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 计算结果
 // ---------------------------------------------------------------------------
@@ -102,6 +121,12 @@ export interface BudgetAllocation {
  *
  * `remainingCents` 固定为 `budgetCents - spentCents`，**允许为负**（超支）。
  */
+export interface ModuleChildView {
+  readonly categoryId: string;
+  /** Actual spending for this child category; no child budget is implied. */
+  readonly spentCents: number;
+}
+
 export interface ModuleView {
   readonly categoryId: string;
   /** 本周期分配额（分）。 */
@@ -110,6 +135,8 @@ export interface ModuleView {
   readonly spentCents: number;
   /** 剩余 = 分配 − 消费；可为负。 */
   readonly remainingCents: number;
+  /** Optional child spending, present only when a category hierarchy projection is supplied. */
+  readonly children?: readonly ModuleChildView[];
 }
 
 /** 由模块视图派生剩余，保证与参考实现口径一致。 */

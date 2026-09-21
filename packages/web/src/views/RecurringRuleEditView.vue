@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Create or edit one recurring rule.
  *
@@ -15,7 +15,12 @@ import { TYPE_EXPENSE, TYPE_INCOME } from '../api/client.js';
 import type { RecurringFrequency } from '../api/client.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useRecurringStore } from '../stores/recurring.js';
-import { formatCents, fromDateInputValue, parseYuanToCents, toDateInputValue } from '../utils/money.js';
+import {
+  formatCents,
+  fromDateInputValue,
+  parseYuanToCents,
+  toDateInputValue,
+} from '../utils/money.js';
 
 const FREQUENCIES: { value: RecurringFrequency; label: string }[] = [
   { value: 'daily', label: '每天' },
@@ -48,7 +53,7 @@ const saving = ref(false);
 
 const amountCents = computed(() => parseYuanToCents(amountText.value));
 const categories = computed(() =>
-  type.value === TYPE_INCOME ? meta.incomeCategories : meta.expenseCategories,
+  type.value === TYPE_INCOME ? meta.incomeCategories : meta.selectableExpenseCategories,
 );
 
 onMounted(async () => {

@@ -164,6 +164,7 @@ export interface Category {
   readonly id: string;
   readonly name: string;
   readonly type: number;
+  readonly parentId: string | null;
   readonly icon: string;
   readonly color: number;
   readonly sortOrder: number;
@@ -380,12 +381,19 @@ export interface TransactionInput {
 export type CycleConfig =
   { readonly kind: 'natural-month' } | { readonly kind: 'start-day'; readonly day: number };
 
+export interface BudgetModuleChild {
+  readonly categoryId: string;
+  readonly categoryName: string;
+  readonly spentCents: number;
+}
+
 export interface BudgetModuleView {
   readonly categoryId: string;
   readonly categoryName: string;
   readonly budgetCents: number;
   readonly spentCents: number;
   readonly remainingCents: number;
+  readonly children?: BudgetModuleChild[];
 }
 
 export interface BudgetOverview {
@@ -442,6 +450,13 @@ export interface BudgetTemplate {
   readonly isDefault: boolean;
   readonly modules: TemplateModule[];
   readonly updatedAt: number;
+}
+
+export interface ApplyTemplateResult {
+  readonly templateId: string;
+  readonly templateName: string;
+  readonly salaryCount: number;
+  readonly totalAmountCents: number;
 }
 
 export interface SettingsResponse {
@@ -611,14 +626,20 @@ export const api = {
       request<{ items: Category[] }>('/api/v1/categories', {
         query: { type, includeDeleted },
       }),
-    create: (input: { name: string; type: number; icon?: string; color?: number }) =>
-      request<Category>('/api/v1/categories', { method: 'POST', body: input }),
+    create: (input: {
+      name: string;
+      type: number;
+      parentId?: string | null;
+      icon?: string;
+      color?: number;
+    }) => request<Category>('/api/v1/categories', { method: 'POST', body: input }),
     update: (
       id: string,
       changes: {
         name?: string;
         icon?: string;
         color?: number;
+        parentId?: string | null;
         sortOrder?: number;
       },
     ) => request<Category>(`/api/v1/categories/${id}`, { method: 'PATCH', body: changes }),
@@ -742,6 +763,10 @@ export const api = {
     remove: (id: string) => request<void>(`/api/v1/templates/${id}`, { method: 'DELETE' }),
     setDefault: (id: string) =>
       request<BudgetTemplate>(`/api/v1/templates/${id}/default`, { method: 'POST' }),
+    applyToCurrent: (id: string) =>
+      request<ApplyTemplateResult>(`/api/v1/templates/${id}/apply-current`, {
+        method: 'POST',
+      }),
   },
 
   settings: {

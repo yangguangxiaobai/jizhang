@@ -91,32 +91,23 @@ export async function registerMasterDataRoutes(
     return reply.status(201).send(created);
   });
 
-  app.patch(
-    '/api/v1/categories/:id',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const updated = service.updateCategory(
-        requireId(request),
-        (request.body ?? {}) as Record<string, unknown>,
-      );
-      return reply.send(updated);
-    },
-  );
+  app.patch('/api/v1/categories/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const updated = service.updateCategory(
+      requireId(request),
+      (request.body ?? {}) as Record<string, unknown>,
+    );
+    return reply.send(updated);
+  });
 
-  app.delete(
-    '/api/v1/categories/:id',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      service.deleteCategory(requireId(request));
-      return reply.status(204).send();
-    },
-  );
+  app.delete('/api/v1/categories/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    service.deleteCategory(requireId(request));
+    return reply.status(204).send();
+  });
 
-  app.post(
-    '/api/v1/categories/:id/move',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const dir = requireDirection((request.body ?? {}) as Record<string, unknown>);
-      return reply.send({ items: service.moveCategory(requireId(request), dir) });
-    },
-  );
+  app.post('/api/v1/categories/:id/move', async (request: FastifyRequest, reply: FastifyReply) => {
+    const dir = requireDirection((request.body ?? {}) as Record<string, unknown>);
+    return reply.send({ items: service.moveCategory(requireId(request), dir) });
+  });
 
   // ── accounts ──────────────────────────────────────────────────────────────
   app.get('/api/v1/accounts', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -131,44 +122,32 @@ export async function registerMasterDataRoutes(
   //
   // The path sits beside `PATCH`/`DELETE /accounts/:id`; there is no `GET /accounts/:id`, so
   // the static segment is unambiguous.
-  app.get(
-    '/api/v1/accounts/balances',
-    async (_request: FastifyRequest, reply: FastifyReply) => {
-      return reply.send(balances.balances());
-    },
-  );
+  app.get('/api/v1/accounts/balances', async (_request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send(balances.balances());
+  });
 
   app.post('/api/v1/accounts', async (request: FastifyRequest, reply: FastifyReply) => {
     const created = service.createAccount((request.body ?? {}) as Record<string, unknown>);
     return reply.status(201).send(created);
   });
 
-  app.patch(
-    '/api/v1/accounts/:id',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const updated = service.updateAccount(
-        requireId(request),
-        (request.body ?? {}) as Record<string, unknown>,
-      );
-      return reply.send(updated);
-    },
-  );
+  app.patch('/api/v1/accounts/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const updated = service.updateAccount(
+      requireId(request),
+      (request.body ?? {}) as Record<string, unknown>,
+    );
+    return reply.send(updated);
+  });
 
-  app.delete(
-    '/api/v1/accounts/:id',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      service.deleteAccount(requireId(request));
-      return reply.status(204).send();
-    },
-  );
+  app.delete('/api/v1/accounts/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    service.deleteAccount(requireId(request));
+    return reply.status(204).send();
+  });
 
-  app.post(
-    '/api/v1/accounts/:id/move',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const dir = requireDirection((request.body ?? {}) as Record<string, unknown>);
-      return reply.send({ items: service.moveAccount(requireId(request), dir) });
-    },
-  );
+  app.post('/api/v1/accounts/:id/move', async (request: FastifyRequest, reply: FastifyReply) => {
+    const dir = requireDirection((request.body ?? {}) as Record<string, unknown>);
+    return reply.send({ items: service.moveAccount(requireId(request), dir) });
+  });
 
   // ── tags (no table: the name is the identity) ─────────────────────────────
   app.get('/api/v1/tags', async (_request: FastifyRequest, reply: FastifyReply) => {
@@ -186,34 +165,25 @@ export async function registerMasterDataRoutes(
     return reply.send({ ...result, items: service.listTags() });
   });
 
-  app.delete(
-    '/api/v1/tags/:id',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const name = (request.params as IdParams).id;
-      if (typeof name !== 'string' || name.trim() === '') {
-        throw new ValidationError('A tag name is required.');
-      }
-      const result = service.deleteTag(decodeURIComponent(name));
-      return reply.send({ ...result, items: service.listTags() });
-    },
-  );
+  app.delete('/api/v1/tags/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const name = (request.params as IdParams).id;
+    if (typeof name !== 'string' || name.trim() === '') {
+      throw new ValidationError('A tag name is required.');
+    }
+    const result = service.deleteTag(decodeURIComponent(name));
+    return reply.send({ ...result, items: service.listTags() });
+  });
 
   // ── impact preview: how many transactions reference a category/account ────
-  app.get(
-    '/api/v1/categories/:id/usage',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const id = requireId(request);
-      service.getCategoryOrThrow(id);
-      return reply.send({ transactions: service.countTransactionsForCategory(id) });
-    },
-  );
+  app.get('/api/v1/categories/:id/usage', async (request: FastifyRequest, reply: FastifyReply) => {
+    const id = requireId(request);
+    service.getCategoryOrThrow(id);
+    return reply.send({ transactions: service.countTransactionsForCategory(id) });
+  });
 
-  app.get(
-    '/api/v1/accounts/:id/usage',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const id = requireId(request);
-      service.getAccountOrThrow(id);
-      return reply.send({ transactions: service.countTransactionsForAccount(id) });
-    },
-  );
+  app.get('/api/v1/accounts/:id/usage', async (request: FastifyRequest, reply: FastifyReply) => {
+    const id = requireId(request);
+    service.getAccountOrThrow(id);
+    return reply.send({ transactions: service.countTransactionsForAccount(id) });
+  });
 }

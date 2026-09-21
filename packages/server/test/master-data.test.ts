@@ -132,6 +132,65 @@ describe('category management', () => {
     expect((await inject('GET', '/api/v1/categories?type=7')).statusCode).toBe(400);
   });
 
+  it('supports one-level parent modules and keeps parents out of bill entry', async () => {
+    const created = await inject('POST', '/api/v1/categories', {
+      name: '生活',
+      type: 0,
+      icon: 'other',
+      color: 4_280_000_000,
+    });
+    expect(created.statusCode).toBe(201);
+    const parentId = created.json().id as string;
+
+    const assigned = await inject('PATCH', `/api/v1/categories/${FOOD}`, {
+      parentId,
+    });
+    expect(assigned.statusCode).toBe(200);
+    expect(assigned.json().parentId).toBe(parentId);
+
+    const parentBill = await inject('POST', '/api/v1/transactions', {
+      type: 0,
+      amountCents: 1000,
+      categoryId: parentId,
+      accountId: DEFAULT_ACCOUNT,
+      date: AUG(10),
+    });
+    expect(parentBill.statusCode).toBe(400);
+    expect(parentBill.json().error.message).toMatch(/parent category/i);
+
+    const childBill = await addTransaction(FOOD);
+    expect(childBill).toBeTruthy();
+
+    const deleted = await inject('DELETE', `/api/v1/categories/${parentId}`);
+    expect(deleted.statusCode).toBe(204);
+    const child = (await inject('GET', '/api/v1/categories?includeDeleted=true'))
+      .json()
+      .items.find((item: { id: string }) => item.id === FOOD);
+    expect(child.parentId).toBeNull();
+  });
+
+  it('rejects a second parent level', async () => {
+    const first = await inject('POST', '/api/v1/categories', {
+      name: '生活',
+      type: 0,
+      icon: 'other',
+      color: 4_280_000_000,
+    });
+    const second = await inject('POST', '/api/v1/categories', {
+      name: '家庭',
+      type: 0,
+      icon: 'other',
+      color: 4_280_000_001,
+    });
+    const firstId = first.json().id as string;
+    const secondId = second.json().id as string;
+    expect(
+      (await inject('PATCH', `/api/v1/categories/${FOOD}`, { parentId: firstId })).statusCode,
+    ).toBe(200);
+    const nested = await inject('PATCH', `/api/v1/categories/${firstId}`, { parentId: secondId });
+    expect(nested.statusCode).toBe(400);
+    expect(nested.json().error.message).toMatch(/children|parent level/i);
+  });
   it('AC1 creates a category that the transaction editor can use', async () => {
     const created = await inject('POST', '/api/v1/categories', {
       name: '宠物',
@@ -165,8 +224,12 @@ describe('category management', () => {
   });
 
   it('rejects a blank name and a bad type', async () => {
-    expect((await inject('POST', '/api/v1/categories', { name: '  ', type: 0 })).statusCode).toBe(400);
-    expect((await inject('POST', '/api/v1/categories', { name: 'X', type: 5 })).statusCode).toBe(400);
+    expect((await inject('POST', '/api/v1/categories', { name: '  ', type: 0 })).statusCode).toBe(
+      400,
+    );
+    expect((await inject('POST', '/api/v1/categories', { name: 'X', type: 5 })).statusCode).toBe(
+      400,
+    );
   });
 
   it('AC3 renames a builtin category', async () => {
@@ -207,23 +270,26 @@ describe('category management', () => {
   });
 
   it('includeDeleted returns soft-deleted categories for historical naming', async () => {
-    const created = (await inject('POST', '/api/v1/categories', { name: '旧分类', type: 0 })).json();
+    const created = (
+      await inject('POST', '/api/v1/categories', { name: '旧分类', type: 0 })
+    ).json();
     await inject('DELETE', `/api/v1/categories/${created.id}`);
 
     const live = (await inject('GET', '/api/v1/categories')).json().items as { id: string }[];
     expect(live.some((c) => c.id === created.id)).toBe(false);
 
-    const history = (
-      await inject('GET', '/api/v1/categories?includeDeleted=true')
-    ).json().items as { id: string; name: string }[];
+    const history = (await inject('GET', '/api/v1/categories?includeDeleted=true')).json()
+      .items as { id: string; name: string }[];
     expect(history.find((c) => c.id === created.id)?.name).toBe('旧分类');
   });
 
   it('deleting a category retires its recurring rules and pending items', async () => {
-    const category = (await inject('POST', '/api/v1/categories', {
-      name: '即将删除',
-      type: 0,
-    })).json();
+    const category = (
+      await inject('POST', '/api/v1/categories', {
+        name: '即将删除',
+        type: 0,
+      })
+    ).json();
 
     const rule = await inject('POST', '/api/v1/recurring/rules', {
       name: '旧分类账单',
@@ -265,10 +331,12 @@ describe('category management', () => {
 
   // AC4: the historical-name requirement
   it('AC4 a soft-deleted category still names its historical transactions', async () => {
-    const created = (await inject('POST', '/api/v1/categories', {
-      name: '宠物',
-      type: 0,
-    })).json();
+    const created = (
+      await inject('POST', '/api/v1/categories', {
+        name: '宠物',
+        type: 0,
+      })
+    ).json();
     const txnId = await addTransaction(created.id);
 
     await inject('DELETE', `/api/v1/categories/${created.id}`);
@@ -332,7 +400,9 @@ describe('category management', () => {
   });
 
   it('rejects an invalid move direction', async () => {
-    expect((await inject('POST', `/api/v1/categories/${FOOD}/move`, { dir: 0 })).statusCode).toBe(400);
+    expect((await inject('POST', `/api/v1/categories/${FOOD}/move`, { dir: 0 })).statusCode).toBe(
+      400,
+    );
     expect((await inject('POST', `/api/v1/categories/${FOOD}/move`, {})).statusCode).toBe(400);
   });
 });
@@ -400,10 +470,12 @@ describe('account management', () => {
   });
 
   it('edits an account', async () => {
-    const created = (await inject('POST', '/api/v1/accounts', {
-      name: '现金',
-      type: 0,
-    })).json();
+    const created = (
+      await inject('POST', '/api/v1/accounts', {
+        name: '现金',
+        type: 0,
+      })
+    ).json();
     const updated = await inject('PATCH', `/api/v1/accounts/${created.id}`, {
       name: '钱包',
       type: 5,
@@ -427,10 +499,12 @@ describe('account management', () => {
   });
 
   it('deletes a custom account and keeps its transactions readable', async () => {
-    const created = (await inject('POST', '/api/v1/accounts', {
-      name: '临时卡',
-      type: 1,
-    })).json();
+    const created = (
+      await inject('POST', '/api/v1/accounts', {
+        name: '临时卡',
+        type: 1,
+      })
+    ).json();
     const txnId = await addTransaction(FOOD, { accountId: created.id });
 
     await inject('DELETE', `/api/v1/accounts/${created.id}`);
@@ -444,26 +518,31 @@ describe('account management', () => {
   });
 
   it('includeDeleted returns soft-deleted accounts for historical naming', async () => {
-    const created = (await inject('POST', '/api/v1/accounts', {
-      name: '旧账户',
-      type: 1,
-    })).json();
+    const created = (
+      await inject('POST', '/api/v1/accounts', {
+        name: '旧账户',
+        type: 1,
+      })
+    ).json();
     await inject('DELETE', `/api/v1/accounts/${created.id}`);
 
     const live = (await inject('GET', '/api/v1/accounts')).json().items as { id: string }[];
     expect(live.some((a) => a.id === created.id)).toBe(false);
 
-    const history = (
-      await inject('GET', '/api/v1/accounts?includeDeleted=true')
-    ).json().items as { id: string; name: string }[];
+    const history = (await inject('GET', '/api/v1/accounts?includeDeleted=true')).json().items as {
+      id: string;
+      name: string;
+    }[];
     expect(history.find((a) => a.id === created.id)?.name).toBe('旧账户');
   });
 
   it('deleting an account retires its rules and pending items', async () => {
-    const account = (await inject('POST', '/api/v1/accounts', {
-      name: '即将关闭',
-      type: 1,
-    })).json();
+    const account = (
+      await inject('POST', '/api/v1/accounts', {
+        name: '即将关闭',
+        type: 1,
+      })
+    ).json();
 
     const rule = await inject('POST', '/api/v1/recurring/rules', {
       name: '账户账单',
@@ -610,9 +689,9 @@ describe('tag management (derived from transactions)', () => {
       expect(tags).not.toContain('家');
     }
 
-    const rows = db
-      .prepare('SELECT tags_json FROM transactions WHERE deleted = 0')
-      .all() as { tags_json: string }[];
+    const rows = db.prepare('SELECT tags_json FROM transactions WHERE deleted = 0').all() as {
+      tags_json: string;
+    }[];
     for (const row of rows) {
       expect(parseTagsJson(row.tags_json)).not.toContain('家');
     }
@@ -628,16 +707,20 @@ describe('tag management (derived from transactions)', () => {
 
     expect((await inject('GET', `/api/v1/transactions/${live}`)).json().tags).toEqual(['家庭']);
     // The deleted row keeps its old tag; it is out of the ledger either way.
-    const row = db
-      .prepare('SELECT tags_json FROM transactions WHERE id = ?')
-      .get(deleted) as { tags_json: string };
+    const row = db.prepare('SELECT tags_json FROM transactions WHERE id = ?').get(deleted) as {
+      tags_json: string;
+    };
     expect(parseTagsJson(row.tags_json)).toEqual(['家']);
   });
 
   it('renaming preserves tag order and de-duplication', async () => {
     const id = await addTransaction(FOOD, { tags: ['a', 'b', 'c'] });
     await inject('PATCH', '/api/v1/tags', { from: 'b', to: 'B' });
-    expect((await inject('GET', `/api/v1/transactions/${id}`)).json().tags).toEqual(['a', 'B', 'c']);
+    expect((await inject('GET', `/api/v1/transactions/${id}`)).json().tags).toEqual([
+      'a',
+      'B',
+      'c',
+    ]);
   });
 });
 

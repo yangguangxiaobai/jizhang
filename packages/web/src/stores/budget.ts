@@ -9,6 +9,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { ApiError, api } from '../api/client.js';
 import type {
+  ApplyTemplateResult,
   BudgetOverview,
   BudgetTemplate,
   SalaryRecord,
@@ -37,8 +38,7 @@ export const useBudgetStore = defineStore('budget', () => {
   /** True when the user is looking at a past cycle rather than the live one. */
   const viewingHistory = computed(
     () =>
-      selectedPeriodStart.value !== null &&
-      selectedPeriodStart.value !== currentPeriodStart.value,
+      selectedPeriodStart.value !== null && selectedPeriodStart.value !== currentPeriodStart.value,
   );
 
   /**
@@ -71,9 +71,7 @@ export const useBudgetStore = defineStore('budget', () => {
   );
 
   /** Pool is negative when the shown cycle borrowed from it. */
-  const poolIsNegative = computed(
-    () => (displayedOverview.value?.carryoverPoolCents ?? 0) < 0,
-  );
+  const poolIsNegative = computed(() => (displayedOverview.value?.carryoverPoolCents ?? 0) < 0);
 
   /** Overall usage ratio, 0 when nothing is budgeted. */
   const usedRatio = computed(() => {
@@ -233,6 +231,19 @@ export const useBudgetStore = defineStore('budget', () => {
     }
   }
 
+  async function applyTemplateToCurrentCycle(id: string): Promise<ApplyTemplateResult | null> {
+    errorMessage.value = null;
+    try {
+      const result = await api.templates.applyToCurrent(id);
+      invalidateHistory();
+      selectedPeriodStart.value = null;
+      await Promise.all([loadOverview(), loadSalaries(), loadPeriods()]);
+      return result;
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : String(error);
+      return null;
+    }
+  }
   async function deleteTemplate(id: string): Promise<boolean> {
     errorMessage.value = null;
     try {
@@ -302,6 +313,7 @@ export const useBudgetStore = defineStore('budget', () => {
     setCycleStartDay,
     createTemplate,
     updateTemplate,
+    applyTemplateToCurrentCycle,
     deleteTemplate,
     setDefaultTemplate,
     deleteSalary,

@@ -144,13 +144,24 @@ export class StatsService {
     }));
   }
 
+  private categoryParentMap(): Map<string, string> {
+    const parents = new Map<string, string>();
+    for (const row of this.db
+      .prepare('SELECT id, parent_id FROM categories WHERE parent_id IS NOT NULL')
+      .all() as { id: string; parent_id: string }[]) {
+      parents.set(row.id, row.parent_id);
+    }
+    return parents;
+  }
   private categoryMeta(): Map<string, { name: string; color: number }> {
     const map = new Map<string, { name: string; color: number }>();
     // Include soft-deleted categories: a historical transaction must still be
     // labelled, exactly as the budget page does.
-    for (const row of this.db
-      .prepare('SELECT id, name, color FROM categories')
-      .all() as { id: string; name: string; color: number }[]) {
+    for (const row of this.db.prepare('SELECT id, name, color FROM categories').all() as {
+      id: string;
+      name: string;
+      color: number;
+    }[]) {
       map.set(row.id, { name: row.name, color: row.color });
     }
     return map;
@@ -176,10 +187,7 @@ export class StatsService {
     for (const txn of transactions) {
       if (txn.type !== 0) continue;
       touched.add(txn.categoryId);
-      totals.set(
-        txn.categoryId,
-        (totals.get(txn.categoryId) ?? 0) + expenseContribution(txn),
-      );
+      totals.set(txn.categoryId, (totals.get(txn.categoryId) ?? 0) + expenseContribution(txn));
     }
 
     const meta = this.categoryMeta();
@@ -199,7 +207,9 @@ export class StatsService {
         };
       })
       // Largest spend first; ties broken by name so the order is stable.
-      .sort((a, b) => b.amountCents - a.amountCents || a.categoryName.localeCompare(b.categoryName));
+      .sort(
+        (a, b) => b.amountCents - a.amountCents || a.categoryName.localeCompare(b.categoryName),
+      );
 
     return { items, totalCents, from, to };
   }
@@ -316,17 +326,20 @@ export class StatsService {
     const allocations = this.loadAllocations();
     const transactions = this.loadTransactions();
     const cycle = this.cycleConfig();
+    const parentByCategoryId = this.categoryParentMap();
 
     const views = computeModuleViews({
       allocationsDesc: allocations,
       transactions,
       cycle,
+      parentByCategoryId,
     });
     const currentCents = computeCarryoverPool({
       allocationsDesc: allocations,
       transactions,
       currentModuleViews: views,
       cycle,
+      parentByCategoryId,
     });
 
     // Pass the views so the series ends at the same number the budget page shows,
@@ -336,6 +349,7 @@ export class StatsService {
       transactions,
       currentModuleViews: views,
       cycle,
+      parentByCategoryId,
     });
 
     return { points, currentCents, cycle };
@@ -344,7 +358,9 @@ export class StatsService {
   /** Months available for the range picker: the range that has any activity. */
   availableRange(): { earliest: number | null; latest: number | null } {
     const row = this.db
-      .prepare('SELECT MIN(date) AS minDate, MAX(date) AS maxDate FROM transactions WHERE deleted = 0')
+      .prepare(
+        'SELECT MIN(date) AS minDate, MAX(date) AS maxDate FROM transactions WHERE deleted = 0',
+      )
       .get() as { minDate: number | null; maxDate: number | null };
     return { earliest: row.minDate, latest: row.maxDate };
   }

@@ -17,7 +17,7 @@
  * Several allocations may share a cycle: the engine merges them by summing module
  * amounts, so this service must NOT merge anything itself.
  */
-import { allocateSalaryCents } from '@jizhang/shared';
+import { allocateSalaryCents, allocationPeriodStart, monthKey } from '@jizhang/shared';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import {
@@ -132,9 +132,7 @@ export class SalaryService {
 
   private requireAmount(value: unknown): number {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
-      throw new ValidationError(
-        'amountCents must be a positive integer number of cents.',
-      );
+      throw new ValidationError('amountCents must be a positive integer number of cents.');
     }
     return value;
   }
@@ -177,8 +175,7 @@ export class SalaryService {
     const allocation = this.getAllocationRow(id);
     return {
       ...this.toDto(row),
-      allocationId:
-        allocation !== undefined && allocation.deleted === 0 ? allocation.id : null,
+      allocationId: allocation !== undefined && allocation.deleted === 0 ? allocation.id : null,
       allocations:
         allocation !== undefined && allocation.deleted === 0
           ? parseAllocationsJson(allocation.allocations_json)
@@ -304,9 +301,7 @@ export class SalaryService {
       }
     } else {
       const template =
-        templateId === undefined
-          ? this.templates.getDefault()
-          : this.templates.getById(templateId);
+        templateId === undefined ? this.templates.getDefault() : this.templates.getById(templateId);
       if (template === undefined) {
         throw new ValidationError(
           templateId === undefined
@@ -359,12 +354,19 @@ export class SalaryService {
     },
   ): SalaryDetailDto {
     const current = this.getByIdOrThrow(id);
-    if (changes.amountCents === undefined && changes.date === undefined &&
-        changes.note === undefined && changes.accountId === undefined &&
-        changes.allocations === undefined) return current;
+    if (
+      changes.amountCents === undefined &&
+      changes.date === undefined &&
+      changes.note === undefined &&
+      changes.accountId === undefined &&
+      changes.allocations === undefined
+    )
+      return current;
 
-    const amountCents = changes.amountCents === undefined
-      ? current.amountCents : this.requireAmount(changes.amountCents);
+    const amountCents =
+      changes.amountCents === undefined
+        ? current.amountCents
+        : this.requireAmount(changes.amountCents);
     const date = changes.date === undefined ? current.date : this.requireDate(changes.date);
     if (changes.note !== undefined && typeof changes.note !== 'string') {
       throw new ValidationError('note must be a string.');
@@ -373,24 +375,35 @@ export class SalaryService {
     // Moving a salary to another account is a normal correction ("I filed it against the
     // wrong card"), so it is allowed and needs no other field. The balance simply follows:
     // both accounts are recomputed from the rows, so there is nothing to keep in sync.
-    const accountId = changes.accountId === undefined
-      ? current.accountId
-      : requireNonEmptyString(changes.accountId, 'accountId');
+    const accountId =
+      changes.accountId === undefined
+        ? current.accountId
+        : requireNonEmptyString(changes.accountId, 'accountId');
     if (accountId !== current.accountId) assertAccountUsable(this.db, accountId);
     if (amountCents !== current.amountCents && changes.allocations === undefined) {
-      throw new ValidationError('Changing the salary amount requires explicit allocations that add up to the new salary.');
+      throw new ValidationError(
+        'Changing the salary amount requires explicit allocations that add up to the new salary.',
+      );
     }
-    const items = changes.allocations === undefined
-      ? undefined : this.resolveAllocations(changes.allocations, amountCents, undefined);
+    const items =
+      changes.allocations === undefined
+        ? undefined
+        : this.resolveAllocations(changes.allocations, amountCents, undefined);
     const nowMs = this.now();
 
     this.db.transaction(() => {
-      this.db.prepare('UPDATE salary_records SET amount_cents = ?, date = ?, note = ?, account_id = ?, updated_at = ? WHERE id = ?')
+      this.db
+        .prepare(
+          'UPDATE salary_records SET amount_cents = ?, date = ?, note = ?, account_id = ?, updated_at = ? WHERE id = ?',
+        )
         .run(amountCents, date, note, accountId, nowMs, id);
       if (items !== undefined) {
         this.writeAllocation(id, date, items, nowMs);
       } else if (date !== current.date) {
-        this.db.prepare('UPDATE budget_allocations SET date = ?, updated_at = ? WHERE salary_record_id = ?')
+        this.db
+          .prepare(
+            'UPDATE budget_allocations SET date = ?, updated_at = ? WHERE salary_record_id = ?',
+          )
           .run(date, nowMs, id);
       }
     })();
@@ -398,14 +411,25 @@ export class SalaryService {
   }
 
   /** All snapshot rewrites also synchronize their date with the salary. */
-  private writeAllocation(id: string, date: number, items: ParsedAllocationItem[], nowMs: number): void {
+  private writeAllocation(
+    id: string,
+    date: number,
+    items: ParsedAllocationItem[],
+    nowMs: number,
+  ): void {
     const existing = this.getAllocationRow(id);
     if (existing === undefined) {
-      this.db.prepare(`INSERT INTO budget_allocations (id, salary_record_id, date, allocations_json, deleted, updated_at)
-        VALUES (?, ?, ?, ?, 0, ?)`)
+      this.db
+        .prepare(
+          `INSERT INTO budget_allocations (id, salary_record_id, date, allocations_json, deleted, updated_at)
+        VALUES (?, ?, ?, ?, 0, ?)`,
+        )
         .run(randomUUID(), id, date, JSON.stringify(items), nowMs);
     } else {
-      this.db.prepare('UPDATE budget_allocations SET date = ?, allocations_json = ?, deleted = 0, updated_at = ? WHERE id = ?')
+      this.db
+        .prepare(
+          'UPDATE budget_allocations SET date = ?, allocations_json = ?, deleted = 0, updated_at = ? WHERE id = ?',
+        )
         .run(date, JSON.stringify(items), nowMs, existing.id);
     }
   }
@@ -419,6 +443,62 @@ export class SalaryService {
     return this.getByIdOrThrow(id);
   }
 
+  /**
+   * Applies a template to every live salary in the newest budget cycle.
+   *
+   * Template edits remain definitions until this explicit action rewrites the
+   * current cycle's salary snapshots. Historical cycles are never touched.
+   */
+  applyTemplateToCurrentCycle(templateId: string): {
+    readonly templateId: string;
+    readonly templateName: string;
+    readonly salaryCount: number;
+    readonly totalAmountCents: number;
+  } {
+    const template = this.templates.getByIdOrThrow(templateId);
+    const rows = this.db
+      .prepare(
+        `SELECT sr.id, sr.amount_cents, ba.date
+           FROM salary_records AS sr
+           JOIN budget_allocations AS ba ON ba.salary_record_id = sr.id
+          WHERE sr.deleted = 0 AND ba.deleted = 0
+          ORDER BY ba.date DESC, ba.updated_at DESC`,
+      )
+      .all() as { id: string; amount_cents: number; date: number }[];
+
+    const newest = rows[0];
+    if (newest === undefined) {
+      throw new ValidationError('There is no current budget cycle to update.');
+    }
+
+    const cycleDay = this.getCycleStartDay();
+    const cycleKey =
+      cycleDay === undefined ? monthKey(newest.date) : allocationPeriodStart(cycleDay, newest.date);
+    const currentRows = rows.filter((row) =>
+      cycleDay === undefined
+        ? monthKey(row.date) === cycleKey
+        : allocationPeriodStart(cycleDay, row.date) === cycleKey,
+    );
+
+    const updates = currentRows.map((row) => ({
+      id: row.id,
+      date: row.date,
+      allocations: allocateSalaryCents(row.amount_cents, template.modules),
+    }));
+    const nowMs = this.now();
+    this.db.transaction(() => {
+      for (const update of updates) {
+        this.writeAllocation(update.id, update.date, update.allocations, nowMs);
+      }
+    })();
+
+    return {
+      templateId: template.id,
+      templateName: template.name,
+      salaryCount: updates.length,
+      totalAmountCents: currentRows.reduce((total, row) => total + row.amount_cents, 0),
+    };
+  }
   /**
    * Soft-deletes the salary AND its allocation.
    *
@@ -470,11 +550,7 @@ export class SalaryService {
       return undefined;
     }
 
-    if (
-      !Number.isInteger(day) ||
-      day < MIN_CYCLE_START_DAY ||
-      day > MAX_CYCLE_START_DAY
-    ) {
+    if (!Number.isInteger(day) || day < MIN_CYCLE_START_DAY || day > MAX_CYCLE_START_DAY) {
       throw new ValidationError(
         `Cycle start day must be an integer between ${MIN_CYCLE_START_DAY} and ${MAX_CYCLE_START_DAY}.`,
       );

@@ -32,6 +32,7 @@ interface CategoryRow {
   readonly id: string;
   readonly name: string;
   readonly type: number;
+  readonly parent_id: string | null;
   readonly icon: string;
   readonly color: number;
   readonly sort_order: number;
@@ -55,6 +56,7 @@ export interface CategoryDto {
   readonly id: string;
   readonly name: string;
   readonly type: number;
+  readonly parentId: string | null;
   readonly icon: string;
   readonly color: number;
   readonly sortOrder: number;
@@ -77,6 +79,7 @@ function toCategoryDto(row: CategoryRow): CategoryDto {
     id: row.id,
     name: row.name,
     type: row.type,
+    parentId: row.parent_id,
     icon: row.icon,
     color: row.color,
     sortOrder: row.sort_order,
@@ -115,22 +118,20 @@ export class MasterDataService {
   listCategories(type?: number, includeDeleted = false): CategoryDto[] {
     const allRows =
       type === undefined
-        ? (this.db.prepare('SELECT * FROM categories ORDER BY type, sort_order, name').all() as CategoryRow[])
+        ? (this.db
+            .prepare('SELECT * FROM categories ORDER BY type, sort_order, name')
+            .all() as CategoryRow[])
         : (this.db
             .prepare('SELECT * FROM categories WHERE type = ? ORDER BY sort_order, name')
             .all(type) as CategoryRow[]);
-    const rows = includeDeleted
-      ? allRows
-      : allRows.filter((row) => row.deleted === 0);
+    const rows = includeDeleted ? allRows : allRows.filter((row) => row.deleted === 0);
     return rows.map(toCategoryDto);
   }
 
   /** Includes soft-deleted rows; used to resolve a historical transaction's name. */
   getCategory(id: string, includeDeleted = false): CategoryDto | undefined {
     const row = this.db
-      .prepare(
-        `SELECT * FROM categories WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`,
-      )
+      .prepare(`SELECT * FROM categories WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`)
       .get(id) as CategoryRow | undefined;
     return row === undefined ? undefined : toCategoryDto(row);
   }
@@ -141,13 +142,41 @@ export class MasterDataService {
     return found;
   }
 
+  private hasChildren(id: string): boolean {
+    const row = this.db
+      .prepare('SELECT 1 AS x FROM categories WHERE parent_id = ? AND deleted = 0 LIMIT 1')
+      .get(id) as { x: number } | undefined;
+    return row !== undefined;
+  }
+
+  private requireParentId(value: unknown, type: number, categoryId?: string): string | null {
+    if (value === undefined || value === null || value === '') return null;
+    const parentId = typeof value === 'string' ? value.trim() : '';
+    if (parentId === '') throw new ValidationError('parentId must be a category id or null.');
+    if (categoryId === parentId) {
+      throw new ValidationError('A category cannot be its own parent.');
+    }
+    if (type !== CATEGORY_TYPE_EXPENSE) {
+      throw new ValidationError('Only expense categories can have a parent.');
+    }
+    const parent = this.db
+      .prepare('SELECT type, parent_id FROM categories WHERE id = ? AND deleted = 0')
+      .get(parentId) as { type: number; parent_id: string | null } | undefined;
+    if (parent === undefined)
+      throw new ValidationError(`Unknown or deleted parent category: ${parentId}`);
+    if (parent.type !== CATEGORY_TYPE_EXPENSE) {
+      throw new ValidationError('A parent must be an expense category.');
+    }
+    if (parent.parent_id !== null) {
+      throw new ValidationError('Only one parent level is supported.');
+    }
+    return parentId;
+  }
   private nextSortOrder(table: 'categories' | 'accounts', type?: number): number {
     const row = (
       type === undefined
         ? this.db.prepare(`SELECT MAX(sort_order) AS m FROM ${table}`).get()
-        : this.db
-            .prepare(`SELECT MAX(sort_order) AS m FROM ${table} WHERE type = ?`)
-            .get(type)
+        : this.db.prepare(`SELECT MAX(sort_order) AS m FROM ${table} WHERE type = ?`).get(type)
     ) as { m: number | null };
     return (row.m ?? -1) + 1;
   }
@@ -158,11 +187,13 @@ export class MasterDataService {
     readonly icon?: unknown;
     readonly color?: unknown;
     readonly sortOrder?: unknown;
+    readonly parentId?: unknown;
   }): CategoryDto {
     const name = this.requireName(input.name);
     const type = this.requireCategoryType(input.type);
     const icon = this.requireIcon(input.icon);
     const color = this.requireColor(input.color);
+    const parentId = this.requireParentId(input.parentId, type);
     const sortOrder =
       typeof input.sortOrder === 'number' && Number.isInteger(input.sortOrder)
         ? input.sortOrder
@@ -171,10 +202,10 @@ export class MasterDataService {
     const id = randomUUID();
     this.db
       .prepare(
-        `INSERT INTO categories (id, name, type, icon, color, sort_order, is_builtin, deleted, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+        `INSERT INTO categories (id, name, type, parent_id, icon, color, sort_order, is_builtin, deleted, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
       )
-      .run(id, name, type, icon, color, sortOrder, this.now());
+      .run(id, name, type, parentId, icon, color, sortOrder, this.now());
 
     return this.getCategoryOrThrow(id);
   }
@@ -186,13 +217,21 @@ export class MasterDataService {
       readonly icon?: unknown;
       readonly color?: unknown;
       readonly sortOrder?: unknown;
+      readonly parentId?: unknown;
     },
   ): CategoryDto {
     // Builtin rows are editable: the preset name is a default, not a lock.
-    this.getCategoryOrThrow(id);
+    const current = this.getCategoryOrThrow(id);
+    const nextParentId =
+      input.parentId === undefined
+        ? current.parentId
+        : this.requireParentId(input.parentId, current.type, id);
+    if (nextParentId !== null && this.hasChildren(id)) {
+      throw new ValidationError('A category with children cannot become a child.');
+    }
 
     const updates: string[] = [];
-    const params: (string | number)[] = [];
+    const params: (string | number | null)[] = [];
 
     if (input.name !== undefined) {
       updates.push('name = ?');
@@ -205,6 +244,11 @@ export class MasterDataService {
     if (input.color !== undefined) {
       updates.push('color = ?');
       params.push(this.requireColor(input.color));
+    }
+
+    if (input.parentId !== undefined) {
+      updates.push('parent_id = ?');
+      params.push(nextParentId);
     }
     if (input.sortOrder !== undefined) {
       if (typeof input.sortOrder !== 'number' || !Number.isInteger(input.sortOrder)) {
@@ -241,7 +285,10 @@ export class MasterDataService {
     const at = this.now();
     this.db.transaction(() => {
       this.db
-        .prepare('UPDATE categories SET deleted = 1, updated_at = ? WHERE id = ?')
+        .prepare('UPDATE categories SET parent_id = NULL, deleted = 1, updated_at = ? WHERE id = ?')
+        .run(at, id);
+      this.db
+        .prepare('UPDATE categories SET parent_id = NULL, updated_at = ? WHERE parent_id = ?')
         .run(at, id);
       // A rule is a definition of future bills, so deleting the category should stop it
       // too; already-confirmed and ignored occurrences are history and stay visible.
@@ -261,9 +308,7 @@ export class MasterDataService {
   /** How many live transactions reference a category. */
   countTransactionsForCategory(id: string): number {
     const row = this.db
-      .prepare(
-        'SELECT COUNT(*) AS c FROM transactions WHERE category_id = ? AND deleted = 0',
-      )
+      .prepare('SELECT COUNT(*) AS c FROM transactions WHERE category_id = ? AND deleted = 0')
       .get(id) as { c: number };
     return row.c;
   }
@@ -274,16 +319,12 @@ export class MasterDataService {
     const rows = this.db
       .prepare('SELECT * FROM accounts ORDER BY sort_order, name')
       .all() as AccountRow[];
-    return rows
-      .filter((row) => includeDeleted || row.deleted === 0)
-      .map(toAccountDto);
+    return rows.filter((row) => includeDeleted || row.deleted === 0).map(toAccountDto);
   }
 
   getAccount(id: string, includeDeleted = false): AccountDto | undefined {
     const row = this.db
-      .prepare(
-        `SELECT * FROM accounts WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`,
-      )
+      .prepare(`SELECT * FROM accounts WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`)
       .get(id) as AccountRow | undefined;
     return row === undefined ? undefined : toAccountDto(row);
   }
@@ -331,7 +372,7 @@ export class MasterDataService {
     const current = this.getAccountOrThrow(id);
 
     const updates: string[] = [];
-    const params: (string | number)[] = [];
+    const params: (string | number | null)[] = [];
 
     if (input.name !== undefined) {
       updates.push('name = ?');
@@ -345,6 +386,7 @@ export class MasterDataService {
       updates.push('initial_balance_cents = ?');
       params.push(this.requireBalance(input.initialBalanceCents));
     }
+
     if (input.sortOrder !== undefined) {
       if (typeof input.sortOrder !== 'number' || !Number.isInteger(input.sortOrder)) {
         throw new ValidationError('sortOrder must be an integer.');
@@ -375,9 +417,7 @@ export class MasterDataService {
     }
     const at = this.now();
     this.db.transaction(() => {
-      this.db
-        .prepare('UPDATE accounts SET deleted = 1, updated_at = ? WHERE id = ?')
-        .run(at, id);
+      this.db.prepare('UPDATE accounts SET deleted = 1, updated_at = ? WHERE id = ?').run(at, id);
       this.db
         .prepare(
           'UPDATE recurring_rules SET deleted = 1, updated_at = ? WHERE deleted = 0 AND account_id = ?',
@@ -393,9 +433,7 @@ export class MasterDataService {
 
   countTransactionsForAccount(id: string): number {
     const row = this.db
-      .prepare(
-        'SELECT COUNT(*) AS c FROM transactions WHERE account_id = ? AND deleted = 0',
-      )
+      .prepare('SELECT COUNT(*) AS c FROM transactions WHERE account_id = ? AND deleted = 0')
       .get(id) as { c: number };
     return row.c;
   }
@@ -420,14 +458,11 @@ export class MasterDataService {
    * row's `updated_at`; swapping two neighbours keeps the change minimal, which
    * matters if a sync layer ever lands on top of this.
    */
-  private moveWithin(
-    table: 'categories' | 'accounts',
-    id: string,
-    direction: -1 | 1,
-  ): void {
-    const current = this.db
-      .prepare(`SELECT id, sort_order FROM ${table} WHERE id = ?`)
-      .get(id) as { id: string; sort_order: number };
+  private moveWithin(table: 'categories' | 'accounts', id: string, direction: -1 | 1): void {
+    const current = this.db.prepare(`SELECT id, sort_order FROM ${table} WHERE id = ?`).get(id) as {
+      id: string;
+      sort_order: number;
+    };
 
     const neighbour = (
       direction === -1
@@ -559,9 +594,7 @@ export class MasterDataService {
 
   private requireAccountType(value: unknown): number {
     if (typeof value !== 'number' || !(ACCOUNT_TYPES as readonly number[]).includes(value)) {
-      throw new ValidationError(
-        `Account type must be one of ${ACCOUNT_TYPES.join(', ')}.`,
-      );
+      throw new ValidationError(`Account type must be one of ${ACCOUNT_TYPES.join(', ')}.`);
     }
     return value;
   }

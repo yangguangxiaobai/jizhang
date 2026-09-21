@@ -66,7 +66,7 @@ function sizeLabel(bytes: number): string {
 }
 
 function categoryOptionsFor(type: number): { id: string; name: string }[] {
-  const list = type === TYPE_INCOME ? meta.incomeCategories : meta.expenseCategories;
+  const list = type === TYPE_INCOME ? meta.incomeCategories : meta.selectableExpenseCategories;
   return list.map((c) => ({ id: c.id, name: c.name }));
 }
 
@@ -260,22 +260,18 @@ onMounted(() => {
           </div>
 
           <p class="hint">
-            微信：账单页 →「···」→ 下载账单；支付宝：账单 → 开具交易流水证明。
-            支持 .csv 与微信 .xlsx；支付宝 GBK 请直接上传原文件。流程：预览 → 勾选/改分类 → 确认。
+            微信：账单页 →「···」→ 下载账单；支付宝：账单 → 开具交易流水证明。 支持 .csv 与微信
+            .xlsx；支付宝 GBK 请直接上传原文件。流程：预览 → 勾选/改分类 → 确认。
           </p>
 
           <label class="field">
             <span>选择账单文件</span>
-            <input
-              type="file"
-              :accept="platformAccept"
-              :disabled="busy"
-              @change="onFileChosen"
-            />
+            <input type="file" :accept="platformAccept" :disabled="busy" @change="onFileChosen" />
           </label>
 
           <p v-if="platformFile !== null" class="preview">
-            已选择 <strong>{{ platformFile.name }}</strong>（{{ sizeLabel(platformFile.sizeBytes) }}）。
+            已选择 <strong>{{ platformFile.name }}</strong
+            >（{{ sizeLabel(platformFile.sizeBytes) }}）。
           </p>
 
           <div class="actions actions-3">
@@ -311,12 +307,12 @@ onMounted(() => {
           >
             <p>
               <strong>预览（未写入）</strong>：来源
-              {{ platformResult.source === 'wechat' ? '微信' : '支付宝' }}，
-              可入账 {{ platformCandidateRows.length }} 条，过滤/已存在
-              {{ platformIgnoredRows.length }} 条，共读取 {{ platformResult.total }} 条。
-              当前勾选 <strong>{{ selectedCount }}</strong> 条 —
-              支出 {{ formatCents(selectedExpenseCents) }} 元、
-              收入 {{ formatCents(selectedIncomeCents) }} 元。
+              {{ platformResult.source === 'wechat' ? '微信' : '支付宝' }}， 可入账
+              {{ platformCandidateRows.length }} 条，过滤/已存在
+              {{ platformIgnoredRows.length }} 条，共读取 {{ platformResult.total }} 条。 当前勾选
+              <strong>{{ selectedCount }}</strong> 条 — 支出
+              {{ formatCents(selectedExpenseCents) }} 元、 收入
+              {{ formatCents(selectedIncomeCents) }} 元。
             </p>
             <div class="table-actions">
               <button type="button" class="ghost" @click="selectAllCandidates(true)">
@@ -364,7 +360,10 @@ onMounted(() => {
                         }}，已默认不勾选
                       </div>
                     </td>
-                    <td class="cell-amount" :class="row.type === TYPE_INCOME ? 'income' : 'expense'">
+                    <td
+                      class="cell-amount"
+                      :class="row.type === TYPE_INCOME ? 'income' : 'expense'"
+                    >
                       {{ row.type === TYPE_INCOME ? '+' : '−' }}{{ formatCents(row.amountCents) }}
                     </td>
                     <td>
@@ -422,8 +421,8 @@ onMounted(() => {
               {{ platformResult.skipped }} 条，过滤 {{ platformResult.ignored }} 条。
             </p>
             <p>
-              本次所选：支出 {{ formatCents(platformResult.expenseCents) }} 元、
-              收入 {{ formatCents(platformResult.incomeCents) }} 元。
+              本次所选：支出 {{ formatCents(platformResult.expenseCents) }} 元、 收入
+              {{ formatCents(platformResult.incomeCents) }} 元。
             </p>
             <button type="button" class="primary-btn" :disabled="busy" @click="emit('close')">
               完成

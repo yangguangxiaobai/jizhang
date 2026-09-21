@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 /**
  * Allocation templates: modules = category + ratio, ratios summing to 100%.
  *
@@ -9,7 +9,7 @@
 import { RATIO_SUM_TOLERANCE } from '@jizhang/shared';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import type { TemplateModule } from '../api/client.js';
+import type { BudgetTemplate, TemplateModule } from '../api/client.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
 
@@ -22,29 +22,35 @@ const draftName = ref('');
 const draftModules = ref<TemplateModule[]>([]);
 const saving = ref(false);
 const localError = ref<string | null>(null);
+const successMessage = ref<string | null>(null);
+const applyingId = ref<string | null>(null);
 
 const ratioSum = computed(() =>
   draftModules.value.reduce((total, module) => total + module.ratio, 0),
 );
 const ratioPercent = computed(() => Math.round(ratioSum.value * 100));
-const sumIsValid = computed(
-  () => Math.abs(ratioSum.value - 1) < RATIO_SUM_TOLERANCE,
-);
+const sumIsValid = computed(() => Math.abs(ratioSum.value - 1) < RATIO_SUM_TOLERANCE);
 
 onMounted(async () => {
   await Promise.all([budget.loadTemplates(), meta.load()]);
 });
 
 /** Only expense categories can receive an envelope (income is not budgeted). */
-const budgetableCategories = computed(() => meta.expenseCategories);
+const budgetableCategories = computed(() => meta.budgetModuleCategories);
 
 function startCreate(): void {
   editingId.value = 'new';
   draftName.value = '';
-  // Seed from the default template so a new one starts from a working ratio set.
-  draftModules.value = (budget.defaultTemplate?.modules ?? []).map((module) => ({
-    categoryId: module.categoryId,
-    ratio: module.ratio,
+  // Seed from the default template, rolling any legacy child targets up to their parent.
+  const merged = new Map<string, number>();
+  for (const module of budget.defaultTemplate?.modules ?? []) {
+    const category = meta.categoryById.get(module.categoryId);
+    const targetId = category?.parentId ?? module.categoryId;
+    merged.set(targetId, (merged.get(targetId) ?? 0) + module.ratio);
+  }
+  draftModules.value = [...merged.entries()].map(([categoryId, ratio]) => ({
+    categoryId,
+    ratio,
   }));
   localError.value = null;
 }
@@ -145,6 +151,29 @@ async function save(): Promise<void> {
   }
 }
 
+async function applyCurrent(template: BudgetTemplate): Promise<void> {
+  if (applyingId.value !== null) return;
+  const confirmed = window.confirm(
+    `将模板「${template.name}」应用到当前周期？
+
+当前周期内的工资分配会按新模板重算，已有的手动微调也会被覆盖；历史周期不变。`,
+  );
+  if (!confirmed) return;
+
+  localError.value = null;
+  successMessage.value = null;
+  applyingId.value = template.id;
+  try {
+    const result = await budget.applyTemplateToCurrentCycle(template.id);
+    if (result === null) {
+      localError.value = budget.errorMessage ?? '应用模板失败。';
+      return;
+    }
+    successMessage.value = `已将「${result.templateName}」应用到当前周期（${result.salaryCount} 笔工资）。`;
+  } finally {
+    applyingId.value = null;
+  }
+}
 async function remove(id: string, name: string): Promise<void> {
   if (!window.confirm(`删除模板「${name}」？`)) return;
   const ok = await budget.deleteTemplate(id);
@@ -153,11 +182,21 @@ async function remove(id: string, name: string): Promise<void> {
 
 function categoryOptions(currentId: string): { id: string; name: string }[] {
   const used = new Set(
-    draftModules.value
-      .map((module) => module.categoryId)
-      .filter((id) => id !== currentId),
+    draftModules.value.map((module) => module.categoryId).filter((id) => id !== currentId),
   );
-  return budgetableCategories.value.filter((category) => !used.has(category.id));
+  const options = budgetableCategories.value.filter((category) => !used.has(category.id));
+  const current = meta.categoryById.get(currentId);
+  if (current !== undefined && !options.some((category) => category.id === current.id)) {
+    return [{ id: current.id, name: `${current.name}（旧子分类）` }, ...options];
+  }
+  return options;
+}
+
+function categoryOptionLabel(categoryId: string): string {
+  const category = meta.categoryById.get(categoryId);
+  if (category === undefined) return categoryId;
+  const hasChildren = meta.expenseCategories.some((child) => child.parentId === category.id);
+  return hasChildren ? `${category.name}（父模块）` : category.name;
 }
 </script>
 
@@ -189,7 +228,7 @@ function categoryOptions(currentId: string): { id: string; name: string }[] {
             "
           >
             <option v-for="c in categoryOptions(module.categoryId)" :key="c.id" :value="c.id">
-              {{ c.name }}
+              {{ categoryOptionLabel(c.id) }}
             </option>
           </select>
 
@@ -269,16 +308,25 @@ function categoryOptions(currentId: string): { id: string; name: string }[] {
             删除
           </button>
         </div>
+        <button
+          type="button"
+          class="apply-current"
+          :disabled="applyingId !== null"
+          @click="applyCurrent(template)"
+        >
+          {{ applyingId === template.id ? '应用中…' : '应用到当前周期' }}
+        </button>
       </li>
     </ul>
 
     <p v-if="localError && editingId === null" class="error" role="alert">{{ localError }}</p>
+    <p v-if="successMessage && editingId === null" class="success" role="status">
+      {{ successMessage }}
+    </p>
 
     <div v-if="editingId === null" class="actions">
       <button type="button" class="primary" @click="startCreate">新建模板</button>
-      <button type="button" class="ghost" @click="router.push({ name: 'budget' })">
-        返回预算
-      </button>
+      <button type="button" class="ghost" @click="router.push({ name: 'budget' })">返回预算</button>
     </div>
   </template>
 </template>
@@ -484,6 +532,25 @@ select {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.apply-current {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.55rem;
+  padding: 0 0.75rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.apply-current:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
 
 .actions {
   display: grid;
@@ -514,6 +581,12 @@ select {
 .error {
   margin: 0 0 0.6rem;
   color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.success {
+  margin: 0 0 0.6rem;
+  color: var(--ok);
   font-size: 0.85rem;
 }
 

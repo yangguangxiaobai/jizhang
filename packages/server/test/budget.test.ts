@@ -152,9 +152,7 @@ describe('seeded template', () => {
 describe('AC1/AC3 allocation arithmetic', () => {
   it('AC1 10000 yuan over the 40/10/25/10/5/10 template', () => {
     const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
-    const byCategory = new Map(
-      created.allocations.map((a) => [a.categoryId, a.amountCents]),
-    );
+    const byCategory = new Map(created.allocations.map((a) => [a.categoryId, a.amountCents]));
 
     // 40 / 10 / 25 / 10 / 5 / 10 percent of 1,000,000 cents.
     expect(byCategory.get(FOOD)).toBe(400_000);
@@ -224,9 +222,7 @@ describe('AC1/AC3 allocation arithmetic', () => {
       ],
     });
 
-    const byCategory = new Map(
-      created.allocations.map((a) => [a.categoryId, a.amountCents]),
-    );
+    const byCategory = new Map(created.allocations.map((a) => [a.categoryId, a.amountCents]));
     expect(byCategory.get(FOOD)).toBe(600_000);
     expect(byCategory.get(TRANSPORT)).toBe(400_000);
     // The template's other modules must NOT have been added on top.
@@ -255,7 +251,10 @@ describe('AC1/AC3 allocation arithmetic', () => {
 
   it('rejects a non-integer or non-positive salary', () => {
     for (const amountCents of [1000.5, 0, -1000, '1000']) {
-      expect(() => salaries.create({ accountId: ACCOUNT, amountCents, date: AUG(5) }), String(amountCents)).toThrow();
+      expect(
+        () => salaries.create({ accountId: ACCOUNT, amountCents, date: AUG(5) }),
+        String(amountCents),
+      ).toThrow();
     }
   });
 
@@ -271,9 +270,9 @@ describe('AC1/AC3 allocation arithmetic', () => {
   });
 
   it('rejects a future salary date', () => {
-    expect(() => salaries.create({ accountId: ACCOUNT, amountCents: 100, date: NOW + 30 * 86_400_000 })).toThrow(
-      /future/,
-    );
+    expect(() =>
+      salaries.create({ accountId: ACCOUNT, amountCents: 100, date: NOW + 30 * 86_400_000 }),
+    ).toThrow(/future/);
   });
 });
 
@@ -325,9 +324,7 @@ describe('AC4/AC5 template validation', () => {
 
   it('rejects an empty module list and a blank name', () => {
     expect(() => templates.create('empty', [])).toThrow(/at least one module/);
-    expect(() =>
-      templates.create('  ', [{ categoryId: FOOD, ratio: 1 }]),
-    ).toThrow(/needs a name/);
+    expect(() => templates.create('  ', [{ categoryId: FOOD, ratio: 1 }])).toThrow(/needs a name/);
   });
 
   it('validateModules can check category existence', () => {
@@ -394,9 +391,9 @@ describe('AC6 deleting a salary removes its allocation', () => {
 
     salaries.softDelete(created.id);
 
-    const row = db
-      .prepare('SELECT deleted FROM salary_records WHERE id = ?')
-      .get(created.id) as { deleted: number };
+    const row = db.prepare('SELECT deleted FROM salary_records WHERE id = ?').get(created.id) as {
+      deleted: number;
+    };
     expect(row.deleted).toBe(1);
 
     const allocation = db
@@ -447,8 +444,16 @@ describe('salary update', () => {
   it('atomically updates salary amount, date and explicit allocations over the API', async () => {
     const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
     const date = new Date(2026, 8, 5).getTime();
-    const allocations = [{ categoryId: FOOD, amountCents: 1_500_000 }, { categoryId: TRANSPORT, amountCents: 500_000 }];
-    const response = await app.inject({ method: 'PATCH', url: `/api/v1/salaries/${created.id}`, headers: authed(), payload: { amountCents: 2_000_000, date, allocations } });
+    const allocations = [
+      { categoryId: FOOD, amountCents: 1_500_000 },
+      { categoryId: TRANSPORT, amountCents: 500_000 },
+    ];
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/salaries/${created.id}`,
+      headers: authed(),
+      payload: { amountCents: 2_000_000, date, allocations },
+    });
     expect(response.statusCode).toBe(200);
     expect(response.json().allocations).toEqual(allocations);
     expect(salaries.getAllocationRow(created.id)?.date).toBe(date);
@@ -458,9 +463,24 @@ describe('salary update', () => {
   });
 
   it('rejects an unbalanced update without changing the salary, date, note or snapshot', async () => {
-    const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5), note: 'original' });
+    const created = salaries.create({
+      accountId: ACCOUNT,
+      amountCents: 1_000_000,
+      date: AUG(5),
+      note: 'original',
+    });
     const before = salaries.getAllocationRow(created.id);
-    const response = await app.inject({ method: 'PATCH', url: `/api/v1/salaries/${created.id}`, headers: authed(), payload: { amountCents: 2_000_000, date: AUG(20), note: 'changed', allocations: [{ categoryId: FOOD, amountCents: 1 }] } });
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/salaries/${created.id}`,
+      headers: authed(),
+      payload: {
+        amountCents: 2_000_000,
+        date: AUG(20),
+        note: 'changed',
+        allocations: [{ categoryId: FOOD, amountCents: 1 }],
+      },
+    });
     expect(response.statusCode).toBe(400);
     expect(salaries.getByIdOrThrow(created.id)).toEqual(created);
     expect(salaries.getAllocationRow(created.id)).toEqual(before);
@@ -475,7 +495,9 @@ describe('salary update', () => {
 
   it('rolls back the salary when the allocation write fails', () => {
     const created = salaries.create({ accountId: ACCOUNT, amountCents: 1_000_000, date: AUG(5) });
-    db.exec("CREATE TRIGGER fail_allocation BEFORE UPDATE ON budget_allocations BEGIN SELECT RAISE(ABORT, 'allocation write failed'); END");
+    db.exec(
+      "CREATE TRIGGER fail_allocation BEFORE UPDATE ON budget_allocations BEGIN SELECT RAISE(ABORT, 'allocation write failed'); END",
+    );
     expect(() => salaries.update(created.id, { date: AUG(20) })).toThrow(/allocation write failed/);
     expect(salaries.getByIdOrThrow(created.id)).toEqual(created);
   });
@@ -506,6 +528,144 @@ describe('salary update', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Explicit template application
+// ---------------------------------------------------------------------------
+
+describe('apply template to current cycle', () => {
+  it('rewrites every salary in the newest cycle and leaves history unchanged', async () => {
+    const historical = salaries.create({
+      accountId: ACCOUNT,
+      amountCents: 1_000_000,
+      date: JUL(3),
+      allocations: [{ categoryId: FOOD, amountCents: 1_000_000 }],
+    });
+    const firstCurrent = salaries.create({
+      accountId: ACCOUNT,
+      amountCents: 1_000_000,
+      date: AUG(5),
+      allocations: [{ categoryId: TRANSPORT, amountCents: 1_000_000 }],
+    });
+    const secondCurrent = salaries.create({
+      accountId: ACCOUNT,
+      amountCents: 500_000,
+      date: AUG(20),
+      allocations: [{ categoryId: FOOD, amountCents: 500_000 }],
+    });
+    const template = templates.create('current-cycle', [
+      { categoryId: FOOD, ratio: 0.25 },
+      { categoryId: SHOPPING, ratio: 0.75 },
+    ]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/templates/${template.id}/apply-current`,
+      headers: authed(),
+    });
+
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toMatchObject({
+      templateId: template.id,
+      templateName: 'current-cycle',
+      salaryCount: 2,
+      totalAmountCents: 1_500_000,
+    });
+    expect(salaries.getByIdOrThrow(firstCurrent.id).allocations).toEqual([
+      { categoryId: FOOD, amountCents: 250_000 },
+      { categoryId: SHOPPING, amountCents: 750_000 },
+    ]);
+    expect(salaries.getByIdOrThrow(secondCurrent.id).allocations).toEqual([
+      { categoryId: FOOD, amountCents: 125_000 },
+      { categoryId: SHOPPING, amountCents: 375_000 },
+    ]);
+    expect(salaries.getByIdOrThrow(historical.id).allocations).toEqual([
+      { categoryId: FOOD, amountCents: 1_000_000 },
+    ]);
+
+    const current = (await get('/api/v1/budget/overview')).json();
+    expect(current.totalBudgetCents).toBe(1_500_000);
+    expect(
+      current.modules.find((module: { categoryId: string }) => module.categoryId === FOOD)
+        .budgetCents,
+    ).toBe(375_000);
+    expect(
+      current.modules.find((module: { categoryId: string }) => module.categoryId === SHOPPING)
+        .budgetCents,
+    ).toBe(1_125_000);
+
+    const periods = await listPeriods();
+    const historicalOverview = (
+      await get(`/api/v1/budget/overview?periodStart=${periods[0]}`)
+    ).json();
+    expect(historicalOverview.totalBudgetCents).toBe(1_000_000);
+    expect(
+      historicalOverview.modules.find(
+        (module: { categoryId: string }) => module.categoryId === FOOD,
+      ).budgetCents,
+    ).toBe(1_000_000);
+  });
+
+  it('rejects application when no budget cycle exists', async () => {
+    const template = templates.create('empty-cycle', [{ categoryId: FOOD, ratio: 1 }]);
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/templates/${template.id}/apply-current`,
+      headers: authed(),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.message).toMatch(/no current budget cycle/i);
+  });
+});
+// ---------------------------------------------------------------------------
+// Hierarchical budget modules
+// ---------------------------------------------------------------------------
+
+describe('hierarchical budget modules', () => {
+  it('rolls child spending into a parent pool and returns child actuals', async () => {
+    const created = await post('/api/v1/categories', {
+      name: '生活',
+      type: 0,
+      icon: 'other',
+      color: 4_280_000_000,
+    });
+    expect(created.statusCode).toBe(201);
+    const parentId = created.json().id as string;
+    db.prepare('UPDATE categories SET parent_id = ? WHERE id = ?').run(parentId, FOOD);
+
+    salaries.create({
+      accountId: ACCOUNT,
+      amountCents: 1_000_000,
+      date: AUG(5),
+      allocations: [{ categoryId: parentId, amountCents: 1_000_000 }],
+    });
+    const transaction = await post('/api/v1/transactions', {
+      type: 0,
+      amountCents: 50_000,
+      categoryId: FOOD,
+      accountId: ACCOUNT,
+      date: AUG(6),
+    });
+    expect(transaction.statusCode).toBe(201);
+
+    const overview = (await get('/api/v1/budget/overview')).json();
+    const module = overview.modules.find(
+      (item: { categoryId: string }) => item.categoryId === parentId,
+    );
+    expect(module).toMatchObject({
+      categoryName: '生活',
+      budgetCents: 1_000_000,
+      spentCents: 50_000,
+      remainingCents: 950_000,
+    });
+    expect(module.children).toEqual([
+      { categoryId: FOOD, categoryName: '餐饮', spentCents: 50_000 },
+    ]);
+
+    const trend = (await get('/api/v1/stats/pool-trend')).json();
+    expect(trend.currentCents).toBe(overview.carryoverPoolCents);
+  });
+});
 // ---------------------------------------------------------------------------
 // AC7 cycle start day
 // ---------------------------------------------------------------------------
@@ -552,9 +712,11 @@ describe('AC7 cycle start day setting', () => {
   });
 
   it('a stored out-of-range value reads back as unset rather than being trusted', () => {
-    db.prepare(
-      'INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, ?)',
-    ).run(CYCLE_START_DAY_KEY, JSON.stringify({ day: 99 }), NOW);
+    db.prepare('INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, ?)').run(
+      CYCLE_START_DAY_KEY,
+      JSON.stringify({ day: 99 }),
+      NOW,
+    );
     expect(salaries.getCycleStartDay()).toBeUndefined();
   });
 });
@@ -961,6 +1123,7 @@ describe('budget routes are protected', () => {
       { method: 'GET' as const, url: '/api/v1/salaries' },
       { method: 'GET' as const, url: '/api/v1/salaries/x' },
       { method: 'GET' as const, url: '/api/v1/templates' },
+      { method: 'POST' as const, url: '/api/v1/templates/x/apply-current', headers: CSRF },
       { method: 'GET' as const, url: '/api/v1/settings' },
       { method: 'POST' as const, url: '/api/v1/salaries', headers: CSRF },
       { method: 'POST' as const, url: '/api/v1/templates', headers: CSRF },

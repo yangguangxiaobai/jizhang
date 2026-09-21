@@ -58,9 +58,17 @@ const loading = ref(false);
 const saving = ref(false);
 const errorMessage = ref<string | null>(null);
 
-const availableCategories = computed(() =>
-  type.value === TYPE_INCOME ? meta.incomeCategories : meta.expenseCategories,
-);
+const availableCategories = computed(() => {
+  const list =
+    type.value === TYPE_INCOME ? meta.incomeCategories : meta.selectableExpenseCategories;
+  if (type.value === TYPE_EXPENSE && isEdit.value && categoryId.value !== '') {
+    const current = meta.categoryById.get(categoryId.value);
+    if (current !== undefined && !list.some((category) => category.id === current.id)) {
+      return [current, ...list];
+    }
+  }
+  return list;
+});
 
 /** Live preview of the parsed amount, so a typo is visible before saving. */
 const parsedCents = computed(() => parseYuanToCents(amountText.value));
@@ -388,11 +396,7 @@ async function remove(): Promise<void> {
             </span>
             <span class="candidate-amount">{{ formatYuan(item.amountCents) }}</span>
           </button>
-          <button
-            type="button"
-            class="candidate-detail"
-            @click.stop="showCandidateDetail(item.id)"
-          >
+          <button type="button" class="candidate-detail" @click.stop="showCandidateDetail(item.id)">
             详情
           </button>
         </div>
@@ -677,7 +681,9 @@ small.invalid {
   border-radius: 0.55rem;
   overflow: hidden;
   background: var(--bg);
-  transition: border-color var(--dur-quick), background var(--dur-quick);
+  transition:
+    border-color var(--dur-quick),
+    background var(--dur-quick);
 }
 
 .candidate-row.selected {

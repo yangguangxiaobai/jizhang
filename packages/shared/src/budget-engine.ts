@@ -36,7 +36,9 @@ import {
   expenseContribution,
   makeModuleView,
   TYPE_EXPENSE,
+  topLevelCategoryId,
   type BudgetAllocation,
+  type CategoryParentMap,
   type CycleConfig,
   type ModuleAllocation,
   type ModuleView,
@@ -56,9 +58,7 @@ interface PeriodGroup {
 }
 
 /** 全部有效分配（过滤软删除），按 `date` 倒序，再按 `updatedAt` 倒序。 */
-function liveAllocationsDesc(
-  allocationsDesc: readonly BudgetAllocation[],
-): BudgetAllocation[] {
+function liveAllocationsDesc(allocationsDesc: readonly BudgetAllocation[]): BudgetAllocation[] {
   return allocationsDesc
     .filter((a) => a.deleted !== true)
     .slice()
@@ -87,9 +87,7 @@ function earliestDate(group: readonly BudgetAllocation[]): number {
  * ⚠️ 用整数键而非 `'YYYY-MM'` 字符串 —— 见 `monthKey` 的说明。
  * 参考 `_groupByMonth`,`:265-275`。
  */
-function groupByMonth(
-  allocationsDesc: readonly BudgetAllocation[],
-): PeriodGroup[] {
+function groupByMonth(allocationsDesc: readonly BudgetAllocation[]): PeriodGroup[] {
   const groups = new Map<number, BudgetAllocation[]>();
   for (const a of allocationsDesc) {
     const key = monthKey(a.date);
@@ -141,11 +139,13 @@ function groupByCycle(
  */
 function mergeModules(
   group: readonly BudgetAllocation[],
+  parentByCategoryId?: CategoryParentMap,
 ): ModuleAllocation[] {
   const merged = new Map<string, number>();
   for (const a of group) {
     for (const m of a.allocations) {
-      merged.set(m.categoryId, (merged.get(m.categoryId) ?? 0) + m.amountCents);
+      const moduleId = topLevelCategoryId(m.categoryId, parentByCategoryId);
+      merged.set(moduleId, (merged.get(moduleId) ?? 0) + m.amountCents);
     }
   }
   return [...merged.entries()].map(([categoryId, amountCents]) => ({
@@ -165,19 +165,43 @@ function moduleViewsInWindow(
   transactions: readonly Transaction[],
   start: number,
   end: number | null,
+  parentByCategoryId?: CategoryParentMap,
 ): ModuleView[] {
-  const budgets = new Map(mergeModules(allocations).map(m => [m.categoryId, m.amountCents]));
-  const spent = new Map<string, number>();
-  for (const txn of transactions) {
-    if (txn.deleted === true || txn.type !== TYPE_EXPENSE || !inCycle(txn.date, start, end)) continue;
-    if (!budgets.has(txn.categoryId)) budgets.set(txn.categoryId, 0);
-    spent.set(txn.categoryId, (spent.get(txn.categoryId) ?? 0) + expenseContribution(txn));
-  }
-  return [...budgets].map(([categoryId, budgetCents]) =>
-    makeModuleView(categoryId, budgetCents, spent.get(categoryId) ?? 0),
+  const budgets = new Map(
+    mergeModules(allocations, parentByCategoryId).map((m) => [m.categoryId, m.amountCents]),
   );
-}
+  const spent = new Map<string, number>();
+  const childSpent =
+    parentByCategoryId === undefined || parentByCategoryId.size === 0
+      ? undefined
+      : new Map<string, number>();
 
+  for (const txn of transactions) {
+    if (txn.deleted === true || txn.type !== TYPE_EXPENSE || !inCycle(txn.date, start, end)) {
+      continue;
+    }
+    const moduleId = topLevelCategoryId(txn.categoryId, parentByCategoryId);
+    if (!budgets.has(moduleId)) budgets.set(moduleId, 0);
+    spent.set(moduleId, (spent.get(moduleId) ?? 0) + expenseContribution(txn));
+    if (childSpent !== undefined && txn.categoryId !== moduleId) {
+      childSpent.set(
+        txn.categoryId,
+        (childSpent.get(txn.categoryId) ?? 0) + expenseContribution(txn),
+      );
+    }
+  }
+
+  return [...budgets].map(([categoryId, budgetCents]) => {
+    const view = makeModuleView(categoryId, budgetCents, spent.get(categoryId) ?? 0);
+    if (childSpent === undefined) return view;
+    return {
+      ...view,
+      children: [...childSpent.entries()]
+        .filter(([childId]) => topLevelCategoryId(childId, parentByCategoryId) === categoryId)
+        .map(([childId, spentCents]) => ({ categoryId: childId, spentCents })),
+    };
+  });
+}
 /**
  * 当前周期的区间 `[start, end)`；`end === null` 表示无上界。
  *
@@ -223,6 +247,8 @@ export interface ComputeModuleViewsInput {
    * 未知的 start 返回 `[]`;路由层会先校验,所以 `[]` 在这里始终意味着"没有有效分配"。
    */
   readonly periodStart?: number;
+  /** Optional child-to-parent projection; omitted preserves flat-category behavior. */
+  readonly parentByCategoryId?: CategoryParentMap;
 }
 
 /**
@@ -233,9 +259,7 @@ export interface ComputeModuleViewsInput {
  * 空分配 → 返回空数组(参考 `:37`)。
  * 参考 `computeModuleViews`,`:32-91`。
  */
-export function computeModuleViews(
-  input: ComputeModuleViewsInput,
-): ModuleView[] {
+export function computeModuleViews(input: ComputeModuleViewsInput): ModuleView[] {
   const cycle: CycleConfig = input.cycle ?? { kind: 'natural-month' };
 
   const live = liveAllocationsDesc(input.allocationsDesc);
@@ -251,9 +275,7 @@ export function computeModuleViews(
   // 所以这个错误只在构建时暴露)。
   const requested = input.periodStart;
   const index =
-    requested === undefined
-      ? 0
-      : groups.findIndex((group) => group.start === dateOnly(requested));
+    requested === undefined ? 0 : groups.findIndex((group) => group.start === dateOnly(requested));
   const current = groups[index];
   if (current === undefined) return [];
 
@@ -271,7 +293,13 @@ export function computeModuleViews(
         ? null
         : nextPeriodStart(cycle.day, start);
 
-  return moduleViewsInWindow(current.allocations, input.transactions, start, end);
+  return moduleViewsInWindow(
+    current.allocations,
+    input.transactions,
+    start,
+    end,
+    input.parentByCategoryId,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +337,8 @@ export interface ComputeCarryoverPoolInput {
   /** 若有，则扣除当前周期的超支借用（通常传 `computeModuleViews` 的结果）。 */
   readonly currentModuleViews?: readonly ModuleView[];
   readonly cycle?: CycleConfig;
+  /** Optional child-to-parent projection; omitted preserves flat-category behavior. */
+  readonly parentByCategoryId?: CategoryParentMap;
 }
 
 /**
@@ -325,9 +355,7 @@ export interface ComputeCarryoverPoolInput {
  *
  * 三步顺序与符号都不能错，详见文件顶部的口径说明与行为规格 P1-P4 / R3 / C7-C8。
  */
-export function computeCarryoverPool(
-  input: ComputeCarryoverPoolInput,
-): number {
+export function computeCarryoverPool(input: ComputeCarryoverPoolInput): number {
   const cycle: CycleConfig = input.cycle ?? { kind: 'natural-month' };
 
   const live = liveAllocationsDesc(input.allocationsDesc);
@@ -341,9 +369,7 @@ export function computeCarryoverPool(
   const historical = groups.slice(1);
 
   const currentStart =
-    cycle.kind === 'natural-month'
-      ? current.start
-      : allocationPeriodStart(cycle.day, anchor.date);
+    cycle.kind === 'natural-month' ? current.start : allocationPeriodStart(cycle.day, anchor.date);
 
   let pool = 0;
 
@@ -358,7 +384,13 @@ export function computeCarryoverPool(
       cycle.kind === 'natural-month'
         ? group.start
         : allocationPeriodStart(cycle.day, groupAnchor.date);
-    for (const view of moduleViewsInWindow(group.allocations, input.transactions, start, nextStart)) {
+    for (const view of moduleViewsInWindow(
+      group.allocations,
+      input.transactions,
+      start,
+      nextStart,
+      input.parentByCategoryId,
+    )) {
       pool += view.remainingCents;
     }
     nextStart = start;
@@ -376,11 +408,7 @@ export function computeCarryoverPool(
       : allocationPeriodStart(cycle.day, oldest.date);
 
   for (const txn of input.transactions) {
-    if (
-      txn.type === TYPE_EXPENSE &&
-      txn.deleted !== true &&
-      dateOnly(txn.date) < earliestStart
-    ) {
+    if (txn.type === TYPE_EXPENSE && txn.deleted !== true && dateOnly(txn.date) < earliestStart) {
       pool -= expenseContribution(txn);
     }
   }
@@ -457,11 +485,7 @@ export function computePoolTrend(
 
   let pool = 0;
   for (const txn of input.transactions) {
-    if (
-      txn.type === TYPE_EXPENSE &&
-      txn.deleted !== true &&
-      dateOnly(txn.date) < earliestStart
-    ) {
+    if (txn.type === TYPE_EXPENSE && txn.deleted !== true && dateOnly(txn.date) < earliestStart) {
       pool -= expenseContribution(txn);
     }
   }
@@ -478,9 +502,7 @@ export function computePoolTrend(
     if (anchor === undefined) continue;
 
     const start =
-      cycle.kind === 'natural-month'
-        ? group.start
-        : allocationPeriodStart(cycle.day, anchor.date);
+      cycle.kind === 'natural-month' ? group.start : allocationPeriodStart(cycle.day, anchor.date);
 
     // 先记录"本周期开始时"的池余额。
     points.push({ periodStart: start, poolCents: pool });
@@ -501,7 +523,13 @@ export function computePoolTrend(
             : allocationPeriodStart(cycle.day, nextAnchor.date);
     }
 
-    for (const view of moduleViewsInWindow(group.allocations, input.transactions, start, end)) {
+    for (const view of moduleViewsInWindow(
+      group.allocations,
+      input.transactions,
+      start,
+      end,
+      input.parentByCategoryId,
+    )) {
       pool += view.remainingCents;
     }
   }
@@ -551,4 +579,11 @@ export function parseYuanToCents(input: string): number | null {
   return cents > 0 ? cents : null;
 }
 
-export { daysInMonth, monthKey, periodStartOf, allocationPeriodStart, nextPeriodStart, cycleStartOf };
+export {
+  daysInMonth,
+  monthKey,
+  periodStartOf,
+  allocationPeriodStart,
+  nextPeriodStart,
+  cycleStartOf,
+};

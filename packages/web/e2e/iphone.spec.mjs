@@ -6,7 +6,7 @@ const dateInput = (monthOffset = 0, day = 1) => {
   const date = new Date(now.getFullYear(), now.getMonth() + monthOffset, day);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
-const yuan = cents => `¥${(cents / 100).toFixed(2)}`;
+const yuan = (cents) => `¥${(cents / 100).toFixed(2)}`;
 const json = async (page, path) => {
   const response = await page.request.get(`/api/v1${path}`);
   expect(response.ok(), `${path}: ${response.status()}`).toBeTruthy();
@@ -16,7 +16,10 @@ const json = async (page, path) => {
 async function login(page, ledger) {
   await page.addInitScript(() => {
     // A valid-shaped old PIN record used to hide the whole app after a reload.
-    localStorage.setItem('jizhang.pin', JSON.stringify({ salt: 'legacy-salt', hash: 'legacy-hash' }));
+    localStorage.setItem(
+      'jizhang.pin',
+      JSON.stringify({ salt: 'legacy-salt', hash: 'legacy-hash' }),
+    );
   });
   await page.goto('/');
   await expect(page).toHaveURL(/\/login/);
@@ -31,8 +34,11 @@ async function createTemplate(page) {
   await page.goto('/templates');
   await page.getByRole('button', { name: '新建模板', exact: true }).click();
   await page.getByLabel('模板名称').fill('手机工资模板');
-  while (await page.getByRole('button', { name: /移除第/ }).count() > 2) {
-    await page.getByRole('button', { name: /移除第/ }).last().click();
+  while ((await page.getByRole('button', { name: /移除第/ }).count()) > 2) {
+    await page
+      .getByRole('button', { name: /移除第/ })
+      .last()
+      .click();
   }
   await page.getByLabel('第 1 个模块的比例').fill('50');
   await page.getByLabel('第 2 个模块的比例').fill('40');
@@ -86,19 +92,27 @@ const openTransaction = (page, note) =>
 
 async function budgetModule(page, category, remaining) {
   await page.goto('/budget');
-  const row = page.locator('.modules > li').filter({ has: page.locator('.name', { hasText: category }) });
+  const row = page
+    .locator('.modules > li')
+    .filter({ has: page.locator('.name', { hasText: category }) });
   await expect(row).toBeVisible();
   await expect(row.locator('.figures strong')).toHaveText(yuan(remaining));
   return row;
 }
 
-test('phone forms: template → salary → spending/edit/refund/delete/restore → budget', async ({ page, ledger }, testInfo) => {
+test('phone forms: template → salary → spending/edit/refund/delete/restore → budget', async ({
+  page,
+  ledger,
+}, testInfo) => {
   await login(page, ledger);
   await createTemplate(page);
   await salary(page, '10000.01');
   let overview = await json(page, '/budget/overview');
   expect(overview.totalBudgetCents).toBe(1_000_001);
-  expect(overview.modules.map(m => [m.categoryName, m.budgetCents])).toEqual([['餐饮', 600_001], ['交通', 400_000]]);
+  expect(overview.modules.map((m) => [m.categoryName, m.budgetCents])).toEqual([
+    ['餐饮', 600_001],
+    ['交通', 400_000],
+  ]);
   await expense(page, { amount: '123.45', category: '餐饮', note: '手机午饭' });
   await budgetModule(page, '餐饮', 587_656);
 
@@ -119,7 +133,7 @@ test('phone forms: template → salary → spending/edit/refund/delete/restore �
 
   await page.goto('/transactions');
   await openTransaction(page, '手机午饭');
-  page.once('dialog', dialog => dialog.accept());
+  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: '删除', exact: true }).click();
   await expect(page).toHaveURL(/\/transactions$/);
   await budgetModule(page, '交通', 402_345);
@@ -141,7 +155,10 @@ test('phone forms: template → salary → spending/edit/refund/delete/restore �
   await page.screenshot({ path: testInfo.outputPath('budget-iphone.png'), fullPage: true });
 
   await page.goto('/settings');
-  await expect(page.getByRole('heading', { name: '修改密码' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '修改密码', exact: true })).toBeVisible();
+  await expect(page.getByLabel('当前密码')).toHaveCount(0);
+  await page.getByRole('button', { name: '修改密码', exact: true }).click();
+  await expect(page.getByLabel('当前密码')).toBeVisible();
   await expect(page.getByText(/应用锁|忘记 PIN|立即锁定/)).toHaveCount(0);
   await page.getByRole('button', { name: '深色', exact: true }).click();
   await page.getByRole('button', { name: '森林绿', exact: true }).click();
@@ -154,12 +171,87 @@ test('phone forms: template → salary → spending/edit/refund/delete/restore �
   expect((await page.request.get('/api/v1/budget/overview')).status()).toBe(401);
 });
 
-test('history and pool include template-excluded expenses across monthly salaries', async ({ page, ledger }) => {
+test('applying a template explicitly rewrites the current cycle', async ({ page, ledger }) => {
+  await login(page, ledger);
+  await createTemplate(page);
+  await salary(page, '1000.00');
+
+  await page.goto('/templates');
+  const template = page.locator('.templates > li').filter({ hasText: '手机工资模板' });
+  await template.getByRole('button', { name: '编辑', exact: true }).click();
+  await page.getByLabel('第 1 个模块的比例').fill('25');
+  await page.getByLabel('第 2 个模块的比例').fill('75');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('历史周期不变');
+    await dialog.accept();
+  });
+  await page
+    .locator('.templates > li')
+    .filter({ hasText: '手机工资模板' })
+    .getByRole('button', { name: '应用到当前周期', exact: true })
+    .click();
+  await expect(page.getByRole('status')).toContainText('已将');
+
+  await budgetModule(page, '餐饮', 25_000);
+  await budgetModule(page, '交通', 75_000);
+});
+test('hierarchical category spending rolls into a parent budget pool', async ({ page, ledger }) => {
+  await login(page, ledger);
+  await page.goto('/manage');
+
+  const expenseGroup = page.locator('.group').filter({ hasText: '支出分类' });
+  await expenseGroup.getByRole('button', { name: '新建', exact: true }).click();
+  await page.getByLabel('名称').fill('生活');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  await expenseGroup
+    .locator('li')
+    .filter({ hasText: '住房' })
+    .getByRole('button', { name: '编辑', exact: true })
+    .click();
+  await page.getByLabel('父模块').selectOption({ label: '生活' });
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  await page.goto('/salary/new');
+  await page.getByLabel('工资金额（元）').fill('1000.00');
+  await page.getByLabel('发薪日').fill(dateInput());
+  await expect(page.getByRole('button', { name: /保存.*预算|保存并开始新周期/ })).toBeVisible();
+  await page.getByRole('button', { name: /保存.*预算|保存并开始新周期/ }).click();
+  await expect(page).toHaveURL(/\/budget$/);
+
+  await page.goto('/transactions/new');
+  await expect(page.getByLabel('分类').locator('option', { hasText: '生活' })).toHaveCount(0);
+  await page.getByLabel('分类').selectOption({ label: '住房' });
+  await page.getByLabel('金额（元）').fill('50.00');
+  await page.getByLabel('日期', { exact: true }).fill(dateInput());
+  await page.getByLabel('备注', { exact: true }).fill('水电气');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  const row = await budgetModule(page, '生活', 20_000);
+  await expect(row.locator('.child-spend')).toContainText('住房');
+  await expect(row.locator('.child-spend')).toContainText(yuan(5_000));
+});
+test('history and pool include template-excluded expenses across monthly salaries', async ({
+  page,
+  ledger,
+}) => {
   await login(page, ledger);
   await createTemplate(page);
   await salary(page, '1000.00', dateInput(-1));
-  await expense(page, { amount: '50.00', category: '购物', note: '上月模板外支出', date: dateInput(-1, 2) });
-  await expense(page, { amount: '100.00', category: '餐饮', note: '上月餐饮', date: dateInput(-1, 2) });
+  await expense(page, {
+    amount: '50.00',
+    category: '购物',
+    note: '上月模板外支出',
+    date: dateInput(-1, 2),
+  });
+  await expense(page, {
+    amount: '100.00',
+    category: '餐饮',
+    note: '上月餐饮',
+    date: dateInput(-1, 2),
+  });
   await salary(page, '2000.00');
   await expect(page.locator('.pool strong')).toHaveText(yuan(85_000));
   const periods = await json(page, '/budget/periods');
@@ -168,19 +260,28 @@ test('history and pool include template-excluded expenses across monthly salarie
   await expect(page.locator('.history-note')).toBeVisible();
   await expect(page.locator('.summary')).toContainText(yuan(100_000));
   await expect(page.locator('.summary')).toContainText(yuan(15_000));
-  await expect(page.locator('.modules > li').filter({ hasText: '购物' })).toContainText(yuan(-5_000));
+  await expect(page.locator('.modules > li').filter({ hasText: '购物' })).toContainText(
+    yuan(-5_000),
+  );
   await page.getByRole('button', { name: '回到当前周期' }).click();
   await expect(page.locator('.summary')).toContainText(yuan(200_000));
   await expect(page.locator('.pool strong')).toHaveText(yuan(85_000));
 });
 
-test('server outage is visible, draft survives, and retry saves exactly once', async ({ page, ledger }) => {
+test('server outage is visible, draft survives, and retry saves exactly once', async ({
+  page,
+  ledger,
+}) => {
   await login(page, ledger);
   await page.goto('/transactions/new');
   await page.getByLabel('金额（元）').fill('19.99');
   await page.getByLabel('备注', { exact: true }).fill('网络恢复测试');
   await ledger.stop();
-  const reachable = await page.evaluate(() => fetch('/api/v1/health').then(() => true).catch(() => false));
+  const reachable = await page.evaluate(() =>
+    fetch('/api/v1/health')
+      .then(() => true)
+      .catch(() => false),
+  );
   expect(reachable, 'The failure is real, not a no-op offline simulation').toBe(false);
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.locator('[role=alert]')).toContainText(/网络|连接|离线/);
@@ -194,7 +295,10 @@ test('server outage is visible, draft survives, and retry saves exactly once', a
   expect(list.items[0].amountCents).toBe(1_999);
 });
 
-test('phone routes, installation hint and light/dark layouts remain usable', async ({ page, ledger }, testInfo) => {
+test('phone routes, installation hint and light/dark layouts remain usable', async ({
+  page,
+  ledger,
+}, testInfo) => {
   await login(page, ledger);
   await expect(page.getByRole('complementary').filter({ hasText: '添加到主屏幕' })).toBeVisible();
 
@@ -210,7 +314,20 @@ test('phone routes, installation hint and light/dark layouts remain usable', asy
 
   for (const width of [375, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const route of ['/', '/transactions', '/budget', '/salary/new', '/templates', '/stats', '/manage', '/data', '/settings', '/trash', '/transfers', '/transfers/new']) {
+    for (const route of [
+      '/',
+      '/transactions',
+      '/budget',
+      '/salary/new',
+      '/templates',
+      '/stats',
+      '/manage',
+      '/data',
+      '/settings',
+      '/trash',
+      '/transfers',
+      '/transfers/new',
+    ]) {
       await page.goto(route);
       await expect(page.getByRole('navigation', { name: '主导航' })).toBeVisible();
       await expect(page.locator('main')).not.toContainText('加载中');
@@ -218,7 +335,9 @@ test('phone routes, installation hint and light/dark layouts remain usable', asy
     }
   }
   await page.screenshot({ path: testInfo.outputPath('settings-iphone.png'), fullPage: true });
-  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'standalone', { get: () => true }),
+  );
   await page.goto('/');
   await expect(page.getByRole('complementary').filter({ hasText: '添加到主屏幕' })).toHaveCount(0);
 });

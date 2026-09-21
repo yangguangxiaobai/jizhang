@@ -13,6 +13,7 @@
  *   PATCH  /api/v1/templates/:id       edit
  *   DELETE /api/v1/templates/:id       soft delete (never the default)
  *   POST   /api/v1/templates/:id/default  make it the only default
+ *   POST   /api/v1/templates/:id/apply-current  apply to the newest cycle
  *   GET/PUT /api/v1/settings           cycle start day
  *
  * `/budget/overview` is the only place the envelope arithmetic is exposed, and it
@@ -115,6 +116,29 @@ export async function registerBudgetRoutes(
     }));
   }
 
+  function loadCategoryHierarchy(): {
+    readonly parentByCategoryId: Map<string, string>;
+    readonly names: Map<string, string>;
+    readonly childrenByParent: Map<string, string[]>;
+  } {
+    const parentByCategoryId = new Map<string, string>();
+    const names = new Map<string, string>();
+    const childrenByParent = new Map<string, string[]>();
+    const rows = db.prepare('SELECT id, name, parent_id FROM categories').all() as {
+      id: string;
+      name: string;
+      parent_id: string | null;
+    }[];
+    for (const row of rows) {
+      names.set(row.id, row.name);
+      if (row.parent_id === null) continue;
+      parentByCategoryId.set(row.id, row.parent_id);
+      const children = childrenByParent.get(row.parent_id) ?? [];
+      children.push(row.id);
+      childrenByParent.set(row.parent_id, children);
+    }
+    return { parentByCategoryId, names, childrenByParent };
+  }
   function cycleConfig(): CycleConfig {
     const day = salaries.getCycleStartDay();
     return day === undefined ? NATURAL_MONTH : { kind: 'start-day', day };
@@ -146,6 +170,7 @@ export async function registerBudgetRoutes(
   app.get('/api/v1/budget/overview', async (request: FastifyRequest, reply: FastifyReply) => {
     const allocations = loadAllocations();
     const transactions = loadTransactions();
+    const hierarchy = loadCategoryHierarchy();
     const cycle = cycleConfig();
 
     const requested = parsePeriodStart((request.query ?? {}) as Record<string, unknown>);
@@ -164,6 +189,7 @@ export async function registerBudgetRoutes(
       transactions,
       cycle,
       ...(target === undefined ? {} : { periodStart: target }),
+      parentByCategoryId: hierarchy.parentByCategoryId,
     });
 
     // The pool for a HISTORICAL cycle comes from the existing trend series — it is the
@@ -181,33 +207,45 @@ export async function registerBudgetRoutes(
             transactions,
             currentModuleViews: views,
             cycle,
+            parentByCategoryId: hierarchy.parentByCategoryId,
           })
         : (computePoolTrend({
             allocationsDesc: allocations,
             transactions,
             currentModuleViews: views,
             cycle,
+            parentByCategoryId: hierarchy.parentByCategoryId,
           }).find((point) => point.periodStart === target)?.poolCents ?? 0);
 
-    // Category names travel with the numbers so the client renders without a join.
-    const names = new Map<string, string>();
-    for (const row of db
-      .prepare('SELECT id, name FROM categories')
-      .all() as { id: string; name: string }[]) {
-      names.set(row.id, row.name);
-    }
-
+    // Category names and child spending travel with the numbers so the client only renders.
+    const modules = views
+      .map((view) => {
+        const childIds = hierarchy.childrenByParent.get(view.categoryId) ?? [];
+        const { children: childViews, ...baseView } = view;
+        const spentByChild = new Map(
+          (childViews ?? []).map((child) => [child.categoryId, child.spentCents]),
+        );
+        return {
+          ...baseView,
+          categoryName: hierarchy.names.get(view.categoryId) ?? view.categoryId,
+          ...(childIds.length === 0
+            ? {}
+            : {
+                children: childIds.map((categoryId) => ({
+                  categoryId,
+                  categoryName: hierarchy.names.get(categoryId) ?? categoryId,
+                  spentCents: spentByChild.get(categoryId) ?? 0,
+                })),
+              }),
+        };
+      })
+      .sort((a, b) => b.budgetCents - a.budgetCents);
     const totalBudget = views.reduce((sum, view) => sum + view.budgetCents, 0);
     const totalSpent = views.reduce((sum, view) => sum + view.spentCents, 0);
 
     return reply.send({
       cycle,
-      modules: views
-        .map((view) => ({
-          ...view,
-          categoryName: names.get(view.categoryId) ?? view.categoryId,
-        }))
-        .sort((a, b) => b.budgetCents - a.budgetCents),
+      modules,
       carryoverPoolCents: pool,
       totalBudgetCents: totalBudget,
       totalSpentCents: totalSpent,
@@ -284,9 +322,7 @@ export async function registerBudgetRoutes(
     const body = (request.body ?? {}) as Record<string, unknown>;
     const updated = templates.update(requireId(request), {
       ...(body['name'] === undefined ? {} : { name: String(body['name']) }),
-      ...(Array.isArray(body['modules'])
-        ? { modules: body['modules'] as never }
-        : {}),
+      ...(Array.isArray(body['modules']) ? { modules: body['modules'] as never } : {}),
     });
     return reply.send(updated);
   });
@@ -300,6 +336,13 @@ export async function registerBudgetRoutes(
     '/api/v1/templates/:id/default',
     async (request: FastifyRequest, reply: FastifyReply) => {
       return reply.send(templates.setDefault(requireId(request)));
+    },
+  );
+
+  app.post(
+    '/api/v1/templates/:id/apply-current',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      return reply.send(salaries.applyTemplateToCurrentCycle(requireId(request)));
     },
   );
 

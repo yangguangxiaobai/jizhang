@@ -14,11 +14,7 @@
  * `@jizhang/shared` because the web app previews the same numbers the server will
  * store — two implementations would drift.
  */
-import {
-  RATIO_SUM_TOLERANCE,
-  templateRatioSum,
-  type SeedTemplateModule,
-} from '@jizhang/shared';
+import { RATIO_SUM_TOLERANCE, templateRatioSum, type SeedTemplateModule } from '@jizhang/shared';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import { NotFoundError, ValidationError } from './transaction-service.js';
@@ -92,9 +88,7 @@ export function validateModules(
       throw new ValidationError('Every module needs a category.');
     }
     if (!Number.isFinite(module.ratio) || module.ratio <= 0) {
-      throw new ValidationError(
-        `Module ${module.categoryId} needs a positive ratio.`,
-      );
+      throw new ValidationError(`Module ${module.categoryId} needs a positive ratio.`);
     }
     if (seen.has(module.categoryId)) {
       throw new ValidationError(
@@ -126,6 +120,19 @@ export class TemplateService {
     this.now = options.now ?? (() => Date.now());
   }
 
+  private assertNoParentChildMix(modules: readonly TemplateModuleDto[]): void {
+    const ids = new Set(modules.map((module) => module.categoryId));
+    for (const module of modules) {
+      const row = this.db
+        .prepare('SELECT parent_id FROM categories WHERE id = ? AND deleted = 0')
+        .get(module.categoryId) as { parent_id: string | null } | undefined;
+      if (row?.parent_id !== null && row?.parent_id !== undefined && ids.has(row.parent_id)) {
+        throw new ValidationError(
+          `A template cannot select parent ${row.parent_id} and child ${module.categoryId} together.`,
+        );
+      }
+    }
+  }
   private assertCategoryUsable(categoryId: string): void {
     const row = this.db
       .prepare('SELECT 1 AS x FROM categories WHERE id = ? AND deleted = 0')
@@ -137,9 +144,7 @@ export class TemplateService {
 
   list(): TemplateDto[] {
     const rows = this.db
-      .prepare(
-        'SELECT * FROM budget_templates WHERE deleted = 0 ORDER BY is_default DESC, name',
-      )
+      .prepare('SELECT * FROM budget_templates WHERE deleted = 0 ORDER BY is_default DESC, name')
       .all() as TemplateRow[];
     return rows.map(toDto);
   }
@@ -172,6 +177,7 @@ export class TemplateService {
     validateModules(modules, {
       assertCategoryUsable: (id) => this.assertCategoryUsable(id),
     });
+    this.assertNoParentChildMix(modules);
 
     const id = randomUUID();
     const nowMs = this.now();
@@ -182,13 +188,7 @@ export class TemplateService {
           `INSERT INTO budget_templates (id, name, is_default, modules_json, deleted, updated_at)
            VALUES (?, ?, ?, ?, 0, ?)`,
         )
-        .run(
-          id,
-          name.trim(),
-          makeDefault ? 1 : 0,
-          JSON.stringify(modules),
-          nowMs,
-        );
+        .run(id, name.trim(), makeDefault ? 1 : 0, JSON.stringify(modules), nowMs);
       if (makeDefault) this.clearOtherDefaults(id);
     });
     run();
@@ -213,6 +213,7 @@ export class TemplateService {
       validateModules(changes.modules, {
         assertCategoryUsable: (categoryId) => this.assertCategoryUsable(categoryId),
       });
+      this.assertNoParentChildMix(changes.modules);
     }
 
     this.db
@@ -239,9 +240,7 @@ export class TemplateService {
   setDefault(id: string): TemplateDto {
     this.getByIdOrThrow(id);
     const run = this.db.transaction((): void => {
-      this.db
-        .prepare('UPDATE budget_templates SET is_default = 0 WHERE is_default = 1')
-        .run();
+      this.db.prepare('UPDATE budget_templates SET is_default = 0 WHERE is_default = 1').run();
       this.db
         .prepare('UPDATE budget_templates SET is_default = 1, updated_at = ? WHERE id = ?')
         .run(this.now(), id);
@@ -251,8 +250,6 @@ export class TemplateService {
   }
 
   private clearOtherDefaults(keepId: string): void {
-    this.db
-      .prepare('UPDATE budget_templates SET is_default = 0 WHERE id <> ?')
-      .run(keepId);
+    this.db.prepare('UPDATE budget_templates SET is_default = 0 WHERE id <> ?').run(keepId);
   }
 }
