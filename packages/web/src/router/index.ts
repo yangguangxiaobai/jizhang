@@ -149,6 +149,12 @@ const routes = [
         component: () => import('../views/AiProviderSettingsView.vue'),
         meta: { title: 'AI 助手', nav: 'settings' },
       },
+      {
+        path: 'settings/ai/organization',
+        name: 'ai-organization',
+        component: () => import('../views/AiOrganizationView.vue'),
+        meta: { title: 'AI 数据整理', nav: 'settings' },
+      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },

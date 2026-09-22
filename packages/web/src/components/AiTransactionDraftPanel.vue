@@ -7,6 +7,7 @@
  */
 import { ref } from 'vue';
 import type { AiTransactionDraft } from '../api/client.js';
+import AiThinkingStatus from './AiThinkingStatus.vue';
 
 defineProps<{
   busy: boolean;
@@ -19,6 +20,11 @@ const emit = defineEmits<{
 }>();
 
 const input = ref('');
+
+const AI_DRAFT_MESSAGES = [
+  '我先识别金额、日期和支付账户…',
+  '正在匹配你已有的分类，不会新建分类…',
+] as const;
 
 const missingLabels: Record<string, string> = {
   amount: '金额',
@@ -56,6 +62,8 @@ function requestDraft(): void {
     <button class="ai-submit" type="button" :disabled="busy || input.trim() === ''" @click="requestDraft">
       {{ busy ? '识别中…' : 'AI 识别' }}
     </button>
+
+    <AiThinkingStatus :active="busy" title="AI 正在整理这笔账" :messages="AI_DRAFT_MESSAGES" />
 
     <p v-if="error" class="ai-error" role="alert">{{ error }}</p>
     <p v-else-if="draft" class="ai-success" role="status">

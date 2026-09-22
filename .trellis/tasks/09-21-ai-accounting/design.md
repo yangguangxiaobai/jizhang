@@ -9,7 +9,11 @@ This design covers the first deliverable only:
 - Add a natural-language input to the new-transaction flow that asks the configured provider for an editable draft.
 - Reuse the existing transaction form and `TransactionService` for the final save.
 
-The AI draft endpoint is advisory and read-only with respect to the ledger. It must not create, update, delete, or reclassify any accounting row. Monthly evaluation, batch cleanup, voice, OCR, and autonomous actions remain follow-up tasks.
+The AI draft endpoint is advisory and read-only with respect to the ledger. It must not create, update, delete, or reclassify any accounting row. Batch cleanup, voice, OCR, and autonomous actions remain follow-up tasks.
+
+The next slice is an on-demand current-natural-month evaluation. It persists neither the
+evaluation nor a new ledger fact, and sends aggregate facts—not transaction rows or notes—to
+the configured provider.
 
 ## Architecture and boundaries
 
@@ -165,3 +169,107 @@ The page never hydrates the full secret into a model-bound value after load. It 
 - Route-test auth/CSRF, config CRUD, missing encryption key, provider timeout/non-2xx/invalid JSON, and the no-ledger-write guarantee for draft generation.
 - Browser-test settings configuration, redacted reload, custom mode validation, draft fill, manual correction, and normal save.
 - Run the existing shared/server/web typecheck, lint, test, build, and mobile browser checks. No test may call a real provider; use an injected fetch stub or a local test server.
+
+## Follow-up design: current-month evaluation
+
+- Add `POST /api/v1/ai/monthly-evaluation` with no request body or an empty JSON body.
+- Derive the current natural-month `[from, to)` window from the injected server clock and
+  reuse existing stats/budget owners; never treat a budget cycle as the calendar month.
+- Return `period`, server-owned `facts`, and explanatory `evaluation` separately. Facts carry
+  stable evidence ids (`monthly.*`, `category.*`, `trend.*`, `budget.*`); every evaluation
+  statement must cite ids that exist in the same response. The UI renders facts independently
+  and treats AI prose as non-authoritative.
+- The provider context is feature-scoped and aggregate-only. Custom templates may use the
+  additional controlled `{{facts}}` variable, but never receive transaction rows, notes, tags,
+  account records, or the provider secret.
+- Do not call the provider during page load, persist the response, or add a navigation tab.
+
+## Follow-up design: AI data organization and category merge
+
+### Change boundary
+
+This slice adds a protected organization preview, explicit apply, and conditional undo. It
+does not auto-run, auto-delete, change amounts/dates/accounts/notes, or modify confirmed and
+ignored recurring-occurrence snapshots. Deterministic server analysis owns candidate ids,
+dependency counts, and the preview fingerprint; AI may only rank or explain those candidates.
+
+### Safe merge rules
+
+- A category candidate must be a live leaf category. Source and target must have the same
+  income/expense type and the same `parent_id` (including both being top-level).
+- The user chooses the canonical target. A builtin source is blocked; a builtin target is
+  allowed. The source is soft-deleted only after every selected dependency is migrated.
+- Transactions, including soft-deleted transaction rows, move from source to target so the
+  historical label is consistent. `budget_allocations.allocations_json` and
+  `budget_templates.modules_json` replace source ids with target ids and combine duplicate
+  entries by adding cents/ratios. Live recurring rules and pending occurrences move to the
+  target; confirmed/ignored occurrences remain immutable snapshots.
+- A category with a live child, a cross-type/parent match, malformed dependency JSON, or any
+  dependency that cannot be rewritten is previewed as blocked and cannot be applied.
+
+### Preview and audit contract
+
+The preview is recomputed on every request and returns a SHA-256 `previewHash`. An action id
+is stable for its kind/source/target pair. Apply accepts `{ previewHash, actionIds }`, recomputes
+the preview, and aborts the whole transaction if the hash or any selected action changed.
+
+Migration 008 adds an append-only `ai_organization_audit` event table. An apply event records
+the operation id, action kind, source/target ids, affected row ids grouped by table, and
+redacted before/after category references or JSON projections. An undo event appends the
+reverse before/after projection instead of editing history. Undo first checks that every
+affected row still equals the applied after-state; any later user edit returns a conflict and
+writes no rows.
+
+### API and provider flow
+
+- `POST /api/v1/ai/organization-preview` → deterministic candidates plus AI explanations;
+  no database write. The provider receives category/tag names, ids, counts and candidate
+  metadata only, never notes or raw transaction rows. If AI is not configured, deterministic
+  preview candidates remain available with a safe local reason.
+- `POST /api/v1/ai/organization-apply` with `{ previewHash, actionIds }` → operation id and
+  applied action summaries. It never calls the provider.
+- `POST /api/v1/ai/organization-undo` with `{ operationId }` → appended undo result, or a
+  conflict when any affected value no longer matches the audit after-state.
+- All three routes are inside the existing authenticated module. Apply/undo require the
+  existing CSRF header; preview is a bodiless POST for a fresh read.
+
+### UI
+
+Add a dedicated `/settings/ai/organization` page linked from the AI settings page. The page
+has an explicit “扫描整理建议” button, blocked/ready action cards, counts and dependency
+warnings, per-action checkboxes, one confirmation step before apply, and an operation result
+with an undo button. It never calls preview during page load and never applies a whole preview
+implicitly.
+
+### Compatibility and rollback
+
+- Migration 008 is additive and runs in its own transaction with the existing pre-migration
+  backup behavior. Older code ignores the new table.
+- A failed apply rolls back all row rewrites and writes no audit event. An applied operation
+  can be rolled back only through the conditional undo contract; no destructive hard delete is
+  introduced.
+- Provider failure does not prevent a deterministic preview, but it never widens the candidate
+  set beyond server-validated ids.
+
+### Semantic category analysis correction
+
+- The organization preview also loads the newest 200 live transactions (or fewer when the
+  ledger is smaller). Provider facts contain transaction id, type, current category id/name,
+  truncated note text, and normalized tags; amount, account id, and date are omitted.
+- The provider can return only validated `transactionId` + `targetCategoryId` pairs for
+  reclassification advice, plus a bounded proposed category name/type/parent and evidence ids
+  for a new-category suggestion. Unknown ids, cross-type targets, duplicates, and malformed
+  suggestions are discarded; the provider cannot create a category or write a transaction.
+- The response includes `scope` (`sampledTransactions`, `totalTransactions`, `truncated`) and
+  `recommendations`. Existing merge actions remain the only currently applicable actions;
+  semantic reclassification and new-category entries are advice cards requiring manual action.
+- If the provider is not configured or fails, the duplicate/tag/category merge preview still
+  returns, while semantic recommendations are empty and the UI explains why.
+
+### AI processing status UX
+
+- Long-running AI requests show a reusable conversational status surface with rotating, human
+  readable processing hints and an explicit “please wait” cue.
+- The status is not a fake percentage or provider telemetry; it disappears on success/error and
+  does not alter the request contract. It is used for natural-language drafts, monthly review,
+  organization scans, and organization apply/undo.

@@ -97,3 +97,75 @@ Rollback points are after steps 2, 3, and 4. If a step changes a public contract
 - `design.md` and this `implement.md` agree on config fields, encryption, provider modes, and API routes.
 - The provider research is saved under `research/`.
 - The user approves the final planning summary.
+
+## Follow-up implementation: current-month AI evaluation
+
+1. Build aggregate facts from existing stats/budget owners without calling one HTTP route from another.
+2. Add feature-scoped AI evaluation DTOs, evidence ids, and an aggregate-only provider context.
+3. Add authenticated `POST /api/v1/ai/monthly-evaluation` with no persistence or ledger writes.
+4. Add typed client methods and an on-demand `AiMonthlyEvaluationPanel.vue` below the existing stats trend.
+5. Test current-month semantics, salaries/refunds/soft deletes, empty months, auth/CSRF, provider failure,
+   evidence validation, no-write behavior, and the browser panel.
+
+### Follow-up implementation status
+
+- Completed in `BudgetOverviewService`, `MonthlyEvaluationService`, the authenticated AI route,
+  typed web client, `StatsView`, and `AiMonthlyEvaluationPanel`.
+- The existing budget route now delegates its read-only overview projection to the same service,
+  preserving the previous response shape while preventing a second budget arithmetic path.
+- Verified with server route tests, evidence rejection tests, a Chrome mobile browser test, and
+  the repository typecheck/lint/build gates. Deployment remains a separate explicit step.
+
+## Follow-up implementation: AI data organization and category merge
+
+1. Add migration 008 for append-only organization audit events and migration tests.
+2. Add typed organization DTOs, deterministic candidate analysis, dependency projections,
+   stable action ids, and preview SHA-256 fingerprints in a new
+   `ai-organization-service.ts`.
+3. Add server-side provider context for organization ranking/explanations. Validate that AI
+   can only refer to deterministic action ids; fall back to deterministic reasons when AI is
+   unavailable.
+4. Implement atomic apply for tag normalization and safe category merge. Revalidate the
+   preview hash, rewrite transactions/allocations/templates/rules/pending occurrences without
+   touching confirmed/ignored snapshots, soft-delete the source category, and append audit
+   events without logging notes or secrets.
+5. Implement conditional undo with current-value checks and conflict errors. Undo must append
+   an event and must not overwrite later user edits.
+6. Add authenticated routes, typed web client methods, the dedicated organization page, the
+   AI settings link, confirmation/selection/undo UI, and Chrome mobile coverage.
+7. Add route/service tests for duplicate tags, category dependency counts, parent/type/builtin
+   blockers, malformed JSON, stale previews, atomic rollback, confirmed-occurrence immutability,
+   audit redaction, conditional undo conflicts, auth/CSRF, provider fallback, and no-op scans.
+
+### Organization validation commands
+
+```text
+pnpm -r typecheck
+pnpm -r lint
+pnpm -r test
+pnpm --filter @jizhang/web run build
+git diff --check
+```
+
+The browser test must mock the organization preview/apply/undo endpoints and assert that page
+load performs no organization write. No test may call a real provider or mutate the user's
+deployed database.
+
+### Organization implementation status
+
+- Completed in migration 008, `AiOrganizationService`, the authenticated AI routes, typed web
+  client, `AiOrganizationView`, AI settings link, server tests, and Chrome mobile coverage.
+- Full regression currently passes: shared 174 tests, server 441 tests, typecheck, lint and
+  the PWA/mobile build gates. Deployment remains a separate explicit step.
+
+## Semantic category analysis correction
+
+1. Extend the organization preview facts with a bounded recent transaction sample: truncated
+   notes and normalized tags only; never send amount, account, date, prompt, or secret.
+2. Extend the provider response contract with validated transaction reclassification advice
+   and bounded new-category suggestions. Keep merge apply/undo unchanged; semantic advice is
+   preview-only in this correction.
+3. Render scope, bill-level classification suggestions, and proposed new categories in the
+   organization page, including a clear “manual confirmation required” state.
+4. Test note truncation/privacy, current-category/target validation, unknown-id rejection,
+   provider fallback, empty ledgers, and browser rendering when no duplicate merge actions exist.

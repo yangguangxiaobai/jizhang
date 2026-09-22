@@ -366,4 +366,4 @@ export class StatsService {
   }
 }
 
-export { startOfMonthOf, monthLabel };
+export { startOfMonthOf, monthLabel, monthStartOffset };

@@ -79,6 +79,14 @@ async function testAi(): Promise<void> {
       @test="testAi"
     />
 
+    <section class="theme-card">
+      <h2>AI 数据整理</h2>
+      <p>扫描重复分类和标签，先预览影响，再逐项确认并支持条件撤销。</p>
+      <button class="theme-button" type="button" @click="router.push({ name: 'ai-organization' })">
+        打开数据整理
+      </button>
+    </section>
+
     <section class="theme-card card security-note">
       <h2>密钥安全说明</h2>
       <ul>

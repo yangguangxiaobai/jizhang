@@ -22,6 +22,8 @@ let app: FastifyInstance;
 let cookie: string;
 let providerBody: unknown;
 let providerHeaders: Headers;
+let monthlyProvider = false;
+let invalidMonthlyEvidence = false;
 
 function authed() {
   return { ...CSRF, Cookie: `${SESSION_COOKIE}=${cookie}` };
@@ -66,6 +68,41 @@ function providerResponse(): Response {
   );
 }
 
+function monthlyProviderResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              summary: {
+                text: '本月记录清晰，支出集中在主要分类。',
+                evidenceIds: invalidMonthlyEvidence
+                  ? ['unknown.fact']
+                  : ['monthly.income', 'monthly.expense'],
+              },
+              highlights: [
+                {
+                  text: '餐饮是本月的主要支出分类。',
+                  evidenceIds: ['category.builtin-expense-food'],
+                },
+              ],
+              risks: [],
+              suggestions: [
+                {
+                  text: '继续关注下月的分类占比变化。',
+                  evidenceIds: ['trend.2026-09'],
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } },
+  );
+}
+
 beforeEach(async () => {
   db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
@@ -84,10 +121,12 @@ beforeEach(async () => {
 
   providerBody = undefined;
   providerHeaders = new Headers();
+  monthlyProvider = false;
+  invalidMonthlyEvidence = false;
   const fetchImpl: typeof fetch = async (_input, init) => {
     if (typeof init?.body === 'string') providerBody = JSON.parse(init.body) as unknown;
     providerHeaders = new Headers(init?.headers);
-    return providerResponse();
+    return monthlyProvider ? monthlyProviderResponse() : providerResponse();
   };
 
   app = buildApp({
@@ -247,6 +286,114 @@ describe('AI transaction drafts', () => {
     expect((db.prepare('SELECT COUNT(*) AS count FROM transactions').get() as { count: number }).count).toBe(before);
     expect(providerHeaders.get('authorization')).toBe(`Bearer ${API_KEY}`);
     expect(JSON.stringify(providerBody)).not.toContain(API_KEY);
+  });
+});
+
+describe('AI monthly evaluation', () => {
+  it('uses current-natural-month aggregates, returns evidence, and does not write the ledger', async () => {
+    await inject('PUT', '/api/v1/ai/config', {
+      enabled: true,
+      mode: 'chat-completions',
+      name: 'monthly test',
+      url: 'https://provider.example.test/chat',
+      method: 'POST',
+      model: 'test-model',
+      timeoutMs: 10_000,
+      headers: {},
+      auth: { kind: 'bearer' },
+      bodyTemplate: null,
+      responsePath: 'choices[0].message.content',
+      secret: API_KEY,
+    });
+
+    const transaction = await app.inject({
+      method: 'POST',
+      url: '/api/v1/transactions',
+      headers: authed(),
+      payload: {
+        type: 0,
+        amountCents: 3_500,
+        categoryId: 'builtin-expense-food',
+        accountId: 'builtin-default-account',
+        date: Date.UTC(2026, 8, 10),
+        note: 'PRIVATE_MONTH_NOTE',
+      },
+    });
+    expect(transaction.statusCode).toBe(201);
+
+    const salary = await app.inject({
+      method: 'POST',
+      url: '/api/v1/salaries',
+      headers: authed(),
+      payload: {
+        accountId: 'builtin-default-account',
+        amountCents: 100_000,
+        date: Date.UTC(2026, 8, 5),
+      },
+    });
+    expect(salary.statusCode).toBe(201);
+
+    const before = (db.prepare('SELECT COUNT(*) AS count FROM transactions').get() as { count: number }).count;
+    monthlyProvider = true;
+    const response = await inject('POST', '/api/v1/ai/monthly-evaluation');
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.period.month).toBe('2026-09');
+    expect(body.period.from).toBeLessThan(body.period.to);
+    expect(body.facts.monthly).toMatchObject({
+      incomeCents: 100_000,
+      netExpenseCents: 3_500,
+      incomeEvidenceId: 'monthly.income',
+      expenseEvidenceId: 'monthly.expense',
+    });
+    expect(body.facts.categories[0]).toMatchObject({
+      categoryId: 'builtin-expense-food',
+      amountCents: 3_500,
+      evidenceId: 'category.builtin-expense-food',
+    });
+    expect(body.facts.budget).toMatchObject({ totalBudgetCents: expect.any(Number) });
+    expect(body.evaluation.summary.evidenceIds).toEqual(['monthly.income', 'monthly.expense']);
+    expect((db.prepare('SELECT COUNT(*) AS count FROM transactions').get() as { count: number }).count).toBe(before);
+    expect(JSON.stringify(providerBody)).not.toContain('PRIVATE_MONTH_NOTE');
+    expect(JSON.stringify(providerBody)).not.toContain(API_KEY);
+  });
+
+  it('is protected by the authenticated route boundary', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/monthly-evaluation',
+      headers: CSRF,
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({
+      error: { code: 'UNAUTHORIZED', message: expect.any(String) as string },
+    });
+  });
+
+  it('rejects provider evidence that is not present in the server facts', async () => {
+    await inject('PUT', '/api/v1/ai/config', {
+      enabled: true,
+      mode: 'chat-completions',
+      name: 'monthly evidence test',
+      url: 'https://provider.example.test/chat',
+      method: 'POST',
+      model: 'test-model',
+      timeoutMs: 10_000,
+      headers: {},
+      auth: { kind: 'bearer' },
+      bodyTemplate: null,
+      responsePath: 'choices[0].message.content',
+      secret: API_KEY,
+    });
+    monthlyProvider = true;
+    invalidMonthlyEvidence = true;
+
+    const response = await inject('POST', '/api/v1/ai/monthly-evaluation');
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      error: { code: 'AI_RESPONSE_INVALID', message: expect.any(String) as string },
+    });
   });
 });
 

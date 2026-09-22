@@ -22,7 +22,15 @@ const MAX_TIMEOUT_MS = 60_000;
 const MAX_HEADERS = 20;
 const MAX_TEMPLATE_LENGTH = 32_768;
 const MAX_URL_LENGTH = 2_000;
-const TEMPLATE_VARIABLES = new Set(['input', 'categories', 'accounts', 'model', 'today', 'responseSchema']);
+const TEMPLATE_VARIABLES = new Set([
+  'input',
+  'categories',
+  'accounts',
+  'model',
+  'today',
+  'responseSchema',
+  'facts',
+]);
 const SECRET_HEADER_NAMES = new Set([
   'authorization',
   'cookie',

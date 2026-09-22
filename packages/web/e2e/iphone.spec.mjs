@@ -334,6 +334,154 @@ test('AI natural-language draft fills the form but waits for normal save', async
   await expect(page.locator('li').filter({ hasText: '午饭' })).toBeVisible();
 });
 
+test('AI monthly evaluation keeps server facts visible beside the explanation', async ({
+  page,
+  ledger,
+}) => {
+  await login(page, ledger);
+  await page.route('**/api/v1/ai/monthly-evaluation', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        period: {
+          month: '2026-09',
+          monthStart: Date.UTC(2026, 8, 1),
+          from: Date.UTC(2026, 8, 1),
+          to: Date.UTC(2026, 9, 1),
+        },
+        facts: {
+          monthly: {
+            incomeCents: 100_000,
+            netExpenseCents: 3_500,
+            incomeEvidenceId: 'monthly.income',
+            expenseEvidenceId: 'monthly.expense',
+          },
+          categories: [],
+          trend: [],
+          budget: null,
+        },
+        evaluation: {
+          summary: {
+            text: '本月收入覆盖了记录的支出。',
+            evidenceIds: ['monthly.income', 'monthly.expense'],
+          },
+          highlights: [],
+          risks: [],
+          suggestions: [],
+        },
+      }),
+    });
+  });
+
+  await page.goto('/stats');
+  await page.getByRole('button', { name: '生成评价', exact: true }).click();
+  await expect(page.getByText('本月收入覆盖了记录的支出。', { exact: true })).toBeVisible();
+  await expect(page.getByText('本月收入', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-evidence-ids="monthly.income,monthly.expense"]')).toBeVisible();
+  await assertPhoneLayout(page);
+});
+
+test('AI organization previews, applies and conditionally undoes selected actions', async ({
+  page,
+  ledger,
+}) => {
+  await login(page, ledger);
+  let previewCalls = 0;
+  await page.route('**/api/v1/ai/organization-preview', async (route) => {
+    previewCalls += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        previewHash: 'preview-hash',
+        generatedAt: Date.UTC(2026, 8, 21),
+        actions: [
+          {
+            actionId: 'category-action',
+            kind: 'category-merge',
+            sourceId: 'source-category',
+            sourceName: '旅行',
+            targetId: 'target-category',
+            targetName: '旅游',
+            status: 'ready',
+            blockers: [],
+            affected: {
+              transactions: 2,
+              budgetAllocations: 1,
+              templates: 1,
+              recurringRules: 0,
+              pendingOccurrences: 0,
+            },
+            sampleRowIds: ['transaction-1'],
+            reason: '同类型同父级分类可以合并。',
+            confidence: 0.98,
+          },
+        ],
+        scope: { sampledTransactions: 1, totalTransactions: 1, truncated: false },
+        semanticAvailable: true,
+        recommendations: [
+          {
+            recommendationId: 'category-recommendation',
+            kind: 'category-suggestion',
+            transactionId: null,
+            notePreview: null,
+            sourceCategoryId: null,
+            sourceCategoryName: null,
+            targetCategoryId: null,
+            targetCategoryName: null,
+            proposedCategoryName: '旅行餐饮',
+            proposedCategoryType: 0,
+            proposedParentCategoryId: null,
+            evidenceTransactionIds: ['transaction-1'],
+            reason: '建议为这类账单增加更细分类。',
+            confidence: 0.82,
+          },
+        ],
+      }),
+    });
+  });
+  await page.route('**/api/v1/ai/organization-apply', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        operationId: 'operation-1',
+        status: 'applied',
+        actions: [
+          {
+            actionId: 'category-action',
+            kind: 'category-merge',
+            sourceId: 'source-category',
+            targetId: 'target-category',
+            affectedRows: 4,
+          },
+        ],
+      }),
+    });
+  });
+  await page.route('**/api/v1/ai/organization-undo', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ operationId: 'operation-1', status: 'undone', actions: [] }),
+    });
+  });
+
+  await page.goto('/settings/ai/organization');
+  expect(previewCalls).toBe(0);
+  await page.getByRole('button', { name: '扫描整理建议', exact: true }).click();
+  await expect(page.getByText('旅行 → 旅游', { exact: false })).toBeVisible();
+  await expect(page.getByText('建议新增分类「旅行餐饮」', { exact: true })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: /确认应用已选/ }).click();
+  await expect(page.getByText('整理已应用', { exact: true })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: '撤销这次整理', exact: true }).click();
+  await expect(page.getByText('整理已撤销', { exact: true })).toBeVisible();
+  await assertPhoneLayout(page);
+});
+
 test('phone routes, installation hint and light/dark layouts remain usable', async ({
   page,
   ledger,
@@ -364,6 +512,7 @@ test('phone routes, installation hint and light/dark layouts remain usable', asy
       '/data',
       '/settings',
       '/settings/ai',
+      '/settings/ai/organization',
       '/trash',
       '/transfers',
       '/transfers/new',

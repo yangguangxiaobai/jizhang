@@ -27,6 +27,8 @@ function valueForVariable(name: string, context: AiPromptContext): unknown {
       return context.today;
     case 'responseSchema':
       return context.responseSchema;
+    case 'facts':
+      return context.facts ?? null;
     default:
       throw new AiConfigValidationError(`模板包含不支持的变量：${name}。`);
   }
@@ -168,6 +170,29 @@ export function extractAiResponsePath(payload: unknown, path: string): unknown {
 }
 
 function systemPrompt(context: AiPromptContext): string {
+  if (context.feature === 'organization') {
+    return [
+      '你是一个严谨的记账分类分析助手。只能基于服务端提供的账单摘要和分类列表提出建议，不能修改账本。',
+      '必须只输出 JSON，不要 Markdown、解释文字或代码围栏。',
+      '账单重新分类只能使用 facts.transactions 中已有的 transactionId，并且 targetCategoryId 只能使用 facts.categories 中同类型的分类 id。',
+      '新增分类建议只能提出名称和类型，不能声称已经创建；不要输出金额、账户、日期或任何账务计算。',
+      '输出结构：{"suggestions":[{"actionId":"...","reason":"...","confidence":0}],"reclassifications":[{"transactionId":"...","targetCategoryId":"...","reason":"...","confidence":0}],"newCategories":[{"name":"...","type":0,"parentCategoryId":null,"evidenceTransactionIds":["..."],"reason":"...","confidence":0}]}。',
+      `候选聚合事实：${JSON.stringify(context.facts ?? {})}`,
+      `输出结构约束：${JSON.stringify(context.responseSchema)}`,
+    ].join('\n');
+  }
+  if (context.feature === 'monthly-evaluation') {
+    return [
+      '你是一个严谨的个人记账分析助手。请只根据服务端提供的当前自然月聚合事实生成评价，不要修改账本。',
+      '必须只输出 JSON，不要 Markdown、解释文字或代码围栏。',
+      '不能补造金额、分类、趋势或预算数字；预算字段如果存在，仍要注意它代表最新预算周期，不一定等于自然月。',
+      'summary、highlights、risks、suggestions 都使用 {"text": "...", "evidenceIds": ["..."]} 结构。每条内容至少引用一个事实中的 evidenceId，只能引用事实里出现的 id。',
+      '没有足够事实时，明确说数据不足，不要猜测原因。',
+      `当前日期：${context.today}。`,
+      `聚合事实：${JSON.stringify(context.facts ?? {})}`,
+      `输出结构：${JSON.stringify(context.responseSchema)}`,
+    ].join('\n');
+  }
   return [
     '你是一个严谨的记账助手。只根据用户输入生成一个待确认账单草稿，不要写入账本。',
     '必须只输出 JSON，不要 Markdown、解释文字或代码围栏。',

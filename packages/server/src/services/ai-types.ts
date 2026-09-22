@@ -1,5 +1,7 @@
 /** Shared server-side contracts for the configurable AI assistant. */
 
+import type { CycleConfig } from '@jizhang/shared';
+
 export const AI_PROVIDER_SETTING_KEY = 'ai.provider.v1';
 
 export const AI_PROVIDER_MODES = ['chat-completions', 'responses', 'custom'] as const;
@@ -90,6 +92,163 @@ export interface AiPromptContext {
   readonly model: string;
   readonly today: string;
   readonly responseSchema: Record<string, unknown>;
+  /** Optional feature discriminator; omitted means the original transaction-draft prompt. */
+  readonly feature?: 'transaction-draft' | 'monthly-evaluation' | 'organization';
+  /** Aggregate-only facts for feature prompts; never transaction rows or notes. */
+  readonly facts?: Record<string, unknown>;
+}
+
+export interface AiMonthlyPeriod {
+  readonly month: string;
+  readonly monthStart: number;
+  readonly from: number;
+  readonly to: number;
+}
+
+export interface AiMonthlyCategoryFact {
+  readonly evidenceId: string;
+  readonly categoryId: string;
+  readonly categoryName: string;
+  readonly amountCents: number;
+  readonly ratio: number;
+}
+
+export interface AiMonthlyTrendFact {
+  readonly evidenceId: string;
+  readonly month: string;
+  readonly monthStart: number;
+  readonly incomeCents: number;
+  readonly netExpenseCents: number;
+}
+
+export interface AiMonthlyBudgetChildFact {
+  readonly categoryId: string;
+  readonly categoryName: string;
+  readonly spentCents: number;
+}
+
+export interface AiMonthlyBudgetModuleFact {
+  readonly evidenceId: string;
+  readonly categoryId: string;
+  readonly categoryName: string;
+  readonly budgetCents: number;
+  readonly spentCents: number;
+  readonly remainingCents: number;
+  readonly children?: readonly AiMonthlyBudgetChildFact[];
+}
+
+export interface AiMonthlyBudgetFact {
+  /** This is the newest configured budget cycle, not an invented calendar-month budget. */
+  readonly periodStart: number | null;
+  readonly cycle: CycleConfig;
+  readonly totalBudgetCents: number;
+  readonly totalSpentCents: number;
+  readonly carryoverPoolCents: number;
+  readonly modules: readonly AiMonthlyBudgetModuleFact[];
+}
+
+export interface AiMonthlyFacts {
+  readonly monthly: {
+    readonly incomeCents: number;
+    readonly netExpenseCents: number;
+    readonly incomeEvidenceId: string;
+    readonly expenseEvidenceId: string;
+  };
+  readonly categories: readonly AiMonthlyCategoryFact[];
+  readonly trend: readonly AiMonthlyTrendFact[];
+  readonly budget: AiMonthlyBudgetFact | null;
+}
+
+export interface AiEvaluationStatement {
+  readonly text: string;
+  readonly evidenceIds: readonly string[];
+}
+
+export interface AiMonthlyEvaluation {
+  readonly summary: AiEvaluationStatement;
+  readonly highlights: readonly AiEvaluationStatement[];
+  readonly risks: readonly AiEvaluationStatement[];
+  readonly suggestions: readonly AiEvaluationStatement[];
+}
+
+export interface AiMonthlyEvaluationResult {
+  readonly period: AiMonthlyPeriod;
+  readonly facts: AiMonthlyFacts;
+  readonly evaluation: AiMonthlyEvaluation;
+}
+
+export type AiOrganizationActionKind = 'tag-merge' | 'category-merge';
+export type AiOrganizationActionStatus = 'ready' | 'blocked';
+
+export interface AiOrganizationAffectedCounts {
+  readonly transactions: number;
+  readonly budgetAllocations: number;
+  readonly templates: number;
+  readonly recurringRules: number;
+  readonly pendingOccurrences: number;
+}
+
+export interface AiOrganizationAction {
+  readonly actionId: string;
+  readonly kind: AiOrganizationActionKind;
+  readonly sourceId: string;
+  readonly sourceName: string;
+  readonly targetId: string;
+  readonly targetName: string;
+  readonly status: AiOrganizationActionStatus;
+  readonly blockers: readonly string[];
+  readonly affected: AiOrganizationAffectedCounts;
+  readonly sampleRowIds: readonly string[];
+  readonly reason: string;
+  readonly confidence: number;
+}
+
+export interface AiOrganizationPreview {
+  readonly previewHash: string;
+  readonly generatedAt: number;
+  readonly actions: readonly AiOrganizationAction[];
+  readonly scope: {
+    readonly sampledTransactions: number;
+    readonly totalTransactions: number;
+    readonly truncated: boolean;
+  };
+  readonly semanticAvailable: boolean;
+  readonly recommendations: readonly AiOrganizationRecommendation[];
+}
+
+export type AiOrganizationRecommendationKind =
+  | 'transaction-reclassify'
+  | 'category-suggestion';
+
+export interface AiOrganizationRecommendation {
+  readonly recommendationId: string;
+  readonly kind: AiOrganizationRecommendationKind;
+  readonly transactionId: string | null;
+  readonly notePreview: string | null;
+  readonly sourceCategoryId: string | null;
+  readonly sourceCategoryName: string | null;
+  readonly targetCategoryId: string | null;
+  readonly targetCategoryName: string | null;
+  readonly proposedCategoryName: string | null;
+  readonly proposedCategoryType: number | null;
+  readonly proposedParentCategoryId: string | null;
+  readonly evidenceTransactionIds: readonly string[];
+  readonly reason: string;
+  readonly confidence: number;
+}
+
+export interface AiOrganizationOperationAction {
+  readonly actionId: string;
+  readonly kind: AiOrganizationActionKind;
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly affectedRows: number;
+}
+
+export interface AiOrganizationOperationResult {
+  readonly operationId: string;
+  readonly status: 'applied' | 'undone';
+  readonly actions: readonly AiOrganizationOperationAction[];
 }
 
 export class AiError extends Error {
@@ -157,5 +316,33 @@ export class AiResponseInvalidError extends AiError {
   constructor() {
     super(502, 'AI_RESPONSE_INVALID', 'AI 返回内容无法解析为有效的账单草稿。');
     this.name = 'AiResponseInvalidError';
+  }
+}
+
+export class AiEvaluationResponseInvalidError extends AiError {
+  constructor() {
+    super(502, 'AI_RESPONSE_INVALID', 'AI 返回内容无法解析为有效的月度评价。');
+    this.name = 'AiEvaluationResponseInvalidError';
+  }
+}
+
+export class AiOrganizationInputError extends AiError {
+  constructor(message: string) {
+    super(400, 'AI_ORGANIZATION_INVALID', message);
+    this.name = 'AiOrganizationInputError';
+  }
+}
+
+export class AiOrganizationConflictError extends AiError {
+  constructor(message: string) {
+    super(409, 'AI_ORGANIZATION_CONFLICT', message);
+    this.name = 'AiOrganizationConflictError';
+  }
+}
+
+export class AiOrganizationResponseInvalidError extends AiError {
+  constructor() {
+    super(502, 'AI_RESPONSE_INVALID', 'AI 返回内容无法解析为有效的整理建议。');
+    this.name = 'AiOrganizationResponseInvalidError';
   }
 }
