@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/ai-provider.md","reason":"Verify no secret/provider-body leaks, unknown tools are rejected, and write tools cannot bypass confirmation."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Verify additive migration, defensive persisted JSON, idempotent confirmation, soft-delete behavior, and backup compatibility."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify assistant validation, stale-action, auth/CSRF and provider failures use the unified safe error contract."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify API remains NetworkOnly, PWA assets resolve, bundle budgets pass, and all checks run after final edits."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify assistant timeline/cards/composer are accessible and usable at 375px without adding a seventh tab."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Audit end-to-end message/action/attachment flows and typed replay across every layer."}

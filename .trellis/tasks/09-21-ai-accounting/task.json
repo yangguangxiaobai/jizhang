@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "09-22-conversational-ai-assistant"
+  ],
   "parent": null,
   "relatedFiles": [],
   "notes": "",

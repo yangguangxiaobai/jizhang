@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/ai-provider.md","reason":"Provider modes, encrypted-secret boundary, feature-scoped prompt contexts, safe error mapping, and organization evidence/tool constraints."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Migration 009, soft-delete, defensive JSON, SQLite transactions, backup compatibility, and no materialized accounting values."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Thin authenticated routes, service ownership, dependency injection, CSRF behavior, and ESM import rules."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Mobile-first Vue component structure, 44px targets, accessibility status/error semantics, and bundle-conscious UI patterns."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Server-owned accounting facts, local versus shared state, explicit refresh paths, and no client-side financial recomputation."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Trace persisted conversation/tool data across storage, services, API DTOs, client state, confirmation, and replay."}
+{"file":".trellis/tasks/09-21-ai-accounting/research/provider-protocols.md","reason":"Existing configurable provider protocol research and response extraction constraints reused by the assistant envelope."}
+{"file":".trellis/tasks/09-21-ai-accounting/research/ai-organization.md","reason":"Preview/fingerprint/audit/undo safety precedent for assistant write confirmation cards."}
