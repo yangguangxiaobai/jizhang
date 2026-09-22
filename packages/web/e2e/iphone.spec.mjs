@@ -363,6 +363,7 @@ test('phone routes, installation hint and light/dark layouts remain usable', asy
       '/manage',
       '/data',
       '/settings',
+      '/settings/ai',
       '/trash',
       '/transfers',
       '/transfers/new',

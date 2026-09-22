@@ -47,7 +47,8 @@ Do not implement monthly AI evaluation, batch cleanup, voice, OCR, automatic sav
 ### 5. Add typed web API and settings controls
 
 - Extend `packages/web/src/api/client.ts` with the AI endpoints and redacted DTOs.
-- Add the AI section to `SettingsView.vue`, keeping existing settings sections and visual behavior intact.
+- Add an AI entry to `SettingsView.vue` and move the long sensitive form to a dedicated
+  `AiProviderSettingsView.vue` route, keeping the existing general settings sections intact.
 - Support masked-secret behavior: blank secret means keep existing, explicit clear removes it, and the full key is never loaded into component state.
 - Add validation and accessible error/status feedback for save and connection test.
 

@@ -17,6 +17,8 @@ const paths = {
   sun: 'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm-4-10v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5',
   moon: 'M20.8 13.4A9 9 0 0 1 10.6 3.2a9 9 0 1 0 10.2 10.2Z',
   check: 'm5 12 4 4L19 6',
+  sparkles:
+    'M12 3l1.3 4.7L18 9l-4.7 1.3L12 15l-1.3-4.7L6 9l4.7-1.3L12 3Zm6 12 .6 2.4L21 18l-2.4.6L18 21l-.6-2.4L15 18l2.4-.6L18 15Z',
 } as const;
 
 defineProps<{ name: keyof typeof paths }>();

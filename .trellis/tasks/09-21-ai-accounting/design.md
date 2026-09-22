@@ -137,7 +137,10 @@ Stable error categories are `AI_NOT_CONFIGURED`, `AI_ENCRYPTION_KEY_REQUIRED`, `
 
 ## Settings UI
 
-Add an “AI 助手” section to `SettingsView.vue` without changing existing appearance, cycle, data, security, or password behavior. It contains:
+Keep `SettingsView.vue` focused on account and general settings; add one “AI 助手” navigation
+entry and use a dedicated authenticated `/settings/ai` page for the long sensitive form. This
+avoids making the mobile “我的” screen excessively long and gives the key field a focused
+security explanation. The dedicated page contains:
 
 - enable/disable control;
 - mode selector: OpenAI-compatible, Responses, Custom;

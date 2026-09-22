@@ -143,6 +143,12 @@ const routes = [
         component: () => import('../views/SettingsView.vue'),
         meta: { title: '我的', nav: 'settings' },
       },
+      {
+        path: 'settings/ai',
+        name: 'ai-settings',
+        component: () => import('../views/AiProviderSettingsView.vue'),
+        meta: { title: 'AI 助手', nav: 'settings' },
+      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },
