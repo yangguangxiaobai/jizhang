@@ -2,6 +2,7 @@
   "name": "@jizhang/shared",
   "version": "0.1.0",
   "private": true,
+  "sideEffects": false,
   "description": "Domain types and pure functions shared by the server and the web app",
   "type": "module",
   "main": "./dist/index.js",

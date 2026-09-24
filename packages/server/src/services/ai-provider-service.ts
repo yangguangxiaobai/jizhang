@@ -170,6 +170,16 @@ export function extractAiResponsePath(payload: unknown, path: string): unknown {
 }
 
 function systemPrompt(context: AiPromptContext): string {
+  if (context.feature === 'assistant') {
+    return [
+      'You are a careful bookkeeping assistant. Use only server-provided facts and the tool catalog; never invent ledger values or identifiers.',
+      'Return exactly one JSON object with {"message":"...","toolCall":null} or {"message":"...","toolCall":{"name":"...","arguments":{...}}}.',
+      'Choose at most one tool call per response. Read tools return authoritative facts. Write tools only prepare a preview and never perform a write; the user must confirm separately.',
+      'Do not claim a write succeeded unless a confirmed result is present in the supplied facts. If required fields are missing, ask a short question without calling a write tool.',
+      `Server context and allowlisted tools: ${JSON.stringify(context.facts ?? {})}`,
+      `Required response schema: ${JSON.stringify(context.responseSchema)}`,
+    ].join('\n');
+  }
   if (context.feature === 'organization') {
     return [
       '你是一个严谨的记账分类分析助手。只能基于服务端提供的账单摘要和分类列表提出建议，不能修改账本。',

@@ -9,8 +9,7 @@
  *   * `isRefund` is a cross-cutting flag on an INCOME row, not an expense — it
  *     marks money that came back in (退款/还款/AA 收款) and links back to the
  *     original expense(s) it offsets; refunds count as income (AC7, revised).
- *     No category-type-match validation exists by convention: the UI restricts
- *     the category list to the active type.
+ *     live categories must also match the transaction type; client filters are not trusted.
  *   * deletes are soft: the row stays, `deleted` flips (AC3);
  *   * a keyword search escapes `%` and `_`, so a note containing `%` is matched
  *     literally instead of matching everything (AC9).
@@ -159,6 +158,19 @@ export interface CreateTransactionInput {
  * left untouched.
  */
 export type UpdateTransactionInput = CreateTransactionInput;
+
+/** A create payload after the same validation used by the ledger writer. */
+export interface PreparedTransactionInput {
+  readonly type: number;
+  readonly amountCents: number;
+  readonly categoryId: string;
+  readonly accountId: string;
+  readonly date: number;
+  readonly note: string;
+  readonly tags: string[];
+  readonly isRefund: boolean;
+  readonly refundLinkedTxIds: string[];
+}
 
 function requireIntegerCents(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isInteger(value)) {
@@ -314,12 +326,15 @@ export class TransactionService {
   }
 
   /** Rejects a reference to a category that is missing or soft-deleted (AC10). */
-  private assertCategoryUsable(categoryId: string): void {
+  private assertCategoryUsable(categoryId: string, expectedType?: number): void {
     const row = this.db
       .prepare('SELECT type FROM categories WHERE id = ? AND deleted = 0')
       .get(categoryId) as { type: number } | undefined;
     if (row === undefined) {
       throw new ValidationError(`Unknown or deleted category: ${categoryId}`);
+    }
+    if (expectedType !== undefined && row.type !== expectedType) {
+      throw new ValidationError('The selected category does not match the transaction type.');
     }
     const child = this.db
       .prepare('SELECT 1 AS x FROM categories WHERE parent_id = ? AND deleted = 0 LIMIT 1')
@@ -340,13 +355,11 @@ export class TransactionService {
    * Checks that a category and an account may be referenced, without writing anything.
    *
    * Exposed so other writers (recurring rules) enforce exactly the same rule as a bill
-   * does, instead of each re-implementing the two lookups and drifting. `type` is
-   * accepted for signature symmetry with `create` even though the lookup does not need
-   * it yet — a rule and its bills share one category, so mismatched types are caught the
-   * moment the occurrence is confirmed.
+   * does, instead of each re-implementing the two lookups and drifting. The transaction
+   * type is included so category-type mismatches are rejected before either writer commits.
    */
-  assertReferencesUsable(_type: number, categoryId: string, accountId: string): void {
-    this.assertCategoryUsable(categoryId);
+  assertReferencesUsable(type: number, categoryId: string, accountId: string): void {
+    this.assertCategoryUsable(categoryId, requireType(type));
     this.assertAccountUsable(accountId);
   }
 
@@ -452,7 +465,11 @@ export class TransactionService {
     return found;
   }
 
-  create(input: CreateTransactionInput, id?: string): TransactionDto {
+  /**
+   * Validates a prospective bill without inserting it. Assistant confirmation cards use this
+   * method so preparing a write cannot accidentally create a ledger row.
+   */
+  prepareCreate(input: CreateTransactionInput): PreparedTransactionInput {
     const type = requireType(input.type);
     const amountCents = requireIntegerCents(input.amountCents, 'amountCents');
     const categoryId = requireNonEmptyString(input.categoryId, 'categoryId');
@@ -469,8 +486,30 @@ export class TransactionService {
       throw new ValidationError('isRefund can only be set on an income (type 1).');
     }
 
-    this.assertCategoryUsable(categoryId);
+    this.assertCategoryUsable(categoryId, type);
     this.assertAccountUsable(accountId);
+
+    const linkedIds = Array.isArray(input.refundLinkedTxIds)
+      ? input.refundLinkedTxIds.filter(
+          (v): v is string => typeof v === 'string',
+        )
+      : [];
+    const refundLinkedTxIds = isRefund ? this.validateRefundLinks(linkedIds) : [];
+    return {
+      type,
+      amountCents,
+      categoryId,
+      accountId,
+      date,
+      note,
+      tags,
+      isRefund,
+      refundLinkedTxIds,
+    };
+  }
+
+  create(input: CreateTransactionInput, id?: string): TransactionDto {
+    const prepared = this.prepareCreate(input);
 
     const rowId = id ?? randomUUID();
     const nowMs = this.now();
@@ -483,24 +522,19 @@ export class TransactionService {
       )
       .run(
         rowId,
-        type,
-        amountCents,
-        categoryId,
-        accountId,
-        date,
-        note,
-        serialiseTags(tags),
-        isRefund ? 1 : 0,
+        prepared.type,
+        prepared.amountCents,
+        prepared.categoryId,
+        prepared.accountId,
+        prepared.date,
+        prepared.note,
+        serialiseTags(prepared.tags),
+        prepared.isRefund ? 1 : 0,
         nowMs,
       );
 
-    if (isRefund) {
-      const linkedIds = Array.isArray(input.refundLinkedTxIds)
-        ? (input.refundLinkedTxIds as readonly unknown[]).filter(
-            (v): v is string => typeof v === 'string',
-          )
-        : [];
-      const validated = this.validateRefundLinks(linkedIds, rowId);
+    if (prepared.isRefund) {
+      const validated = this.validateRefundLinks(prepared.refundLinkedTxIds, rowId);
       if (validated.length > 0) {
         this.replaceRefundLinks(rowId, validated, nowMs);
       }
@@ -547,7 +581,9 @@ export class TransactionService {
       throw new ValidationError('isRefund can only be set on an income (type 1).');
     }
 
-    if (nextCategory !== current.categoryId) this.assertCategoryUsable(nextCategory);
+    if (nextCategory !== current.categoryId || nextType !== current.type) {
+      this.assertCategoryUsable(nextCategory, nextType);
+    }
     if (nextAccount !== current.accountId) this.assertAccountUsable(nextAccount);
 
     this.db

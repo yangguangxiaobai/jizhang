@@ -148,6 +148,34 @@ export class SalaryService {
     return value;
   }
 
+  /** Validates a prospective salary and resolves its allocation without inserting rows. */
+  prepareCreate(input: CreateSalaryInput): {
+    readonly amountCents: number;
+    readonly date: number;
+    readonly note: string;
+    readonly accountId: string;
+    readonly templateId?: string;
+    readonly allocations: AllocationItemDto[];
+  } {
+    const amountCents = this.requireAmount(input.amountCents);
+    const date = this.requireDate(input.date);
+    const note = typeof input.note === 'string' ? input.note : '';
+    const accountId = requireNonEmptyString(input.accountId, 'accountId');
+    assertAccountUsable(this.db, accountId);
+    const templateId = typeof input.templateId === 'string' && input.templateId.trim() !== ''
+      ? input.templateId.trim()
+      : undefined;
+    const allocations = this.resolveAllocations(input.allocations, amountCents, templateId);
+    return {
+      amountCents,
+      date,
+      note,
+      accountId,
+      ...(templateId === undefined ? {} : { templateId }),
+      allocations,
+    };
+  }
+
   toDto(row: SalaryRow): SalaryDto {
     return {
       id: row.id,
@@ -225,21 +253,10 @@ export class SalaryService {
    *   template's ratios generate the amounts.
    */
   create(input: CreateSalaryInput): SalaryDetailDto {
-    const amountCents = this.requireAmount(input.amountCents);
-    const date = this.requireDate(input.date);
-    const note = typeof input.note === 'string' ? input.note : '';
+    const prepared = this.prepareCreate(input);
+    const { amountCents, date, note, accountId, allocations } = prepared;
     // Required, not defaulted. Silently picking an account would put the money somewhere the
     // user did not choose, and a wrong balance is harder to notice than a rejected form.
-    const accountId = requireNonEmptyString(input.accountId, 'accountId');
-    assertAccountUsable(this.db, accountId);
-
-    const templateId =
-      typeof input.templateId === 'string' && input.templateId.trim() !== ''
-        ? input.templateId.trim()
-        : undefined;
-
-    const allocations = this.resolveAllocations(input.allocations, amountCents, templateId);
-
     const salaryId = randomUUID();
     const allocationId = randomUUID();
     const nowMs = this.now();

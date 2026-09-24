@@ -21,7 +21,7 @@
   - CSV 导出/导入(账单、转账、工资、周期规则,带 BOM,Excel 直接打开中文不乱码)
   - **微信/支付宝账单导入**:上传平台导出文件(xlsx / GBK CSV),自动识别来源、过滤提现理财与「不计收支」;**预览明细表 → 勾选 → 改分类 → 确认导入所选**;自动创建「微信」「支付宝」账户,按交易单号幂等去重
   - 整库备份(SQLite 快照)
-- **AI 助手**:在「我的」里配置 OpenAI-compatible、Responses 或自定义 HTTP provider;支持自然语言待确认草稿、当前月评价和**预览→确认→可条件撤销**的数据整理/分类合并
+- **AI 助理**:独立对话工作区支持账本查询、月度评价、分类整理预览和自然语言记账；每次写入都先展示确认卡。支持在对话中预览微信/支付宝账单并选择导入行；历史保存在服务端，附件原始字节只在当前页面内存中保留
 - **外观**:深浅色(跟随系统/浅色/深色)、三套主色预设(钛蓝/森林绿/极简黑白)
 - **PWA**:可"添加到主屏幕"作为独立 App 使用,离线可查看已打开的页面
 
@@ -271,6 +271,8 @@ docker compose exec jizhang whoami     # → node(非 root)
   manifest/meta/图标/主题脚本同源
 - `check-pwa.mjs` — manifest、图标尺寸、service worker、缓存策略、包体积
 
+PWA 包体积按 `dist/` 中未压缩文件合计检查，预算为 JS < 320 KiB、CSS < 80 KiB。当前构建实测 JS 307,547 B (300.34 KiB)、CSS 81,712 B (79.80 KiB)，均在预算内；本次不做额外包体积裁剪。
+
 **容器内 e2e 套件**(13 个,需先 `docker compose up -d`):
 
 ```bash
@@ -327,7 +329,8 @@ pnpm test:iphone:only         # 跳过构建
 | 标签 | `GET /tags`、`PATCH /tags`(重命名)、`DELETE /tags/:id` |
 | 周期账单 | `GET/POST /recurring/rules`、`PATCH/DELETE /recurring/rules/:id`、`POST /recurring/rules/:id/enabled`、`POST /recurring/generate`、`GET /recurring/occurrences`、`POST /recurring/occurrences/:id/confirm`、`POST /recurring/occurrences/:id/ignore`、`GET /recurring/pending` |
 | 统计 | `GET /stats/category-share`、`GET /stats/monthly-trend`、`GET /stats/month-window`、`GET /stats/pool-trend`、`GET /stats/range` |
-| AI 助手 | `GET/PUT /ai/config`、`POST /ai/test`、`POST /ai/transaction-draft`、`POST /ai/monthly-evaluation`、`POST /ai/organization-preview|apply|undo`; API key 只在服务端加密保存 |
+| AI 设置与兼容接口 | `GET/PUT /ai/config`、`POST /ai/test`、`POST /ai/transaction-draft`、`POST /ai/monthly-evaluation`、`POST /ai/organization-preview|apply|undo`; API key 只在服务端加密保存 |
+| AI 对话 | `GET/POST /assistant/conversations`、`GET/POST /assistant/conversations/:id/messages`、`POST /assistant/actions/:id/confirm|cancel`、`DELETE /assistant/conversations/:id`;写入计划必须显式确认，历史只保存有界文本/卡片与附件摘要 |
 | 导出 | `GET /export/transactions.csv`、`GET /export/salaries.csv`、`GET /export/recurring.csv`、`GET /export/transfers.csv` |
 | 导入(本应用 CSV) | `POST /import/transactions`、`POST /import/transfers`(`Content-Type: text/csv`,body 为文件全文) |
 | 导入(微信/支付宝) | `POST /import/platform-bills`。JSON:`{ fileBase64, source, dryRun, fileName?, selectedIds?, categoryOverrides? }`；也支持 octet-stream/text 原文 + query。`selectedIds:null`=全部可入账，`[]`=不导入；`categoryOverrides` 为 `{行id: 分类名}`。dry-run 返回 `rows` 明细表 |

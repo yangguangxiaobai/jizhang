@@ -20,6 +20,7 @@ import { registerPortabilityRoutes } from './routes/portability.js';
 import { registerTransactionRoutes } from './routes/transactions.js';
 import { registerTransferRoutes } from './routes/transfers.js';
 import { registerAiRoutes } from './routes/ai.js';
+import { registerAssistantRoutes } from './routes/assistant.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
 
@@ -188,6 +189,13 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
           }),
         (instance) =>
           registerAiRoutes(instance, {
+            db,
+            config,
+            now: options.now,
+            fetchImpl: options.fetchImpl,
+          }),
+        (instance) =>
+          registerAssistantRoutes(instance, {
             db,
             config,
             now: options.now,

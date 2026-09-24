@@ -11,12 +11,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { api } from '../api/client.js';
 import type {
-  AiMonthlyEvaluationResult,
   CategoryShareResult,
   MonthlyTrendPoint,
   PoolTrendResult,
 } from '../api/client.js';
-import AiMonthlyEvaluationPanel from '../components/AiMonthlyEvaluationPanel.vue';
 import BarChart from '../components/BarChart.vue';
 import DonutChart from '../components/DonutChart.vue';
 import type { Slice } from '../components/DonutChart.vue';
@@ -33,9 +31,6 @@ const trend = ref<MonthlyTrendPoint[]>([]);
 const pool = ref<PoolTrendResult | null>(null);
 const loading = ref(false);
 const errorMessage = ref<string | null>(null);
-const aiEvaluation = ref<AiMonthlyEvaluationResult | null>(null);
-const aiLoading = ref(false);
-const aiErrorMessage = ref<string | null>(null);
 
 /** `[from, to)` for the selected window, in local time. */
 function windowFor(kind: WindowKind): { from: number; to: number } {
@@ -85,18 +80,6 @@ async function load(): Promise<void> {
 }
 
 onMounted(load);
-
-async function generateAiEvaluation(): Promise<void> {
-  aiLoading.value = true;
-  aiErrorMessage.value = null;
-  try {
-    aiEvaluation.value = await api.ai.monthlyEvaluation();
-  } catch (error) {
-    aiErrorMessage.value = error instanceof Error ? error.message : String(error);
-  } finally {
-    aiLoading.value = false;
-  }
-}
 
 /** Positive slices only: the donut cannot draw a negative wedge. */
 const positiveSlices = computed<Slice[]>(() =>
@@ -238,13 +221,6 @@ const topCategory = computed(() => {
         </tbody>
       </table>
     </section>
-
-    <AiMonthlyEvaluationPanel
-      :result="aiEvaluation"
-      :loading="aiLoading"
-      :error-message="aiErrorMessage"
-      @generate="generateAiEvaluation"
-    />
 
     <!-- ── carryover pool ──────────────────────────────────────────────── -->
     <section class="card">

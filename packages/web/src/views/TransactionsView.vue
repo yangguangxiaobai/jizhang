@@ -14,6 +14,7 @@ import { useMetaStore } from '../stores/meta.js';
 import { useTransactionsStore } from '../stores/transactions.js';
 import TransactionDetailModal from '../components/TransactionDetailModal.vue';
 import { formatDayLabel, formatYuan } from '../utils/money.js';
+import AppIcon from '../components/AppIcon.vue';
 
 const store = useTransactionsStore();
 const balances = useBalanceStore();
@@ -83,6 +84,12 @@ function signedAmount(item: Transaction): string {
     <strong>{{ monthLabel }}</strong>
     <button type="button" class="nav" aria-label="下个月" @click="changeMonth(1)">›</button>
   </section>
+
+  <div class="manual-action">
+    <button type="button" class="manual-entry" @click="router.push({ name: 'transaction-new' })">
+      <AppIcon name="plus" /> 记一笔
+    </button>
+  </div>
 
   <section class="summary">
     <div>
@@ -275,6 +282,27 @@ function signedAmount(item: Transaction): string {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.manual-action {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.25rem 0 0.75rem;
+}
+
+.manual-entry {
+  min-height: 44px;
+  padding: 0 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
 }
 
 .nav {

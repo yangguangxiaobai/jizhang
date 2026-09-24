@@ -10,7 +10,7 @@ const NAV = [
   ['首页', '/'],
   ['账单', '/transactions'],
   ['预算', '/budget'],
-  ['记一笔', '/transactions/new'],
+  ['AI 助理', '/assistant'],
   ['统计', '/stats'],
   ['我的', '/settings'],
 ];

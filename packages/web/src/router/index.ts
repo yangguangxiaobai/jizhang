@@ -31,6 +31,12 @@ const routes = [
         meta: { title: '账单', nav: 'transactions' },
       },
       {
+        path: 'assistant',
+        name: 'assistant',
+        component: () => import('../views/AssistantView.vue'),
+        meta: { title: 'AI 助理', nav: 'assistant' },
+      },
+      {
         path: 'transactions/new',
         name: 'transaction-new',
         component: () => import('../views/TransactionEditView.vue'),
@@ -148,12 +154,6 @@ const routes = [
         name: 'ai-settings',
         component: () => import('../views/AiProviderSettingsView.vue'),
         meta: { title: 'AI 助手', nav: 'settings' },
-      },
-      {
-        path: 'settings/ai/organization',
-        name: 'ai-organization',
-        component: () => import('../views/AiOrganizationView.vue'),
-        meta: { title: 'AI 数据整理', nav: 'settings' },
       },
     ],
   },

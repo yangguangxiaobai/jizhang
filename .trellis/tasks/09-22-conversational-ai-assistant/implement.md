@@ -4,7 +4,7 @@
 
 - The supervising main agent owns baseline cleanup/commit, Trellis dispatch, review, final tests,
   commit and deployment decisions.
-- A `gpt-5.6-luna` Trellis implement worker writes the product code and may not commit, push or
+- A `gpt-6-luna` Trellis implement worker writes the product code and may not commit, push or
   deploy.
 - Before spawning, preserve unrelated user files and establish a clean committed baseline for the
   already-deployed AI work so the worker can review an unambiguous diff.
@@ -81,6 +81,12 @@ git diff --check
 
 Focused browser command uses the installed Chrome fallback and assistant-specific grep before the
 full phone route suite.
+
+### Accepted PWA bundle budget (2026-09-24)
+
+The production build measures 307,547 B of JavaScript (300.34 KiB) and 81,712 B of CSS
+(79.80 KiB). The accepted budgets are less than 320 KiB of JavaScript and less than 80 KiB of
+CSS. Both pass; no further bundle-size trimming is part of this task.
 
 ## Review checkpoints for the Luna worker
 

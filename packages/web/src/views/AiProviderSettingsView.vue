@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * Dedicated AI provider settings page.
  *
@@ -80,10 +80,10 @@ async function testAi(): Promise<void> {
     />
 
     <section class="theme-card">
-      <h2>AI 数据整理</h2>
-      <p>扫描重复分类和标签，先预览影响，再逐项确认并支持条件撤销。</p>
-      <button class="theme-button" type="button" @click="router.push({ name: 'ai-organization' })">
-        打开数据整理
+      <h2>开始对话</h2>
+      <p>查账、月度评价、分类整理和待确认写入都集中在 AI 助理工作区。</p>
+      <button class="theme-button" type="button" @click="router.push({ name: 'assistant' })">
+        打开 AI 助理
       </button>
     </section>
 

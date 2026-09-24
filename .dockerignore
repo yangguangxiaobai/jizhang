@@ -18,3 +18,5 @@ coverage
 .vscode
 .idea
 *.log
+*.tar
+*.tar.gz

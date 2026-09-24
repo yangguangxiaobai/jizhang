@@ -76,6 +76,12 @@ build rather than shipping.
 
 ## Testing Requirements
 
+- Browser tests that stub API calls with Playwright `page.route()` must block the service
+  worker in a narrowly scoped `test.describe` via `test.use({ serviceWorkers: 'block' })`.
+  Once a page is controlled, service-worker-owned fetches can bypass page-level routes.
+  Do not disable the worker globally: tests that exercise PWA behavior need the real worker.
+  Prefer assertions against rendered content and semantic roles actually exposed by the
+  component (for example, a native `<summary>` is not a button).
 - The backend carries the behavioural test suite (246 tests). The frontend's
   equivalent is **build-output verification**: `scripts/check-pwa.mjs` asserts the
   manifest fields, the icon dimensions (read from the PNG header, not the filename),

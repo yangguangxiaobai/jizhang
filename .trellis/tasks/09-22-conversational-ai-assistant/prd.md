@@ -27,7 +27,7 @@ invent SQL, or let provider output write directly to SQLite.
   status and confirmation state; never persist raw attachment bytes, provider raw responses,
   internal prompts or credentials. History remains until the user starts a new conversation or
   explicitly clears it.
-- Implementation is delegated to a `gpt-5.6-luna` worker; the main agent writes the plan,
+- Implementation is delegated to a `gpt-6-luna` worker; the main agent writes the plan,
   supervises progress, reviews changes, and runs final verification.
 
 ## Confirmed repository facts

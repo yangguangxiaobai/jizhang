@@ -7,7 +7,8 @@
  */
 import { computed, onMounted, ref } from 'vue';
 import { ApiError, api, TYPE_INCOME } from '../api/client.js';
-import type { PlatformImportResult, PlatformImportRow } from '../api/client.js';
+import type { Category, PlatformImportResult, PlatformImportRow } from '../api/client.js';
+import PlatformImportRows from './PlatformImportRows.vue';
 import { useMetaStore } from '../stores/meta.js';
 import { formatCents } from '../utils/money.js';
 
@@ -25,6 +26,10 @@ const platformResult = ref<PlatformImportResult | null>(null);
 const platformPreviewOnly = ref(true);
 const selectedRowIds = ref<Set<string>>(new Set());
 const categoryOverrides = ref<Record<string, string>>({});
+const categories = computed<readonly Category[]>(() => [
+  ...meta.selectableExpenseCategories,
+  ...meta.incomeCategories,
+]);
 
 const platformAccept =
   '.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -65,25 +70,15 @@ function sizeLabel(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function categoryOptionsFor(type: number): { id: string; name: string }[] {
-  const list = type === TYPE_INCOME ? meta.incomeCategories : meta.selectableExpenseCategories;
-  return list.map((c) => ({ id: c.id, name: c.name }));
-}
-
-function effectiveCategoryName(row: PlatformImportRow): string {
-  return categoryOverrides.value[row.id] ?? row.categoryName;
-}
-
-function onCategoryChange(row: PlatformImportRow, event: Event): void {
-  const target = event.target as HTMLSelectElement;
-  const next = target.value;
-  if (next === '' || next === row.categoryName) {
+function onCategoryChange(change: { row: PlatformImportRow; categoryName: string }): void {
+  const { row, categoryName } = change;
+  if (categoryName === '' || categoryName === row.categoryName) {
     const copy = { ...categoryOverrides.value };
     delete copy[row.id];
     categoryOverrides.value = copy;
     return;
   }
-  categoryOverrides.value = { ...categoryOverrides.value, [row.id]: next };
+  categoryOverrides.value = { ...categoryOverrides.value, [row.id]: categoryName };
 }
 
 function toggleRow(id: string): void {
@@ -323,91 +318,15 @@ onMounted(() => {
               </button>
             </div>
 
-            <div v-if="platformCandidateRows.length > 0" class="bill-table-wrap">
-              <table class="bill-table">
-                <thead>
-                  <tr>
-                    <th scope="col">选</th>
-                    <th scope="col">日期</th>
-                    <th scope="col">说明</th>
-                    <th scope="col">金额</th>
-                    <th scope="col">分类</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in platformCandidateRows" :key="row.id">
-                    <td>
-                      <input
-                        type="checkbox"
-                        :checked="selectedRowIds.has(row.id)"
-                        :aria-label="`选择 ${row.dateLabel} ${row.note}`"
-                        @change="toggleRow(row.id)"
-                      />
-                    </td>
-                    <td class="cell-date">{{ row.dateLabel }}</td>
-                    <td class="cell-note">
-                      <div>{{ row.note }}</div>
-                      <div class="cell-sub">
-                        {{ row.counterparty }}
-                        <span v-if="row.sourceCategory"> · {{ row.sourceCategory }}</span>
-                        <span v-if="effectiveCategoryName(row) !== row.categoryName">
-                          · 建议「{{ row.categoryName }}」→「{{ effectiveCategoryName(row) }}」
-                        </span>
-                      </div>
-                      <div v-if="row.possibleDuplicate" class="dup-hint">
-                        可能与已有账单重复{{
-                          row.duplicateOfNote ? `（已有备注：${row.duplicateOfNote}）` : ''
-                        }}，已默认不勾选
-                      </div>
-                    </td>
-                    <td
-                      class="cell-amount"
-                      :class="row.type === TYPE_INCOME ? 'income' : 'expense'"
-                    >
-                      {{ row.type === TYPE_INCOME ? '+' : '−' }}{{ formatCents(row.amountCents) }}
-                    </td>
-                    <td>
-                      <select
-                        class="cat-select"
-                        :value="effectiveCategoryName(row)"
-                        :aria-label="`分类 ${row.note}`"
-                        @change="onCategoryChange(row, $event)"
-                      >
-                        <option
-                          v-for="opt in categoryOptionsFor(row.type)"
-                          :key="opt.id"
-                          :value="opt.name"
-                        >
-                          {{ opt.name }}
-                        </option>
-                        <option
-                          v-if="
-                            !categoryOptionsFor(row.type).some(
-                              (o) => o.name === effectiveCategoryName(row),
-                            )
-                          "
-                          :value="effectiveCategoryName(row)"
-                        >
-                          {{ effectiveCategoryName(row) }}
-                        </option>
-                      </select>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p v-else class="hint">没有可导入的明细（可能全部被过滤或已存在）。</p>
-
-            <details v-if="platformIgnoredRows.length > 0" class="ignored">
-              <summary>已过滤 / 已存在（{{ platformIgnoredRows.length }}）</summary>
-              <ul class="ignored-list">
-                <li v-for="row in platformIgnoredRows" :key="row.id">
-                  {{ row.dateLabel }} · {{ row.note || row.counterparty }} ·
-                  {{ formatCents(row.amountCents) }} —
-                  {{ row.alreadyExists ? '账本中已存在' : row.ignoreReason || '已过滤' }}
-                </li>
-              </ul>
-            </details>
+            <PlatformImportRows
+              :rows="platformResult.rows"
+              :categories="categories"
+              :selected-ids="selectedRowIds"
+              :category-overrides="categoryOverrides"
+              :disabled="busy"
+              @toggle="toggleRow"
+              @category-change="onCategoryChange"
+            />
           </div>
 
           <div
@@ -641,104 +560,6 @@ input[type='file'] {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin: 0.55rem 0;
-}
-
-.bill-table-wrap {
-  overflow-x: auto;
-  margin: 0.4rem 0 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 0.55rem;
-}
-
-.bill-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-}
-
-.bill-table th,
-.bill-table td {
-  padding: 0.45rem 0.5rem;
-  text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--border);
-}
-
-.bill-table th {
-  font-weight: 600;
-  color: var(--muted);
-  background: var(--bg);
-}
-
-.bill-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.cell-date {
-  white-space: nowrap;
-}
-
-.cell-note {
-  min-width: 10rem;
-  max-width: 16rem;
-  word-break: break-word;
-}
-
-.cell-sub {
-  margin-top: 0.15rem;
-  font-size: 0.7rem;
-  color: var(--muted);
-}
-
-.dup-hint {
-  margin-top: 0.25rem;
-  font-size: 0.7rem;
-  line-height: 1.4;
-  color: var(--warning);
-}
-
-.cell-amount {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.cell-amount.expense {
-  color: var(--danger);
-}
-
-.cell-amount.income {
-  color: var(--ok);
-}
-
-select,
-.cat-select {
-  min-height: 44px;
-  min-width: 6.5rem;
-  max-width: 9rem;
-  padding: 0.25rem 0.35rem;
-  font: inherit;
-  font-size: 0.78rem;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-}
-
-.ignored summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ignored-list {
-  margin: 0.3rem 0 0.5rem;
-  padding-left: 1.1rem;
-  font-size: 0.72rem;
-  line-height: 1.55;
-  color: var(--muted);
 }
 
 .error {

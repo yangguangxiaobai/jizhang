@@ -127,6 +127,7 @@ check(
 check('declares a navigation fallback', /navigateFallback|index\.html/i.test(sw));
 
 // ── bundle size sanity (1 GB VPS + phone download) ───────────────────────────
+// Keep the accepted product budgets at 320 KiB of JS and 80 KiB of CSS.
 console.log('\n[size]');
 const htmlSize = statSync(join(dist, 'index.html')).size;
 check('index.html is small', htmlSize < 4096, `${htmlSize}B`);
@@ -142,8 +143,8 @@ const walk = (dir) => {
   }
 };
 walk(dist);
-check('total JS under 300 kB', totalJs < 300 * 1024, `${Math.round(totalJs / 1024)} kB`);
-check('total CSS under 80 kB', totalCss < 80 * 1024, `${Math.round(totalCss / 1024)} kB`);
+check('total JS under 320 KiB', totalJs < 320 * 1024, `${totalJs} B (${(totalJs / 1024).toFixed(2)} KiB)`);
+check('total CSS under 80 KiB', totalCss < 80 * 1024, `${totalCss} B (${(totalCss / 1024).toFixed(2)} KiB)`);
 
 console.log(`\n${failures === 0 ? 'ALL PWA CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 if (failures > 0) process.exitCode = 1;

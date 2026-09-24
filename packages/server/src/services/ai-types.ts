@@ -93,7 +93,7 @@ export interface AiPromptContext {
   readonly today: string;
   readonly responseSchema: Record<string, unknown>;
   /** Optional feature discriminator; omitted means the original transaction-draft prompt. */
-  readonly feature?: 'transaction-draft' | 'monthly-evaluation' | 'organization';
+  readonly feature?: 'transaction-draft' | 'monthly-evaluation' | 'organization' | 'assistant';
   /** Aggregate-only facts for feature prompts; never transaction rows or notes. */
   readonly facts?: Record<string, unknown>;
 }

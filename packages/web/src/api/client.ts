@@ -153,6 +153,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return parsed as T;
 }
 
+function base64Bytes(bytes: ArrayBuffer | Uint8Array): string {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let binary = '';
+  for (let index = 0; index < view.length; index += 0x8000) {
+    binary += String.fromCharCode(...view.subarray(index, index + 0x8000));
+  }
+  return btoa(binary);
+}
+
 // ---------------------------------------------------------------------------
 // Domain shapes (mirror the server's DTOs)
 // ---------------------------------------------------------------------------
@@ -774,6 +783,146 @@ export interface PoolTrendResult {
   readonly cycle: CycleConfig;
 }
 
+export type AssistantRole = 'user' | 'assistant' | 'tool';
+export type AssistantMessageKind =
+  | 'text'
+  | 'progress'
+  | 'tool-card'
+  | 'result'
+  | 'error'
+  | 'attachment';
+export type AssistantActionStatus = 'pending' | 'confirmed' | 'cancelled' | 'expired';
+export type AssistantToolName =
+  | 'transactions.recent'
+  | 'accounts.balances'
+  | 'budget.overview'
+  | 'stats.monthly'
+  | 'recurring.pending'
+  | 'monthly.evaluate'
+  | 'organization.preview'
+  | 'backups.list'
+  | 'backup.export-links'
+  | 'transaction.create'
+  | 'transaction.update'
+  | 'transaction.delete'
+  | 'transaction.restore'
+  | 'transfer.create'
+  | 'salary.create'
+  | 'category.create'
+  | 'category.update'
+  | 'category.delete'
+  | 'account.create'
+  | 'account.update'
+  | 'account.delete'
+  | 'budget.template.apply'
+  | 'backup.create'
+  | 'platform-import.prepare'
+  | 'organization.apply'
+  | 'organization.undo'
+  | 'recurring.confirm'
+  | 'recurring.ignore'
+  | 'tag.rename'
+  | 'tag.delete';
+
+export type AssistantJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly AssistantJsonValue[]
+  | AssistantJsonObject;
+export interface AssistantJsonObject {
+  readonly [key: string]: AssistantJsonValue;
+}
+
+export interface AssistantAttachmentMetadata {
+  readonly source: 'auto' | 'wechat' | 'alipay';
+  readonly fileName: string;
+  readonly sizeBytes: number;
+  readonly sha256: string;
+}
+
+export interface AssistantConfirmationCard {
+  readonly version: 1;
+  readonly actionId: string;
+  readonly toolName: AssistantToolName;
+  readonly operation: string;
+  readonly summary: string;
+  readonly writes: true;
+  readonly affected: { readonly count: number; readonly ids?: readonly string[] };
+  readonly values: AssistantJsonObject;
+  readonly warnings: readonly string[];
+  readonly fingerprint: string;
+  readonly status: AssistantActionStatus;
+  readonly preview: AssistantJsonObject;
+  readonly attachment?: AssistantAttachmentMetadata;
+}
+
+export interface AssistantResultCard {
+  readonly version: 1;
+  readonly toolName: AssistantToolName;
+  readonly summary: string;
+  readonly data: AssistantJsonObject;
+}
+
+export interface AssistantMessageContent {
+  readonly version: 1;
+  readonly text?: string;
+  readonly attachment?: AssistantAttachmentMetadata;
+  readonly progress?: { readonly state: 'running' | 'complete'; readonly toolName?: AssistantToolName };
+  readonly card?: AssistantConfirmationCard;
+  readonly result?: AssistantResultCard;
+  readonly error?: { readonly code: string; readonly message: string };
+}
+
+export interface AssistantConversation {
+  readonly id: string;
+  readonly title: string;
+  readonly archived: boolean;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export interface AssistantMessage {
+  readonly id: string;
+  readonly conversationId: string;
+  readonly role: AssistantRole;
+  readonly kind: AssistantMessageKind;
+  readonly content: AssistantMessageContent;
+  readonly createdAt: number;
+}
+
+export interface AssistantPendingAction {
+  readonly id: string;
+  readonly conversationId: string;
+  readonly sourceMessageId: string;
+  readonly toolName: AssistantToolName;
+  readonly arguments: AssistantJsonObject;
+  readonly preview: AssistantJsonObject;
+  readonly fingerprint: string;
+  readonly attachment: AssistantAttachmentMetadata | null;
+  readonly status: AssistantActionStatus;
+  readonly result: AssistantJsonObject | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export interface AssistantMessageInput {
+  readonly text: string;
+  readonly clientRequestId: string;
+  readonly attachment?: {
+    readonly fileName: string;
+    readonly source?: 'auto' | 'wechat' | 'alipay';
+    readonly bytes: ArrayBuffer | Uint8Array;
+  };
+}
+
+export interface AssistantConfirmInput {
+  readonly fileBytes?: ArrayBuffer | Uint8Array;
+  readonly selectedIds?: readonly string[] | null;
+  readonly categoryOverrides?: Readonly<Record<string, string>>;
+}
+
 // ---------------------------------------------------------------------------
 // Endpoints
 // ---------------------------------------------------------------------------
@@ -914,14 +1063,7 @@ export const api = {
         query: { months },
       }),
     poolTrend: () => request<PoolTrendResult>('/api/v1/stats/pool-trend'),
-    range: () => request<{ earliest: number | null; latest: number | null }>('/api/v1/stats/range'),
-    monthWindow: (monthStart: number) =>
-      request<{ from: number; to: number }>('/api/v1/stats/month-window', {
-        query: { monthStart },
-      }),
   },
-
-  health: () => request<{ status: string; version: string }>('/api/v1/health'),
 
   budget: {
     /** `periodStart` omitted = the current cycle, exactly as before this parameter existed. */
@@ -938,16 +1080,6 @@ export const api = {
     get: (id: string) => request<SalaryDetail>(`/api/v1/salaries/${id}`),
     create: (input: SalaryInput) =>
       request<SalaryDetail>('/api/v1/salaries', { method: 'POST', body: input }),
-    update: (id: string, input: Partial<SalaryInput>) =>
-      request<SalaryDetail>(`/api/v1/salaries/${id}`, {
-        method: 'PATCH',
-        body: input,
-      }),
-    replaceAllocations: (id: string, allocations: AllocationItem[]) =>
-      request<SalaryDetail>(`/api/v1/salaries/${id}/allocations`, {
-        method: 'PUT',
-        body: { allocations },
-      }),
     remove: (id: string) => request<void>(`/api/v1/salaries/${id}`, { method: 'DELETE' }),
   },
 
@@ -981,6 +1113,57 @@ export const api = {
       }),
   },
 
+  assistant: {
+    conversations: () => request<{ items: AssistantConversation[] }>('/api/v1/assistant/conversations'),
+    createConversation: () =>
+      request<AssistantConversation>('/api/v1/assistant/conversations', { method: 'POST', body: {} }),
+    messages: (conversationId: string) =>
+      request<{ items: AssistantMessage[] }>(
+        `/api/v1/assistant/conversations/${encodeURIComponent(conversationId)}/messages`,
+      ),
+    sendMessage: (conversationId: string, input: AssistantMessageInput) =>
+      request<{ items: AssistantMessage[] }>(
+        `/api/v1/assistant/conversations/${encodeURIComponent(conversationId)}/messages`,
+        {
+          method: 'POST',
+          body: {
+            text: input.text,
+            clientRequestId: input.clientRequestId,
+            ...(input.attachment === undefined
+              ? {}
+              : {
+                  attachment: {
+                    fileName: input.attachment.fileName,
+                    source: input.attachment.source,
+                    fileBase64: base64Bytes(input.attachment.bytes),
+                  },
+                }),
+          },
+        },
+      ),
+    confirmAction: (actionId: string, input: AssistantConfirmInput = {}) =>
+      request<{ action: AssistantPendingAction; message: AssistantMessage }>(
+        `/api/v1/assistant/actions/${encodeURIComponent(actionId)}/confirm`,
+        {
+          method: 'POST',
+          body: {
+            ...(input.fileBytes === undefined ? {} : { fileBase64: base64Bytes(input.fileBytes) }),
+            ...(input.selectedIds === undefined ? {} : { selectedIds: input.selectedIds }),
+            ...(input.categoryOverrides === undefined ? {} : { categoryOverrides: input.categoryOverrides }),
+          },
+        },
+      ),
+    cancelAction: (actionId: string) =>
+      request<{ action: AssistantPendingAction }>(
+        `/api/v1/assistant/actions/${encodeURIComponent(actionId)}/cancel`,
+        { method: 'POST', body: {} },
+      ),
+    archiveConversation: (conversationId: string) =>
+      request<{ ok: true }>(`/api/v1/assistant/conversations/${encodeURIComponent(conversationId)}`, {
+        method: 'DELETE',
+      }),
+  },
+
   ai: {
     config: () => request<AiProviderConfigSummary>('/api/v1/ai/config'),
     saveConfig: (input: AiProviderConfigInput) =>
@@ -989,29 +1172,6 @@ export const api = {
         body: input,
       }),
     test: () => request<{ ok: boolean }>('/api/v1/ai/test', { method: 'POST' }),
-    transactionDraft: (input: string) =>
-      request<AiTransactionDraft>('/api/v1/ai/transaction-draft', {
-        method: 'POST',
-        body: { input },
-      }),
-    monthlyEvaluation: () =>
-      request<AiMonthlyEvaluationResult>('/api/v1/ai/monthly-evaluation', {
-        method: 'POST',
-      }),
-    organizationPreview: () =>
-      request<AiOrganizationPreview>('/api/v1/ai/organization-preview', {
-        method: 'POST',
-      }),
-    organizationApply: (input: { previewHash: string; actionIds: readonly string[] }) =>
-      request<AiOrganizationOperationResult>('/api/v1/ai/organization-apply', {
-        method: 'POST',
-        body: input,
-      }),
-    organizationUndo: (operationId: string) =>
-      request<AiOrganizationOperationResult>('/api/v1/ai/organization-undo', {
-        method: 'POST',
-        body: { operationId },
-      }),
   },
 
   /**
@@ -1084,16 +1244,10 @@ export const api = {
      */
     importPlatformBills: (input: PlatformImportRequest) => {
       const bytes = input.bytes;
-      const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-      let binary = '';
-      const chunk = 0x8000;
-      for (let i = 0; i < view.length; i += chunk) {
-        binary += String.fromCharCode(...view.subarray(i, i + chunk));
-      }
       return request<PlatformImportResult>('/api/v1/import/platform-bills', {
         method: 'POST',
         body: {
-          fileBase64: btoa(binary),
+          fileBase64: base64Bytes(bytes),
           source: input.source ?? 'auto',
           dryRun: input.dryRun === true,
           fileName: input.fileName,

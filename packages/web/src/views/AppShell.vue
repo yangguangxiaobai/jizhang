@@ -73,12 +73,12 @@ const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? ''
       </RouterLink>
 
       <RouterLink
-        :to="{ name: 'transaction-new' }"
+        :to="{ name: 'assistant' }"
         class="tab primary"
-        :class="{ active: activeNav === 'new' }"
+        :class="{ active: activeNav === 'assistant' }"
       >
-        <span class="glyph"><AppIcon name="plus" /></span>
-        <span>记一笔</span>
+        <span class="glyph"><AppIcon name="sparkles" /></span>
+        <span>AI 助理</span>
       </RouterLink>
 
       <RouterLink :to="{ name: 'stats' }" class="tab" :class="{ active: activeNav === 'stats' }">
