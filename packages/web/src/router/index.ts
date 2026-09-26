@@ -144,6 +144,30 @@ const routes = [
         meta: { title: '数据导出与备份', nav: 'settings' },
       },
       {
+        path: 'items',
+        name: 'items',
+        component: () => import('../views/ItemsView.vue'),
+        meta: { title: '物品资产', nav: 'settings' },
+      },
+      {
+        path: 'items/new',
+        name: 'item-new',
+        component: () => import('../views/ItemEditView.vue'),
+        meta: { title: '添加物品', nav: 'settings' },
+      },
+      {
+        path: 'items/:id/edit',
+        name: 'item-edit',
+        component: () => import('../views/ItemEditView.vue'),
+        meta: { title: '编辑物品', nav: 'settings' },
+      },
+      {
+        path: 'items/:id',
+        name: 'item-detail',
+        component: () => import('../views/ItemDetailView.vue'),
+        meta: { title: '物品详情', nav: 'settings' },
+      },
+      {
         path: 'settings',
         name: 'settings',
         component: () => import('../views/SettingsView.vue'),

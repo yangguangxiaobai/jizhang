@@ -27,6 +27,8 @@ import { migrationStatus, MIGRATIONS, runMigrations, type Migration } from '../s
 import { loadConfig } from '../src/config.js';
 
 const EXPECTED_TABLES = [
+  'asset_item_photos',
+  'asset_items',
   'accounts',
   'budget_allocations',
   'budget_templates',

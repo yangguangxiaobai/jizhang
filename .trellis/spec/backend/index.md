@@ -26,6 +26,7 @@ Three properties shape everything below:
 | [Database Guidelines](./database-guidelines.md) | better-sqlite3, migrations, soft delete, backup | Done |
 | [Error Handling](./error-handling.md) | One error shape, 401 vs 403 vs 404, no leaks | Done |
 | [AI Provider Integration](./ai-provider.md) | Configurable provider HTTP, encrypted secrets, draft contract | Done |
+| [Personal Item Assets](./item-assets.md) | Item lifecycle API, isolated ledger links, and bounded photo BLOBs | Done |
 | [Quality Guidelines](./quality-guidelines.md) | Gate commands, Docker field notes, verification rules | Done |
 | [Logging Guidelines](./logging-guidelines.md) | pino levels, what may never be logged | Done |
 

@@ -246,6 +246,76 @@ export interface TrashBulkResult {
   readonly remaining: number;
 }
 
+export type ItemStatus = 'active' | 'idle' | 'sold' | 'retired';
+export type ItemPhotoMime = 'image/jpeg' | 'image/png' | 'image/webp';
+
+export interface Item {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string;
+  readonly brand: string;
+  readonly model: string;
+  readonly note: string;
+  readonly purchasePriceCents: number | null;
+  readonly purchaseDate: number;
+  readonly status: ItemStatus;
+  readonly closedDate: number | null;
+  readonly salePriceCents: number | null;
+  readonly purchaseTransactionId: string | null;
+  readonly saleTransactionId: string | null;
+  readonly photoUrl: string | null;
+  readonly heldDays: number;
+  readonly netCostCents: number | null;
+  readonly dailyCostCents: number | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export type ItemListQuery = Record<string, QueryValue>;
+
+export interface ItemListResult {
+  readonly items: Item[];
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+export interface ItemSummary {
+  readonly totalItems: number;
+  readonly activeItems: number;
+  readonly idleItems: number;
+  readonly soldItems: number;
+  readonly retiredItems: number;
+  readonly cumulativePurchaseCents: number;
+  readonly currentDailyCostCents: number;
+}
+
+export interface ItemInput {
+  readonly name: string;
+  readonly category?: string;
+  readonly brand?: string;
+  readonly model?: string;
+  readonly note?: string;
+  readonly purchasePriceCents?: number | null;
+  readonly purchaseDate: number;
+  readonly purchaseTransactionId?: string | null;
+  readonly status?: 'active' | 'idle';
+}
+
+export type ItemUpdateInput = Omit<Partial<ItemInput>, 'status'> & {
+  readonly status?: ItemStatus;
+};
+
+export interface ItemSaleInput {
+  readonly closedDate: number;
+  readonly salePriceCents?: number | null;
+  readonly saleTransactionId?: string | null;
+}
+
+export interface ItemRetireInput {
+  readonly closedDate: number;
+}
+
 /** How often a recurring bill repeats. Mirrors `@jizhang/shared`'s union. */
 export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
@@ -954,6 +1024,38 @@ export const api = {
         body: input,
       }),
     remove: (id: string) => request<void>(`/api/v1/transactions/${id}`, { method: 'DELETE' }),
+  },
+  items: {
+    list: (query: ItemListQuery = {}) => request<ItemListResult>('/api/v1/items', { query }),
+    summary: () => request<ItemSummary>('/api/v1/items/summary'),
+    get: (id: string) => request<Item>('/api/v1/items/' + encodeURIComponent(id)),
+    create: (input: ItemInput) =>
+      request<Item>('/api/v1/items', { method: 'POST', body: input }),
+    update: (id: string, changes: ItemUpdateInput) =>
+      request<Item>('/api/v1/items/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        body: changes,
+      }),
+    remove: (id: string) =>
+      request<void>('/api/v1/items/' + encodeURIComponent(id), { method: 'DELETE' }),
+    sell: (id: string, input: ItemSaleInput) =>
+      request<Item>('/api/v1/items/' + encodeURIComponent(id) + '/sell', {
+        method: 'POST',
+        body: input,
+      }),
+    retire: (id: string, input: ItemRetireInput) =>
+      request<Item>('/api/v1/items/' + encodeURIComponent(id) + '/retire', {
+        method: 'POST',
+        body: input,
+      }),
+    photoUrl: (id: string) => '/api/v1/items/' + encodeURIComponent(id) + '/photo',
+    uploadPhoto: (id: string, contentType: ItemPhotoMime, body: Blob) =>
+      request<void>('/api/v1/items/' + encodeURIComponent(id) + '/photo', {
+        method: 'PUT',
+        rawBody: { contentType, body },
+      }),
+    removePhoto: (id: string) =>
+      request<void>('/api/v1/items/' + encodeURIComponent(id) + '/photo', { method: 'DELETE' }),
   },
   tags: {
     list: () => request<{ items: TagCount[] }>('/api/v1/tags'),

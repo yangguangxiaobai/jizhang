@@ -23,6 +23,7 @@ import { MIGRATION_006_REFUND_INCOME } from './migrations/006-refund-income.js';
 import { MIGRATION_007_CATEGORY_HIERARCHY } from './migrations/007-category-hierarchy.js';
 import { MIGRATION_008_AI_ORGANIZATION_AUDIT } from './migrations/008-ai-organization-audit.js';
 import { MIGRATION_009_ASSISTANT } from './migrations/009-assistant.js';
+import { MIGRATION_010_ITEM_ASSETS } from './migrations/010-item-assets.js';
 
 export interface Migration {
   readonly version: number;
@@ -44,6 +45,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 7, name: 'category-hierarchy', sql: MIGRATION_007_CATEGORY_HIERARCHY },
   { version: 8, name: 'ai-organization-audit', sql: MIGRATION_008_AI_ORGANIZATION_AUDIT },
   { version: 9, name: 'assistant', sql: MIGRATION_009_ASSISTANT },
+  { version: 10, name: 'item-assets', sql: MIGRATION_010_ITEM_ASSETS },
 ];
 
 interface AppliedRow {

@@ -24,6 +24,7 @@ import { useBalanceStore } from '../stores/balances.js';
 import { useBudgetStore } from '../stores/budget.js';
 import { useMetaStore } from '../stores/meta.js';
 import { useRecurringStore } from '../stores/recurring.js';
+import { useItemsStore } from '../stores/items.js';
 import { budgetTone } from '../utils/budget-tone.js';
 import { formatDayLabel, formatMonthLabel, formatYuan } from '../utils/money.js';
 
@@ -34,6 +35,7 @@ const budget = useBudgetStore();
 const balances = useBalanceStore();
 const meta = useMetaStore();
 const recurring = useRecurringStore();
+const ownedItems = useItemsStore();
 const router = useRouter();
 
 const loading = ref(true);
@@ -76,6 +78,7 @@ onMounted(async () => {
 
   // Recurring bills are a separate concern and must not be able to break the dashboard:
   // this generates any due occurrences and loads the count for the reminder card.
+  void ownedItems.loadSummary();
   void recurring.generateAndReload();
 });
 
@@ -237,6 +240,31 @@ function isRefund(item: Transaction): boolean {
     <p v-else class="error" role="alert">
       总余额读取失败：{{ balances.errorMessage }}
     </p>
+
+    <section class="theme-card card item-assets-entry" aria-labelledby="item-assets-title">
+      <div class="row section-head">
+        <h2 id="item-assets-title"><AppIcon name="box" /> 物品资产</h2>
+        <span class="label">独立于账单</span>
+      </div>
+      <template v-if="ownedItems.summary !== null">
+        <strong class="item-assets-total">
+          {{ formatYuan(ownedItems.summary.cumulativePurchaseCents) }}
+        </strong>
+        <p class="hint item-assets-caption">
+          {{ ownedItems.summary.totalItems }} 件已记录 · 当前日均持有成本
+          {{ formatYuan(ownedItems.summary.currentDailyCostCents) }}
+        </p>
+      </template>
+      <p v-else class="hint item-assets-caption">记录每件物品的购入时间、状态和使用成本。</p>
+      <button
+        type="button"
+        class="theme-button ghost"
+        @click="router.push({ name: 'items' })"
+      >
+        {{ ownedItems.summary?.totalItems ? '管理物品' : '开始记录物品' }}
+        <AppIcon name="arrow" />
+      </button>
+    </section>
 
     <section class="theme-card summary card">
       <div class="row section-head">
@@ -434,6 +462,22 @@ h2 {
    the month summary does not jump when the real numbers arrive. */
 .asset-skeleton {
   padding-bottom: 1.25rem;
+}
+
+.item-assets-entry {
+  padding: 1.1rem 1.15rem;
+}
+
+.item-assets-total {
+  display: block;
+  margin: 0 0 0.25rem;
+  font-size: 1.45rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.item-assets-caption {
+  margin: 0 0 0.75rem;
 }
 
 .skeleton-line {

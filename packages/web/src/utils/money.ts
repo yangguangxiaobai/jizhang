@@ -36,6 +36,16 @@ export function parseYuanToCents(input: string): number | null {
   return cents > 0 ? cents : null;
 }
 
+/** Parses an optional non-negative amount; unlike transaction amounts, zero is valid for an item. */
+export function parseOptionalYuanToCents(input: string): number | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const cents = Math.round(value * 100);
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
 /** Integer-cents sum, so a list total cannot drift through float addition. */
 export function sumCents(values: readonly number[]): number {
   return values.reduce((total, value) => total + Math.trunc(value), 0);

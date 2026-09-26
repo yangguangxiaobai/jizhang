@@ -21,6 +21,7 @@ import { registerTransactionRoutes } from './routes/transactions.js';
 import { registerTransferRoutes } from './routes/transfers.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerAssistantRoutes } from './routes/assistant.js';
+import { registerItemRoutes } from './routes/items.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
 
@@ -90,6 +91,9 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     { parseAs: 'buffer' },
     bufferParser,
   );
+  for (const imageType of ['image/jpeg', 'image/png', 'image/webp']) {
+    app.addContentTypeParser(imageType, { parseAs: 'buffer' }, bufferParser);
+  }
 
   // ── Unified error contract: { error: { code, message } } (design.md §5) ──────
   // Fastify 5 types the handler's error as `unknown` by default, so the
@@ -201,6 +205,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
             now: options.now,
             fetchImpl: options.fetchImpl,
           }),
+        (instance) => registerItemRoutes(instance, { db, now: options.now }),
       ],
     });
   } else {

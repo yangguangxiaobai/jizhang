@@ -81,6 +81,12 @@ const ledgerLinks = [
 
 const dataLinks = [
   {
+    name: 'items',
+    icon: 'box',
+    title: '物品资产',
+    description: '记录物品、持有时长与使用成本',
+  },
+  {
     name: 'recurring-rules',
     icon: 'transfer',
     title: '周期账单',

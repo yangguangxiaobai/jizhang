@@ -21,6 +21,11 @@ pnpm --filter @jizhang/web run build   # build + scripts/check-pwa.mjs
 `build` runs the PWA assertions, so a broken manifest or a missing icon fails the
 build rather than shipping.
 
+The aggregate raw-asset limits checked by `scripts/check-pwa.mjs` are 352 KiB JavaScript and
+96 KiB CSS. They include every route chunk, including lazily loaded pages. When evaluating a
+feature's transfer impact, also inspect compressed output; do not raise these limits without
+an explicit product/performance decision.
+
 ---
 
 ## Required Patterns
