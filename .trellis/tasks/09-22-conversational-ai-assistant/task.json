@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "09-24-assistant-experience-polish"
+  ],
   "parent": "09-21-ai-accounting",
   "relatedFiles": [],
   "notes": "",
