@@ -31,6 +31,7 @@ const purchaseTransactionId = ref<string | null>(null);
 const serverPhotoUrl = ref<string | null>(null);
 const preparedPhoto = ref<PreparedItemPhoto | null>(null);
 const previewUrl = ref<string | null>(null);
+const optionalFieldsOpen = ref(false);
 const removeExistingPhoto = ref(false);
 const loading = ref(false);
 const saving = ref(false);
@@ -75,6 +76,7 @@ async function loadItem(itemId: string): Promise<void> {
     purchaseDateText.value = toDateInputValue(item.purchaseDate);
     purchaseTransactionId.value = item.purchaseTransactionId;
     serverPhotoUrl.value = item.photoUrl;
+    optionalFieldsOpen.value = item.brand !== '' || item.model !== '' || item.note !== '';
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -193,8 +195,10 @@ function itemId(): string {
       <button class="theme-button ghost back-button" type="button" @click="goBack">
         <AppIcon name="chevron" /> 返回
       </button>
-      <h2>{{ isEditing ? '编辑物品' : '添加物品' }}</h2>
-      <p class="hint">物品记录独立于账单；购入和售出金额不会自动记账。</p>
+      <div class="item-heading-copy">
+        <h2>{{ isEditing ? '编辑物品信息' : '完善物品信息' }}</h2>
+        <p class="hint">记录物品的购入信息和使用状态。</p>
+      </div>
     </header>
 
     <p v-if="loading" class="muted" role="status">正在加载物品…</p>
@@ -206,8 +210,8 @@ function itemId(): string {
           <AppIcon v-else name="box" />
         </div>
         <div class="photo-actions">
-          <strong>物品照片</strong>
-          <p class="hint">可选，上传后将随账本数据库备份保存。</p>
+          <strong>{{ shownPhotoUrl === null ? '添加物品照片' : '物品照片' }}</strong>
+          <p class="hint">可选；照片会随账本备份保存。</p>
           <label class="theme-button ghost photo-pick">
             {{
               photoProcessing ? '正在处理图片…' : shownPhotoUrl === null ? '选择照片' : '更换照片'
@@ -276,10 +280,24 @@ function itemId(): string {
 
         <label v-if="liveStatus" class="field">
           <span>当前状态</span>
-          <select v-model="currentStatus">
-            <option value="active">使用中</option>
-            <option value="idle">闲置</option>
-          </select>
+          <div class="status-options" role="group" aria-label="当前状态">
+            <button
+              type="button"
+              :class="{ active: currentStatus === 'active' }"
+              :aria-pressed="currentStatus === 'active'"
+              @click="currentStatus = 'active'"
+            >
+              使用中
+            </button>
+            <button
+              type="button"
+              :class="{ active: currentStatus === 'idle' }"
+              :aria-pressed="currentStatus === 'idle'"
+              @click="currentStatus = 'idle'"
+            >
+              闲置
+            </button>
+          </div>
         </label>
         <div v-else class="current-status">
           <span>当前状态</span>
@@ -287,21 +305,34 @@ function itemId(): string {
           <small>结束持有状态如需更正，请在物品详情页重新启用。</small>
         </div>
 
-        <div class="field-grid">
-          <label class="field">
-            <span>品牌（可选）</span>
-            <input v-model="brand" maxlength="500" autocomplete="off" />
-          </label>
-          <label class="field">
-            <span>型号（可选）</span>
-            <input v-model="model" maxlength="500" autocomplete="off" />
-          </label>
-        </div>
-
-        <label class="field">
-          <span>备注（可选）</span>
-          <textarea v-model="note" maxlength="500" rows="3" placeholder="记录你想保留的信息" />
-        </label>
+        <details
+          class="optional-fields"
+          :open="optionalFieldsOpen"
+          @toggle="optionalFieldsOpen = ($event.target as HTMLDetailsElement).open"
+        >
+          <summary>品牌、型号和备注 <span>可选</span></summary>
+          <div class="optional-fields-body">
+            <div class="field-grid">
+              <label class="field">
+                <span>品牌</span>
+                <input
+                  v-model="brand"
+                  maxlength="500"
+                  autocomplete="off"
+                  placeholder="例如：Sony"
+                />
+              </label>
+              <label class="field">
+                <span>型号</span>
+                <input v-model="model" maxlength="500" autocomplete="off" />
+              </label>
+            </div>
+            <label class="field">
+              <span>备注</span>
+              <textarea v-model="note" maxlength="500" rows="3" placeholder="记录你想保留的信息" />
+            </label>
+          </div>
+        </details>
       </section>
 
       <section class="theme-card link-card">
@@ -332,20 +363,24 @@ function itemId(): string {
 .item-edit-page {
   display: grid;
   gap: 0.75rem;
+  max-width: 46rem;
+  margin: 0 auto;
 }
 
 .item-page-heading {
   display: grid;
-  gap: 0.25rem;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.65rem;
 }
 
-.item-page-heading h2,
-.item-page-heading p {
+.item-heading-copy h2,
+.item-heading-copy p {
   margin: 0;
 }
 
-.item-page-heading h2 {
-  font-size: 1.15rem;
+.item-heading-copy h2 {
+  font-size: 1.1rem;
 }
 
 .back-button {
@@ -474,6 +509,58 @@ function itemId(): string {
   gap: 0.65rem;
 }
 
+.status-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.25rem;
+  background: var(--surface-soft);
+  border-radius: var(--radius-control);
+}
+
+.status-options button {
+  min-height: 44px;
+  padding: 0.45rem 0.75rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  font: inherit;
+}
+
+.status-options button.active {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--lift-1);
+  font-weight: 650;
+}
+
+.optional-fields {
+  border-top: 1px solid var(--border);
+}
+
+.optional-fields summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  color: var(--fg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.optional-fields summary span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.optional-fields-body {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.35rem 0 0.1rem;
+}
+
 .current-status {
   display: flex;
   flex-wrap: wrap;
@@ -512,6 +599,12 @@ function itemId(): string {
 
 .form-actions .ghost {
   min-width: 5rem;
+}
+
+@media (min-width: 64rem) {
+  .form-actions {
+    bottom: 0.75rem;
+  }
 }
 
 @media (min-width: 40rem) {

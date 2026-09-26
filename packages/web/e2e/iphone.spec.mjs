@@ -136,7 +136,9 @@ test('phone forms: template → salary → spending/edit/refund/delete/restore �
     refund: true,
     refundOfNote: '手机午饭',
   });
-  await budgetModule(page, '交通', 390_000);
+  // Refunds are income rows under the current product rule; they do not reduce
+  // expense totals or increase the remaining category budget.
+  await budgetModule(page, '交通', 387_655);
   await expense(page, { amount: '50.00', category: '购物', note: '模板外支出' });
   const unbudgeted = await budgetModule(page, '购物', -5_000);
   await expect(unbudgeted).toContainText('未分配预算');
@@ -147,17 +149,18 @@ test('phone forms: template → salary → spending/edit/refund/delete/restore �
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: '删除', exact: true }).click();
   await expect(page).toHaveURL(/\/transactions$/);
-  await budgetModule(page, '交通', 402_345);
+  await budgetModule(page, '交通', 400_000);
   await page.goto('/trash');
   const trashRow = page.locator('.rows > li').filter({ hasText: '手机午饭' });
   await trashRow.getByRole('button', { name: '恢复', exact: true }).click();
   await expect(trashRow).toHaveCount(0);
-  await budgetModule(page, '交通', 390_000);
+  await budgetModule(page, '交通', 387_655);
 
   await salary(page, '1000.00');
   overview = await json(page, '/budget/overview');
   expect(overview.totalBudgetCents).toBe(1_100_001);
-  expect(overview.totalSpentCents).toBe(15_000);
+  // Refund rows are income and do not lower gross expenses in the budget engine.
+  expect(overview.totalSpentCents).toBe(17_345);
   expect(overview.carryoverPoolCents).toBe(-5_000);
   await ledger.restart();
   await page.reload();
@@ -166,9 +169,10 @@ test('phone forms: template → salary → spending/edit/refund/delete/restore �
   await page.screenshot({ path: testInfo.outputPath('budget-iphone.png'), fullPage: true });
 
   await page.goto('/settings');
-  await expect(page.getByRole('button', { name: '修改密码', exact: true })).toBeVisible();
+  const passwordToggle = page.getByRole('button', { name: /修改密码/ }).first();
+  await expect(passwordToggle).toBeVisible();
   await expect(page.getByLabel('当前密码')).toHaveCount(0);
-  await page.getByRole('button', { name: '修改密码', exact: true }).click();
+  await passwordToggle.click();
   await expect(page.getByLabel('当前密码')).toBeVisible();
   await expect(page.getByText(/应用锁|忘记 PIN|立即锁定/)).toHaveCount(0);
   await page.getByRole('button', { name: '深色', exact: true }).click();
@@ -539,7 +543,11 @@ test('dashboard provides a primary AI assistant entry without adding a navigatio
   await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link')).toHaveCount(6);
   await page.getByRole('button', { name: /开始对话/ }).click();
   await expect(page).toHaveURL(/\/assistant$/);
-  await expect(page.getByRole('region', { name: 'AI 助理对话' }).getByRole('heading', { name: 'AI 助理' })).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'AI 助理对话' })
+      .getByRole('heading', { name: '你好，我可以帮你查账和准备操作' }),
+  ).toBeVisible();
   await assertPhoneLayout(page);
 });
 

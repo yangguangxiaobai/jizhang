@@ -282,7 +282,6 @@ const topCategory = computed(() => {
   color: var(--muted);
   background: none;
   border: 0;
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -297,7 +296,6 @@ const topCategory = computed(() => {
   margin-bottom: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
 }
 
 .card-head {
@@ -321,7 +319,6 @@ select {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.45rem;
 }
 
 .headline {

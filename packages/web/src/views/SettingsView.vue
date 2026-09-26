@@ -81,12 +81,6 @@ const ledgerLinks = [
 
 const dataLinks = [
   {
-    name: 'items',
-    icon: 'box',
-    title: '物品资产',
-    description: '记录物品、持有时长与使用成本',
-  },
-  {
     name: 'recurring-rules',
     icon: 'transfer',
     title: '周期账单',
@@ -182,6 +176,20 @@ async function signOut(): Promise<void> {
     </div>
     <button type="button" class="theme-button ghost sign-out" @click="signOut">退出登录</button>
   </section>
+
+  <button
+    type="button"
+    class="theme-card card asset-shortcut"
+    aria-label="进入物品资产"
+    @click="router.push({ name: 'items' })"
+  >
+    <span class="asset-shortcut-icon"><AppIcon name="box" /></span>
+    <span class="asset-shortcut-copy">
+      <strong>物品资产</strong>
+      <small>记录持有时间、使用成本和物品状态</small>
+    </span>
+    <span class="asset-shortcut-action">查看<AppIcon name="arrow" /></span>
+  </button>
 
   <section class="theme-card card appearance">
     <div class="section-heading">
@@ -399,6 +407,55 @@ h2 {
 .profile-icon .app-icon {
   width: 1.45rem;
   height: 1.45rem;
+}
+
+.asset-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 72px;
+  padding: 0.8rem 1rem;
+  color: var(--fg);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.asset-shortcut-icon {
+  display: grid;
+  place-items: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  flex: 0 0 auto;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-control);
+}
+
+.asset-shortcut-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.asset-shortcut-copy strong {
+  font-size: 0.95rem;
+}
+
+.asset-shortcut-copy small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.asset-shortcut-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--accent);
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .eyebrow {

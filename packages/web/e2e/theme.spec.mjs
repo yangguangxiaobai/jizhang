@@ -84,7 +84,7 @@ async function seed(page) {
 
 async function open(page, path) {
   await page.goto(path);
-  await expect(page.locator('.tabbar')).toBeVisible();
+  await expect(page.locator('nav[aria-label="主导航"]:visible a')).toHaveCount(6);
   await expect(page.getByText('加载中…', { exact: true })).toHaveCount(0);
   if (path === '/') await expect(page.locator('.asset-total')).toBeVisible();
   await settle(page);

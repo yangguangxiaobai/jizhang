@@ -360,7 +360,6 @@ const historyLoading = computed(() => budget.viewingHistory && budget.displayedO
   margin-bottom: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
 }
 
 /* ── period switcher ─────────────────────────────────────────────────────── */
@@ -384,7 +383,6 @@ const historyLoading = computed(() => budget.viewingHistory && budget.displayedO
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
 }
 
 .period .ghost {
@@ -394,7 +392,6 @@ const historyLoading = computed(() => budget.viewingHistory && budget.displayedO
   color: var(--fg);
   background: none;
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
   cursor: pointer;
 }
 
@@ -609,7 +606,6 @@ const historyLoading = computed(() => budget.viewingHistory && budget.displayedO
   color: var(--on-accent);
   background: var(--accent);
   border: 0;
-  border-radius: 0.55rem;
   cursor: pointer;
 }
 
@@ -642,7 +638,6 @@ const historyLoading = computed(() => budget.viewingHistory && budget.displayedO
   color: var(--on-accent);
   background: var(--accent);
   border: 0;
-  border-radius: 0.55rem;
   cursor: pointer;
 }
 

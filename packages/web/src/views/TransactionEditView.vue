@@ -446,7 +446,6 @@ async function remove(): Promise<void> {
   color: var(--muted);
   background: none;
   border: 0;
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -471,7 +470,6 @@ async function remove(): Promise<void> {
   color: var(--fg);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
 }
 
 .amount-field input {
@@ -533,7 +531,6 @@ small.invalid {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
 }
 
 .tag-add button {
@@ -543,7 +540,6 @@ small.invalid {
   color: var(--fg);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -563,7 +559,6 @@ small.invalid {
   color: var(--muted);
   background: none;
   border: 1px dashed var(--border);
-  border-radius: 1rem;
   cursor: pointer;
 }
 
@@ -629,7 +624,6 @@ small.invalid {
   min-height: 48px;
   font: inherit;
   font-weight: 600;
-  border-radius: 0.6rem;
   cursor: pointer;
 }
 

@@ -39,9 +39,10 @@ test('item entry links an existing bill without creating a second bill', async (
   const purchase = await createPurchase(page, purchaseDate.getTime());
   const before = await page.request.get('/api/v1/transactions?limit=500').then((r) => r.json());
 
-  await page.goto('/items');
+  await expect(page.getByRole('button', { name: '查看物品资产' })).toBeVisible();
+  await page.getByRole('button', { name: '查看物品资产' }).click();
   await expect(page.getByRole('heading', { name: '物品资产' }).first()).toBeVisible();
-  await page.getByRole('button', { name: '添加', exact: true }).click();
+  await page.getByRole('button', { name: '添加物品', exact: true }).click();
   await expect(page).toHaveURL(/\/items\/new$/);
   await page.getByLabel('物品名称').fill('家庭测试键盘');
   await page.getByLabel('物品分类').fill('数码 / 外设');
@@ -62,10 +63,35 @@ test('item entry links an existing bill without creating a second bill', async (
   await expect(page.getByRole('heading', { name: '家庭测试键盘' })).toBeVisible();
   await expect(page.getByText('物品测试购入', { exact: false })).toBeVisible();
 
+  await page.getByRole('button', { name: '记录售出 / 退役' }).click();
+  await expect(page).toHaveURL(/\/items\/[0-9a-f-]+\/close$/);
+  await expect(
+    page.getByRole('region', { name: '结束物品持有' }).getByRole('heading', { name: '结束持有' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '已退役' }).click();
+  const today = new Date();
+  await page
+    .getByLabel('退役日期')
+    .fill(
+      today.getFullYear() +
+        '-' +
+        String(today.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(today.getDate()).padStart(2, '0'),
+    );
+  await page.getByRole('button', { name: '确认退役' }).click();
+  await expect(page).toHaveURL(/\/items\/[0-9a-f-]+$/);
+  await expect(page.getByText('已退役', { exact: true }).first()).toBeVisible();
+
   const after = await page.request.get('/api/v1/transactions?limit=500').then((r) => r.json());
   expect(after.total).toBe(before.total);
   const itemId = new URL(page.url()).pathname.split('/').at(-1);
   const item = await page.request.get('/api/v1/items/' + itemId).then((r) => r.json());
   expect(item.purchaseTransactionId).toBe(purchase.id);
   expect(item.purchasePriceCents).toBe(450_000);
+
+  await page.getByRole('link', { name: '我的' }).click();
+  await expect(page.getByRole('button', { name: '进入物品资产' })).toBeVisible();
+  await page.getByRole('button', { name: '进入物品资产' }).click();
+  await expect(page).toHaveURL(/\/items$/);
 });

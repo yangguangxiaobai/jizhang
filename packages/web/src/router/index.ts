@@ -162,6 +162,12 @@ const routes = [
         meta: { title: '编辑物品', nav: 'settings' },
       },
       {
+        path: 'items/:id/close',
+        name: 'item-close',
+        component: () => import('../views/ItemCloseView.vue'),
+        meta: { title: '结束持有', nav: 'settings' },
+      },
+      {
         path: 'items/:id',
         name: 'item-detail',
         component: () => import('../views/ItemDetailView.vue'),

@@ -273,7 +273,6 @@ async function save(): Promise<void> {
   color: var(--fg);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
 }
 
 .field > input:first-of-type {
@@ -344,7 +343,6 @@ h2 {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.45rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -386,7 +384,6 @@ h2 {
   min-height: 48px;
   font: inherit;
   font-weight: 600;
-  border-radius: 0.6rem;
   cursor: pointer;
 }
 

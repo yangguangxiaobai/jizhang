@@ -22,9 +22,10 @@ pnpm --filter @jizhang/web run build   # build + scripts/check-pwa.mjs
 build rather than shipping.
 
 The aggregate raw-asset limits checked by `scripts/check-pwa.mjs` are 352 KiB JavaScript and
-96 KiB CSS. They include every route chunk, including lazily loaded pages. When evaluating a
-feature's transfer impact, also inspect compressed output; do not raise these limits without
-an explicit product/performance decision.
+112 KiB CSS. They include every route chunk, including lazily loaded pages. The CSS ceiling
+was explicitly approved for the full Ardot UI pass; evaluate compressed output as well as raw
+size when assessing transfer impact. Do not raise these limits again without an explicit
+product/performance decision.
 
 ---
 

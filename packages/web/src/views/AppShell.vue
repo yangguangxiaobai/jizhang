@@ -16,6 +16,14 @@ const auth = useAuthStore();
 const route = useRoute();
 const title = computed(() => (route.meta['title'] as string | undefined) ?? '记账');
 const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? '');
+const navItems = [
+  { name: 'dashboard', label: '首页' },
+  { name: 'transactions', label: '账单' },
+  { name: 'budget', label: '预算' },
+  { name: 'assistant', label: 'AI 助理' },
+  { name: 'stats', label: '统计' },
+  { name: 'settings', label: '我的' },
+] as const;
 </script>
 
 <template>
@@ -24,7 +32,19 @@ const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? ''
 
     <header class="topbar">
       <div class="topbar-inner">
-        <h1>{{ title }}</h1>
+        <h1 class="mobile-title">{{ title }}</h1>
+        <RouterLink class="desktop-brand" :to="{ name: 'dashboard' }">知账</RouterLink>
+        <nav class="desktop-nav" aria-label="主导航">
+          <RouterLink
+            v-for="item in navItems"
+            :key="item.name"
+            :to="{ name: item.name }"
+            class="desktop-nav-link"
+            :class="{ active: activeNav === item.name }"
+          >
+            {{ item.label }}
+          </RouterLink>
+        </nav>
         <span class="user"><AppIcon name="user" /> {{ auth.username }}</span>
       </div>
     </header>
@@ -123,6 +143,11 @@ const activeNav = computed(() => (route.meta['nav'] as string | undefined) ?? ''
   margin: 0 auto;
 }
 
+.desktop-brand,
+.desktop-nav {
+  display: none;
+}
+
 h1 {
   margin: 0;
   font-size: 1.35rem;
@@ -200,5 +225,76 @@ h1 {
 .tab.primary .glyph {
   background: var(--accent);
   color: var(--on-accent);
+}
+
+@media (min-width: 64rem) {
+  .topbar {
+    padding: 0.6rem 2rem;
+  }
+
+  .topbar-inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 2rem;
+    max-width: 88rem;
+  }
+
+  .mobile-title {
+    display: none;
+  }
+
+  .desktop-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    color: var(--accent);
+    font-size: 1.1rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+  }
+
+  .desktop-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .desktop-nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.55rem 0.8rem;
+    color: var(--muted);
+    border-radius: var(--radius-control);
+    font-size: 0.9rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .desktop-nav-link.active {
+    color: var(--accent);
+    background: var(--accent-subtle);
+    font-weight: 650;
+  }
+
+  .user {
+    max-width: 12rem;
+    font-size: 0.85rem;
+  }
+
+  .content {
+    max-width: 88rem;
+    padding: 1.5rem 2rem 2rem;
+  }
+
+  .tabbar {
+    display: none;
+  }
 }
 </style>

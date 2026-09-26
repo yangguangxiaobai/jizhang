@@ -114,7 +114,6 @@ async function ignore(item: RecurringOccurrence): Promise<void> {
   margin-bottom: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
 }
 
 .head {
@@ -205,7 +204,6 @@ button {
   min-height: 44px;
   font: inherit;
   font-weight: 600;
-  border-radius: 0.55rem;
   cursor: pointer;
 }
 

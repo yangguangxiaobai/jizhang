@@ -3,18 +3,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '../components/AppIcon.vue';
-import ItemTransactionPicker from '../components/ItemTransactionPicker.vue';
 import { api } from '../api/client.js';
 import type { Item, ItemStatus, Transaction } from '../api/client.js';
 import { useItemsStore } from '../stores/items.js';
-import {
-  formatCents,
-  formatDayLabel,
-  formatYuan,
-  fromDateInputValue,
-  parseOptionalYuanToCents,
-  toDateInputValue,
-} from '../utils/money.js';
+import { formatDayLabel, formatYuan } from '../utils/money.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,10 +19,6 @@ const saleLinkUnavailable = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 const errorMessage = ref<string | null>(null);
-const closingMode = ref<'sold' | 'retired' | null>(null);
-const closeDateText = ref(toDateInputValue(Date.now()));
-const salePriceText = ref('');
-const saleTransactionId = ref<string | null>(null);
 
 const itemId = computed(() => {
   const value = route.params['id'];
@@ -101,59 +89,9 @@ function editItem(): void {
   }
 }
 
-function beginClosure(mode: 'sold' | 'retired'): void {
-  closingMode.value = mode;
-  closeDateText.value = toDateInputValue(Date.now());
-  salePriceText.value = '';
-  saleTransactionId.value = null;
-  errorMessage.value = null;
-}
-
-function cancelClosure(): void {
-  closingMode.value = null;
-  errorMessage.value = null;
-}
-
-function onSaleTransactionSelected(transaction: Transaction | null): void {
-  if (transaction === null) return;
-  salePriceText.value = formatCents(transaction.amountCents);
-  closeDateText.value = toDateInputValue(transaction.date);
-}
-
-async function saveClosure(): Promise<void> {
-  if (saving.value || item.value === null || closingMode.value === null) return;
-  errorMessage.value = null;
-  const closedDate = fromDateInputValue(closeDateText.value);
-  if (closedDate === null) {
-    errorMessage.value = '请选择有效的结束日期。';
-    return;
-  }
-  let salePriceCents: number | null = null;
-  if (closingMode.value === 'sold') {
-    salePriceCents = parseOptionalYuanToCents(salePriceText.value);
-    if (salePriceText.value.trim() !== '' && salePriceCents === null) {
-      errorMessage.value = '售出价格请输入有效的非负金额。';
-      return;
-    }
-  }
-
-  saving.value = true;
-  try {
-    if (closingMode.value === 'sold') {
-      await api.items.sell(item.value.id, {
-        closedDate,
-        salePriceCents,
-        saleTransactionId: saleTransactionId.value,
-      });
-    } else {
-      await api.items.retire(item.value.id, { closedDate });
-    }
-    closingMode.value = null;
-    await Promise.all([load(), itemsStore.reload()]);
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : String(error);
-  } finally {
-    saving.value = false;
+function closeItem(): void {
+  if (item.value !== null) {
+    void router.push({ name: 'item-close', params: { id: item.value.id } });
   }
 }
 
@@ -204,14 +142,6 @@ function dailyLabel(value: number | null): string {
         <AppIcon name="chevron" /> 物品列表
       </button>
       <div class="detail-heading-actions">
-        <button
-          class="theme-button ghost"
-          type="button"
-          :disabled="item === null"
-          @click="editItem"
-        >
-          编辑
-        </button>
         <button
           class="theme-button ghost danger-action"
           type="button"
@@ -303,16 +233,11 @@ function dailyLabel(value: number | null): string {
       </section>
 
       <section v-if="isOpen" class="lifecycle-actions">
-        <button
-          class="theme-button ghost"
-          type="button"
-          :disabled="saving"
-          @click="beginClosure('retired')"
-        >
-          标记退役
+        <button class="theme-button ghost" type="button" :disabled="saving" @click="editItem">
+          编辑信息
         </button>
-        <button class="theme-button" type="button" :disabled="saving" @click="beginClosure('sold')">
-          记录售出
+        <button class="theme-button" type="button" :disabled="saving" @click="closeItem">
+          记录售出 / 退役
         </button>
       </section>
       <section v-else class="theme-card reopen-card">
@@ -322,45 +247,7 @@ function dailyLabel(value: number | null): string {
         </button>
       </section>
 
-      <section v-if="closingMode !== null" class="theme-card close-form">
-        <h3>{{ closingMode === 'sold' ? '记录售出' : '记录退役' }}</h3>
-        <label class="field">
-          <span>{{ closingMode === 'sold' ? '售出日期' : '退役日期' }}</span>
-          <input v-model="closeDateText" type="date" required />
-        </label>
-        <template v-if="closingMode === 'sold'">
-          <label class="field">
-            <span>售出价格（可留空）</span>
-            <input v-model="salePriceText" inputmode="decimal" placeholder="例如：4000.00" />
-          </label>
-          <ItemTransactionPicker
-            :model-value="saleTransactionId"
-            purpose="sale"
-            :disabled="saving"
-            @update:model-value="saleTransactionId = $event"
-            @selected="onSaleTransactionSelected"
-          />
-        </template>
-        <p class="hint">这里只记录物品生命周期；关联账单是可选的，不会新增或修改账单。</p>
-        <p v-if="errorMessage !== null" class="error" role="alert">{{ errorMessage }}</p>
-        <div class="close-actions">
-          <button class="theme-button" type="button" :disabled="saving" @click="saveClosure">
-            {{ saving ? '保存中…' : closingMode === 'sold' ? '确认售出' : '确认退役' }}
-          </button>
-          <button
-            class="theme-button ghost"
-            type="button"
-            :disabled="saving"
-            @click="cancelClosure"
-          >
-            取消
-          </button>
-        </div>
-      </section>
-
-      <p v-if="errorMessage !== null && closingMode === null" class="error" role="alert">
-        {{ errorMessage }}
-      </p>
+      <p v-if="errorMessage !== null" class="error" role="alert">{{ errorMessage }}</p>
     </template>
   </section>
 </template>
@@ -370,22 +257,26 @@ function dailyLabel(value: number | null): string {
   display: grid;
   gap: 0.75rem;
   min-width: 0;
+  max-width: 52rem;
+  margin: 0 auto;
 }
 
 .detail-heading,
-.detail-heading-actions,
-.lifecycle-actions,
-.close-actions {
-  display: flex;
+.detail-heading-actions {
+  position: sticky;
+  bottom: calc(4.45rem + env(safe-area-inset-bottom));
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.55rem;
+  padding: 0.45rem 0;
+  background: var(--bg);
 }
 
 .detail-heading > button,
 .detail-heading-actions button,
-.lifecycle-actions button,
-.close-actions button {
+.lifecycle-actions button {
   min-height: 44px;
 }
 
@@ -482,19 +373,13 @@ function dailyLabel(value: number | null): string {
 .detail-card,
 .linked-card,
 .history-card,
-.reopen-card,
-.close-form {
+.reopen-card {
   padding: 1rem;
 }
 
 .detail-card h3,
 .linked-card h3,
 .history-card h3,
-.close-form h3 {
-  margin: 0 0 0.6rem;
-  font-size: 1rem;
-}
-
 .detail-card dl {
   display: grid;
   gap: 0.5rem;
@@ -536,40 +421,7 @@ function dailyLabel(value: number | null): string {
   min-height: 44px;
 }
 
-.close-form {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.field {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.field span {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.field input {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0.55rem 0.65rem;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  box-sizing: border-box;
-  font: inherit;
-  font-size: 16px;
-}
-
-.close-actions {
-  justify-content: flex-start;
-}
-
-.close-actions .theme-button {
+.lifecycle-actions .theme-button {
   flex: 1;
 }
 
@@ -580,6 +432,12 @@ function dailyLabel(value: number | null): string {
 
   .item-hero-photo {
     aspect-ratio: 2.4;
+  }
+}
+
+@media (min-width: 64rem) {
+  .lifecycle-actions {
+    bottom: 0.75rem;
   }
 }
 </style>

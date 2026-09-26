@@ -682,7 +682,6 @@ async function deleteTag(tag: TagCount): Promise<void> {
   color: var(--muted);
   background: none;
   border: 0;
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -697,7 +696,6 @@ async function deleteTag(tag: TagCount): Promise<void> {
   margin-bottom: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
 }
 
 h2 {
@@ -728,7 +726,6 @@ select {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
 }
 
 .icon-grid {
@@ -743,7 +740,6 @@ select {
   font-size: 1.2rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -762,7 +758,6 @@ select {
   width: 44px;
   height: 44px;
   border: 2px solid transparent;
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -782,7 +777,6 @@ select {
   min-height: 44px;
   font: inherit;
   font-weight: 600;
-  border-radius: 0.55rem;
   cursor: pointer;
 }
 

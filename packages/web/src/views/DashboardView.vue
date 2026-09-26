@@ -160,16 +160,6 @@ function isRefund(item: Transaction): boolean {
   <p v-else-if="errorMessage !== null" class="error" role="alert">{{ errorMessage }}</p>
 
   <template v-else>
-    <section class="row pending-card" aria-labelledby="assistant-entry-title">
-      <div>
-        <h2 id="assistant-entry-title"><AppIcon name="sparkles" /> AI 助理</h2>
-        <p class="hint">聊天记账、导入账单、分析本月收支。</p>
-      </div>
-      <button type="button" class="theme-button" @click="router.push({ name: 'assistant' })">
-        开始对话<AppIcon name="arrow" />
-      </button>
-    </section>
-
     <!--
       The asset card answers a different question from the summary below it: the summary is
       this month's FLOW (earned, spent, left over) while this is the STOCK of money that
@@ -237,32 +227,45 @@ function isRefund(item: Transaction): boolean {
       <p class="muted skeleton-hint">总余额加载中…</p>
     </section>
 
-    <p v-else class="error" role="alert">
-      总余额读取失败：{{ balances.errorMessage }}
-    </p>
+    <p v-else class="error" role="alert">总余额读取失败：{{ balances.errorMessage }}</p>
 
     <section class="theme-card card item-assets-entry" aria-labelledby="item-assets-title">
-      <div class="row section-head">
-        <h2 id="item-assets-title"><AppIcon name="box" /> 物品资产</h2>
-        <span class="label">独立于账单</span>
+      <div class="item-assets-heading">
+        <div>
+          <h2 id="item-assets-title"><AppIcon name="box" /> 物品资产</h2>
+          <p class="hint">独立记录物品，不会生成或修改账单。</p>
+        </div>
+        <button
+          type="button"
+          class="theme-button ghost item-assets-open"
+          aria-label="查看物品资产"
+          @click="router.push({ name: 'items' })"
+        >
+          查看全部<AppIcon name="arrow" />
+        </button>
       </div>
       <template v-if="ownedItems.summary !== null">
         <strong class="item-assets-total">
           {{ formatYuan(ownedItems.summary.cumulativePurchaseCents) }}
         </strong>
-        <p class="hint item-assets-caption">
-          {{ ownedItems.summary.totalItems }} 件已记录 · 当前日均持有成本
-          {{ formatYuan(ownedItems.summary.currentDailyCostCents) }}
-        </p>
+        <div class="item-assets-stats">
+          <span>{{ ownedItems.summary.activeItems + ownedItems.summary.idleItems }} 件在册</span>
+          <span>已售出 {{ ownedItems.summary.soldItems }} 件</span>
+          <span>日均 {{ formatYuan(ownedItems.summary.currentDailyCostCents) }}</span>
+        </div>
       </template>
-      <p v-else class="hint item-assets-caption">记录每件物品的购入时间、状态和使用成本。</p>
-      <button
-        type="button"
-        class="theme-button ghost"
-        @click="router.push({ name: 'items' })"
-      >
-        {{ ownedItems.summary?.totalItems ? '管理物品' : '开始记录物品' }}
-        <AppIcon name="arrow" />
+      <p v-else class="hint item-assets-caption">
+        记录每件物品的购入时间、状态和持有成本，从这里开始。
+      </p>
+    </section>
+
+    <section class="theme-card assistant-entry" aria-labelledby="assistant-entry-title">
+      <div>
+        <h2 id="assistant-entry-title"><AppIcon name="sparkles" /> AI 助理</h2>
+        <p class="hint">聊天记账、导入账单、分析本月收支。</p>
+      </div>
+      <button type="button" class="theme-button" @click="router.push({ name: 'assistant' })">
+        开始对话<AppIcon name="arrow" />
       </button>
     </section>
 
@@ -465,19 +468,116 @@ h2 {
 }
 
 .item-assets-entry {
-  padding: 1.1rem 1.15rem;
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+}
+
+.item-assets-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 45%);
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.item-assets-heading > div {
+  min-width: 0;
+}
+
+.item-assets-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.item-assets-heading .hint {
+  margin: 0.25rem 0 0;
+}
+
+.item-assets-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  padding-inline: 0.5rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+  white-space: normal;
 }
 
 .item-assets-total {
   display: block;
-  margin: 0 0 0.25rem;
-  font-size: 1.45rem;
+  margin: 0.1rem 0 0;
+  color: var(--accent);
+  font-size: 1.55rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
 
+.item-assets-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .item-assets-caption {
-  margin: 0 0 0.75rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.assistant-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.1rem;
+  border-color: var(--accent);
+  border-left-width: 4px;
+  box-shadow: var(--lift-2);
+}
+
+.assistant-entry > div {
+  min-width: 0;
+}
+
+.assistant-entry h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.assistant-entry .hint {
+  margin: 0.25rem 0 0;
+  line-height: 1.45;
+}
+
+.assistant-entry .theme-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding-inline: 1rem;
+  scroll-margin-bottom: calc(5rem + env(safe-area-inset-bottom));
+  white-space: normal;
+}
+
+@media (max-width: 30rem) {
+  .assistant-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assistant-entry .theme-button {
+    justify-self: start;
+    max-width: 100%;
+  }
 }
 
 .skeleton-line {

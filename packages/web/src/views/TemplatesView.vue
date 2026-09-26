@@ -336,7 +336,6 @@ function categoryOptionLabel(categoryId: string): string {
   padding: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
 }
 
 h2 {
@@ -360,7 +359,6 @@ select {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
 }
 
 .modules {
@@ -413,7 +411,6 @@ select {
   min-height: 44px;
   padding: 0 0.9rem;
   font: inherit;
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -520,7 +517,6 @@ select {
   color: var(--fg);
   background: none;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 
@@ -562,7 +558,6 @@ select {
   min-height: 44px;
   font: inherit;
   font-weight: 600;
-  border-radius: 0.55rem;
   cursor: pointer;
 }
 

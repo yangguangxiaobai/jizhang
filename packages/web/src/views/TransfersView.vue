@@ -219,7 +219,6 @@ async function remove(id: string, amountCents: number): Promise<void> {
   color: var(--fg);
   background: none;
   border: 1px solid var(--border);
-  border-radius: 0.45rem;
   cursor: pointer;
 }
 
@@ -246,7 +245,6 @@ async function remove(id: string, amountCents: number): Promise<void> {
   min-height: 48px;
   font: inherit;
   font-weight: 600;
-  border-radius: 0.6rem;
   cursor: pointer;
 }
 

@@ -170,7 +170,6 @@ async function purgeAll(): Promise<void> {
   margin-bottom: 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.7rem;
 }
 
 .head {

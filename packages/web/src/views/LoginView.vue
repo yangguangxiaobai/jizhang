@@ -99,7 +99,6 @@ h1 {
   gap: 1rem;
   padding: 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 0.85rem;
   background: var(--surface);
 }
 
@@ -118,7 +117,6 @@ input {
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
 }
 
 input:focus {
@@ -133,7 +131,6 @@ button {
   color: var(--on-accent);
   background: var(--accent);
   border: 0;
-  border-radius: 0.6rem;
   cursor: pointer;
 }
 

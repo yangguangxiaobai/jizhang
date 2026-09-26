@@ -11,14 +11,6 @@ const router = useRouter();
 const store = useItemsStore();
 const searchText = ref('');
 
-const STATUS_FILTERS: { value: ItemStatus | undefined; label: string }[] = [
-  { value: undefined, label: '全部' },
-  { value: 'active', label: '使用中' },
-  { value: 'idle', label: '闲置' },
-  { value: 'sold', label: '已售出' },
-  { value: 'retired', label: '已退役' },
-];
-
 const statusLabel: Record<ItemStatus, string> = {
   active: '使用中',
   idle: '闲置',
@@ -28,6 +20,13 @@ const statusLabel: Record<ItemStatus, string> = {
 
 const summary = computed(() => store.summary);
 const categories = computed(() => store.categories);
+const statusFilters = computed(() => [
+  { value: undefined, label: '全部', count: summary.value?.totalItems ?? store.total },
+  { value: 'active' as const, label: '使用中', count: summary.value?.activeItems ?? 0 },
+  { value: 'idle' as const, label: '闲置', count: summary.value?.idleItems ?? 0 },
+  { value: 'sold' as const, label: '已售出', count: summary.value?.soldItems ?? 0 },
+  { value: 'retired' as const, label: '已退役', count: summary.value?.retiredItems ?? 0 },
+]);
 
 onMounted(() => {
   void store.reload();
@@ -76,22 +75,29 @@ function clearFilters(): void {
         <h2>物品资产</h2>
         <p class="items-hint">记录每件物品的陪伴时间与真实使用成本。</p>
       </div>
-      <button class="theme-button" type="button" @click="addItem">
-        <AppIcon name="plus" /> 添加
+      <button class="theme-button items-add" type="button" @click="addItem">
+        <AppIcon name="plus" /> 添加物品
       </button>
     </header>
 
     <section v-if="summary !== null" class="theme-card item-summary" aria-label="物品概览">
-      <div>
-        <span class="summary-label">累计购入金额</span>
+      <div class="summary-purchase">
+        <span class="summary-label">在册物品购入总额</span>
         <strong class="summary-total">{{ formatYuan(summary.cumulativePurchaseCents) }}</strong>
+        <span class="summary-caption">
+          {{ summary.activeItems + summary.idleItems }} 件在册 · 已售出 {{ summary.soldItems }} 件
+        </span>
       </div>
-      <div class="summary-stats">
-        <span>{{ summary.totalItems }} 件记录</span>
-        <span>持有中 {{ summary.activeItems + summary.idleItems }} 件</span>
-        <span>日均 {{ formatYuan(summary.currentDailyCostCents) }}</span>
+      <div class="summary-daily">
+        <span class="summary-label">日均持有成本</span>
+        <strong>{{ formatYuan(summary.currentDailyCostCents) }}<small> / 天</small></strong>
       </div>
-      <p class="summary-note">仅统计物品记录，不计入账户余额或账单收支。</p>
+      <div class="summary-status" aria-label="物品状态统计">
+        <span>使用中 {{ summary.activeItems }}</span>
+        <span>闲置 {{ summary.idleItems }}</span>
+        <span>退役 {{ summary.retiredItems }}</span>
+      </div>
+      <p class="summary-note">物品资产独立于账单，不计入账户余额或收支统计。</p>
     </section>
     <p v-else-if="store.summaryErrorMessage !== null" class="notice notice-warning" role="status">
       物品概览暂时无法加载；你仍可以查看物品列表。
@@ -100,7 +106,7 @@ function clearFilters(): void {
     <div class="item-filters">
       <div class="status-filters" role="group" aria-label="按物品状态筛选">
         <button
-          v-for="filter in STATUS_FILTERS"
+          v-for="filter in statusFilters"
           :key="filter.label"
           type="button"
           class="filter-chip"
@@ -108,12 +114,35 @@ function clearFilters(): void {
           :aria-pressed="store.status === filter.value"
           @click="store.setStatus(filter.value)"
         >
-          {{ filter.label }}
+          {{ filter.label }} <span>{{ filter.count }}</span>
+        </button>
+      </div>
+      <div class="category-strip" role="group" aria-label="按物品分类筛选">
+        <button
+          type="button"
+          class="category-chip"
+          :class="{ active: store.category === '' }"
+          :aria-pressed="store.category === ''"
+          @click="store.setCategory('')"
+        >
+          全部分类
+        </button>
+        <button
+          v-for="value in categories"
+          :key="value"
+          type="button"
+          class="category-chip"
+          :class="{ active: store.category === value }"
+          :aria-pressed="store.category === value"
+          @click="store.setCategory(value)"
+        >
+          {{ value }}
         </button>
       </div>
       <div class="filter-row">
         <form class="item-search" role="search" @submit.prevent="submitSearch">
           <label class="visually-hidden" for="item-search-input">搜索物品</label>
+          <AppIcon name="search" />
           <input
             id="item-search-input"
             v-model="searchText"
@@ -122,19 +151,10 @@ function clearFilters(): void {
             autocomplete="off"
           />
           <button class="theme-button ghost" type="submit" aria-label="搜索物品">
-            <AppIcon name="stats" />
+            <AppIcon name="arrow" />
           </button>
         </form>
-        <label class="category-filter">
-          <span class="visually-hidden">按物品分类筛选</span>
-          <select
-            :value="store.category"
-            @change="store.setCategory(($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">全部分类</option>
-            <option v-for="value in categories" :key="value" :value="value">{{ value }}</option>
-          </select>
-        </label>
+        <span class="sort-caption">按购入时间</span>
       </div>
     </div>
 
@@ -190,6 +210,10 @@ function clearFilters(): void {
     <p v-if="store.total > store.items.length" class="list-cap" role="status">
       当前显示 {{ store.items.length }} 件，共 {{ store.total }} 件。可用搜索进一步筛选。
     </p>
+
+    <button class="theme-button items-add-footer" type="button" @click="addItem">
+      <AppIcon name="plus" /> 添加物品
+    </button>
   </section>
 </template>
 
@@ -208,9 +232,18 @@ function clearFilters(): void {
   gap: 0.75rem;
 }
 
+.items-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.items-heading > div {
+  min-width: 0;
+}
+
 .items-heading h2 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
 }
 
 .items-hint,
@@ -222,51 +255,137 @@ function clearFilters(): void {
 }
 
 .items-heading .theme-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   min-height: 44px;
-  flex-shrink: 0;
+  max-width: 100%;
+  white-space: normal;
+  justify-self: end;
+  align-self: start;
+}
+
+.items-heading .items-add {
+  display: none;
 }
 
 .item-summary {
   display: grid;
-  gap: 0.5rem;
-  padding: 1rem;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  color: var(--on-hero);
+  background: var(--hero);
+  border: 0;
+  box-shadow: var(--lift-1);
+}
+
+.summary-purchase,
+.summary-daily {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .summary-label,
-.summary-stats {
-  color: var(--muted);
+.summary-caption,
+.summary-status,
+.summary-note {
+  color: var(--hero-muted);
   font-size: 0.85rem;
 }
 
 .summary-total {
   display: block;
-  margin-top: 0.15rem;
-  color: var(--accent);
-  font-size: 1.65rem;
+  color: var(--on-hero);
+  font-size: clamp(1.7rem, 6vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
-.summary-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.85rem;
-}
-
-.summary-note {
+.summary-caption {
   font-size: 0.75rem;
 }
 
-.item-filters {
-  display: grid;
-  gap: 0.55rem;
+.summary-daily strong {
+  color: var(--on-hero);
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-daily small {
+  color: var(--hero-muted);
+  font-size: 0.7em;
+  font-weight: 500;
+}
+
+.summary-status {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 0.35rem 0.8rem;
+  font-size: 0.75rem;
+}
+
+.summary-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.72rem;
 }
 
 .status-filters {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.45rem;
   overflow-x: auto;
   padding: 0.1rem 0 0.25rem;
   scrollbar-width: thin;
+}
+
+.filter-chip span {
+  margin-left: 0.15rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.item-filters {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.category-strip {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.35rem;
+  padding: 0.1rem 0 0.35rem;
+  scrollbar-width: none;
+}
+
+.category-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.category-chip {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0.4rem 0.7rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.category-chip.active {
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-color: var(--accent-subtle);
+  font-weight: 650;
 }
 
 .filter-chip {
@@ -291,19 +410,30 @@ function clearFilters(): void {
 .item-search {
   display: flex;
   flex: 1 1 auto;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 0.45rem;
   min-width: 0;
-}
-
-.item-search input,
-.category-filter select {
-  min-width: 0;
-  min-height: 44px;
-  padding: 0.5rem 0.65rem;
-  color: var(--fg);
+  padding-left: 0.6rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
+}
+
+.item-search > .app-icon {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted);
+}
+
+.item-search input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.5rem 0.2rem;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  outline: 0;
   font: inherit;
   font-size: 16px;
 }
@@ -317,15 +447,27 @@ function clearFilters(): void {
   min-width: 44px;
   min-height: 44px;
   padding: 0.4rem;
+  border: 0;
 }
 
-.category-filter {
-  flex: 0 1 9rem;
-  min-width: 7rem;
+.sort-caption {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
-.category-filter select {
+.items-add-footer {
+  position: sticky;
+  bottom: calc(4.35rem + env(safe-area-inset-bottom));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 48px;
   width: 100%;
+  margin-top: 0.1rem;
+  box-shadow: var(--lift-1);
 }
 
 .item-grid {
@@ -342,6 +484,13 @@ function clearFilters(): void {
   color: var(--fg);
   text-align: left;
   cursor: pointer;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    box-shadow var(--dur-quick) var(--ease-out);
+}
+
+.item-card:active {
+  transform: scale(0.985);
 }
 
 .item-photo {
@@ -461,13 +610,84 @@ function clearFilters(): void {
 }
 
 @media (min-width: 40rem) {
+  .item-summary {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.65fr) minmax(0, 0.9fr);
+    padding: 1.25rem 1.5rem;
+  }
+
+  .summary-status {
+    grid-column: auto;
+    display: grid;
+    align-content: center;
+    gap: 0.35rem;
+    min-height: 4rem;
+    padding-left: 1.2rem;
+    border-left: 1px solid color-mix(in srgb, var(--hero-muted) 35%, transparent);
+  }
+
+  .summary-note {
+    grid-column: 1 / -1;
+  }
+
   .item-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem;
   }
 
   .item-photo {
     aspect-ratio: 1.8;
+  }
+
+  .items-add-footer {
+    display: none;
+  }
+
+  .items-heading .items-add {
+    display: inline-flex;
+  }
+}
+
+@media (min-width: 64rem) {
+  .items-page {
+    gap: 1.1rem;
+  }
+
+  .items-heading h2 {
+    font-size: 1.65rem;
+  }
+
+  .item-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .item-card {
+    grid-template-columns: minmax(116px, 0.62fr) minmax(0, 1fr);
+    grid-template-rows: 1fr;
+    gap: 0.85rem;
+    align-items: stretch;
+    padding: 0.7rem;
+  }
+
+  .item-photo {
+    aspect-ratio: 0.8;
+    min-height: 9.5rem;
+  }
+
+  .item-card-body {
+    align-content: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.15rem;
+  }
+
+  .item-name {
+    font-size: 1rem;
+  }
+
+  .item-category,
+  .item-meta,
+  .item-linked {
+    font-size: 0.8rem;
   }
 }
 </style>

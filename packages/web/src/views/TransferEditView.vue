@@ -210,7 +210,6 @@ async function save(): Promise<void> {
   color: var(--fg);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.55rem;
 }
 
 /*
@@ -244,7 +243,6 @@ small {
   min-height: 48px;
   font: inherit;
   font-weight: 600;
-  border-radius: 0.6rem;
   cursor: pointer;
 }
 

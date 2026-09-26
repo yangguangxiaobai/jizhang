@@ -429,10 +429,11 @@ body {
   line-height: 1.5;
   color: var(--fg);
   background: var(--bg);
+  font-variant-numeric: tabular-nums;
   -webkit-text-size-adjust: 100%;
 }
 
-/* Opt-in presentation primitives, shared by the refreshed dashboard and settings only. */
+/* Shared presentation primitives for the full product surface. */
 .theme-card {
   padding: 1.1rem;
   margin-bottom: 1rem;
@@ -450,6 +451,34 @@ body {
   border: 0;
   border-radius: var(--radius-control);
   cursor: pointer;
+}
+
+/* One card shape and elevation across every route; local rules keep their content spacing. */
+.view-slot :is(.card.card, .theme-card),
+.page .card.card {
+  border-radius: var(--radius-card);
+  box-shadow: var(--lift-1);
+}
+
+main.content .view-slot :is(
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea,
+  button:not(.tab):not(.modal-close):not(.tag)
+),
+.page .card :is(
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea,
+  button
+),
+.modal-backdrop .modal-card :is(
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea,
+  button:not(.modal-close):not(.tag)
+) {
+  border-radius: var(--radius-control);
 }
 
 /*
