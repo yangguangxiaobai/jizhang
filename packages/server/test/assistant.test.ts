@@ -109,6 +109,14 @@ describe('assistant authenticated routes and confirmation contract', () => {
     expect(response.json().items.at(-1).content.card).toMatchObject({ toolName: 'transaction.create', writes: true, status: 'pending' });
     expect((db.prepare('SELECT COUNT(*) AS count FROM transactions WHERE deleted = 0').get() as { count: number }).count).toBe(0);
 
+    const savedConversations = await inject('GET', '/api/v1/assistant/conversations');
+    expect(savedConversations.json().items).toEqual([expect.objectContaining({ id })]);
+    const restoredMessages = await inject('GET', `/api/v1/assistant/conversations/${id}/messages`);
+    expect(restoredMessages.json().items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'user', content: expect.objectContaining({ text: '午饭花了 25 元' }) }),
+      expect.objectContaining({ content: expect.objectContaining({ card: expect.objectContaining({ status: 'pending' }) }) }),
+    ]));
+
     const actionId = response.json().items.at(-1).content.card.actionId as string;
     const [confirmed, simultaneous] = await Promise.all([
       inject('POST', `/api/v1/assistant/actions/${actionId}/confirm`, {}),

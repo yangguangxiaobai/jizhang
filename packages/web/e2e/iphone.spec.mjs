@@ -314,10 +314,10 @@ const assistantConversationFixture = {
   updatedAt: Date.now(),
 };
 
-function assistantMessageFixture(id, role, kind, content) {
+function assistantMessageFixture(id, role, kind, content, conversationId = assistantConversationFixture.id) {
   return {
     id,
-    conversationId: assistantConversationFixture.id,
+    conversationId,
     role,
     kind,
     content: { version: 1, ...content },
@@ -471,6 +471,76 @@ test('assistant transaction workflow waits for one explicit confirmation and kee
   await page.goto('/transactions');
   await page.getByRole('button', { name: /记一笔/ }).click();
   await expect(page).toHaveURL(/\/transactions\/new$/);
+});
+
+test('assistant history restores saved conversations and shows a readable confirmation card', async ({
+  page,
+  ledger,
+}) => {
+  await login(page, ledger);
+  const recent = { ...assistantConversationFixture, title: '最近一次记账', updatedAt: Date.UTC(2026, 8, 24, 9, 15) };
+  const older = { ...assistantConversationFixture, id: 'conversation-old', title: '上周午饭', updatedAt: Date.UTC(2026, 8, 23, 15, 10) };
+  const card = assistantCardFixture('tx-history', 'transaction.create', {
+    type: 0,
+    amountCents: 3500,
+    categoryId: 'builtin-expense-food',
+    accountId: 'builtin-default-account',
+    date: Date.UTC(2026, 8, 20),
+    note: '午饭',
+    tags: [],
+  });
+  const timelines = {
+    [recent.id]: [assistantMessageFixture('saved-card', 'assistant', 'tool-card', { text: '已准备好，请检查。', card })],
+    [older.id]: [assistantMessageFixture('older-message', 'assistant', 'text', { text: '上次保存的对话内容' }, older.id)],
+  };
+  const readIds = [];
+  await page.route('**/api/v1/assistant/conversations', async (route) => {
+    await route.fulfill({ json: { items: [recent, older] } });
+  });
+  await page.route('**/api/v1/assistant/conversations/*/messages', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    readIds.push(id);
+    await route.fulfill({ json: { items: timelines[id] ?? [] } });
+  });
+  await page.route('**/api/v1/assistant/conversations/*', async (route) => {
+    if (route.request().method() === 'DELETE') await route.fulfill({ json: { ok: true } });
+    else await route.fallback();
+  });
+
+  await page.goto('/assistant');
+  const history = page.locator('details.assistant-history');
+  await expect(history.locator('summary')).toContainText('2 条');
+  await expect(page.getByText('¥35.00', { exact: true })).toBeVisible();
+  await expect(page.getByText('支出', { exact: true })).toBeVisible();
+  await expect(page.getByText('金额', { exact: true })).toBeVisible();
+  await expect(page.getByText('分类', { exact: true })).toBeVisible();
+  await expect(page.getByText('账户', { exact: true })).toBeVisible();
+  await expect(page.getByText('日期', { exact: true })).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('amountCents');
+  await expect(page.locator('body')).not.toContainText('categoryId');
+
+  await history.locator('summary').click();
+  await page.getByRole('button', { name: /上周午饭/ }).click();
+  await expect(page.getByText('上次保存的对话内容', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText('¥35.00', { exact: true })).toBeVisible();
+  expect(readIds).toEqual([recent.id, older.id, recent.id]);
+  await assertPhoneLayout(page);
+});
+
+test('dashboard provides a primary AI assistant entry without adding a navigation tab', async ({
+  page,
+  ledger,
+}) => {
+  await login(page, ledger);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: /开始对话/ })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link')).toHaveCount(6);
+  await page.getByRole('button', { name: /开始对话/ }).click();
+  await expect(page).toHaveURL(/\/assistant$/);
+  await expect(page.getByRole('region', { name: 'AI 助理对话' }).getByRole('heading', { name: 'AI 助理' })).toBeVisible();
+  await assertPhoneLayout(page);
 });
 
 test('assistant shows server facts and organization previews in the same timeline', async ({

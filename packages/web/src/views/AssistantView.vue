@@ -5,7 +5,7 @@ import { api, type AssistantConfirmationCard, type AssistantConversation, type A
 import AiThinkingStatus from '../components/AiThinkingStatus.vue';
 import PlatformImportRows from '../components/PlatformImportRows.vue';
 import { useMetaStore } from '../stores/meta.js';
-import { formatCents, formatDayLabel } from '../utils/money.js';
+import { formatDayLabel, formatYuan } from '../utils/money.js';
 
 const FILE_LIMIT = 5 * 1024 * 1024;
 const meta = useMetaStore();
@@ -25,6 +25,33 @@ const requestId = ref<string | null>(null);
 const current = computed(() => conversations.value.find((item) => item.id === conversationId.value) ?? null);
 const categories = computed<readonly Category[]>(() => [...meta.selectableExpenseCategories, ...meta.incomeCategories]);
 const canSend = computed(() => !busy.value && (text.value.trim() !== '' || upload.value !== null));
+const VALUE_LABELS: Readonly<Record<string, string>> = {
+  type: '收支类型',
+  amountCents: '金额',
+  totalAmountCents: '总金额',
+  total: '总条数',
+  selected: '已选条数',
+  expenseCents: '支出金额',
+  incomeCents: '收入金额',
+  categoryId: '分类',
+  categoryName: '分类',
+  accountId: '账户',
+  accountName: '账户',
+  date: '日期',
+  plannedDate: '计划日期',
+  note: '备注',
+  tags: '标签',
+  fromAccountId: '转出账户',
+  fromAccountName: '转出账户',
+  toAccountId: '转入账户',
+  toAccountName: '转入账户',
+  templateId: '预算模板',
+  allocations: '预算分配',
+  occurrenceId: '周期账单',
+  selectedCount: '所选笔数',
+  source: '来源',
+  isRefund: '退款',
+};
 
 function rows(card: AssistantConfirmationCard): readonly PlatformImportRow[] {
   const value = card.preview['rows'];
@@ -68,13 +95,74 @@ function setCategory(
   categoryOverrides.value = { ...categoryOverrides.value, [card.actionId]: action };
 }
 
-function valueLabel(key: string, value: string | number | boolean | null | object): string {
-  if (typeof value === 'number' && key.toLowerCase().includes('cents')) return formatCents(value);
-  if (typeof value === 'number' && key === 'date') return formatDayLabel(value);
-  if (typeof value === 'number' && key === 'type') return value === 1 ? '收入' : '支出';
+function fieldLabel(key: string): string {
+  return VALUE_LABELS[key] ?? key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/Id$/, ' 编号');
+}
+
+function dateLabel(value: string | number): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return formatDayLabel(value);
+  if (typeof value === 'string') {
+    const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value);
+    if (match !== null) {
+      return formatDayLabel(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).getTime());
+    }
+  }
+  return String(value);
+}
+
+function valueLabel(key: string, value: unknown, depth = 0): string {
+  if (value === null || value === undefined) return '无';
   if (key === 'categoryId' && typeof value === 'string') return meta.categoryName(value);
   if (key === 'accountId' && typeof value === 'string') return meta.accountName(value);
-  return typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
+  if (key.toLowerCase().endsWith('date') && (typeof value === 'number' || typeof value === 'string')) return dateLabel(value);
+  if (key.toLowerCase().endsWith('cents') && typeof value === 'number') return formatYuan(value);
+  if (key === 'type') {
+    if (value === 1 || value === 'income') return '收入';
+    if (value === 0 || value === 'expense') return '支出';
+  }
+  if (key === 'source' && value === 'auto') return '自动识别';
+  if (key === 'source' && value === 'wechat') return '微信账单';
+  if (key === 'source' && value === 'alipay') return '支付宝账单';
+  if (key === 'isRefund' && typeof value === 'boolean') return value ? '是' : '否';
+  if (typeof value === 'boolean') return value ? '是' : '否';
+  if (typeof value === 'string') return value.trim() === '' ? '未填写' : value;
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '无';
+    return value.map((item) => valueLabel(key === 'tags' ? 'tag' : key, item, depth + 1)).join('、');
+  }
+  if (typeof value === 'object') {
+    if (depth >= 2) return `包含 ${Object.keys(value).length} 项`;
+    return Object.entries(value)
+      .map(([childKey, childValue]) => `${fieldLabel(childKey)}：${valueLabel(childKey, childValue, depth + 1)}`)
+      .join('；');
+  }
+  return String(value);
+}
+
+function impactText(card: AssistantConfirmationCard): string {
+  const unit = card.toolName === 'platform-import.prepare' || card.toolName.startsWith('transaction.')
+    ? '笔账单'
+    : card.toolName === 'transfer.create'
+      ? '笔转账'
+      : card.toolName === 'salary.create'
+        ? '笔工资记录'
+        : card.toolName.includes('category')
+          ? '个分类'
+          : '项';
+  return `本次将影响 ${card.affected.count} ${unit}`;
+}
+
+function statusLabel(status: AssistantConfirmationCard['status']): string {
+  if (status === 'pending') return '待确认';
+  if (status === 'confirmed') return '已完成';
+  if (status === 'cancelled') return '已取消';
+  return '已失效';
+}
+
+function conversationTime(updatedAt: number): string {
+  const date = new Date(updatedAt);
+  return `${formatDayLabel(updatedAt)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function checkFile(file: File): void {
@@ -103,6 +191,19 @@ async function loadHistory(): Promise<void> {
   const first = conversations.value[0];
   if (first !== undefined) await loadMessages(first.id);
   else await createConversation();
+}
+
+async function selectConversation(id: string): Promise<void> {
+  if (busy.value || id === conversationId.value) return;
+  busy.value = true;
+  error.value = null;
+  try {
+    await loadMessages(id);
+  } catch (problem) {
+    report(problem);
+  } finally {
+    busy.value = false;
+  }
 }
 
 async function createConversation(): Promise<void> {
@@ -238,7 +339,7 @@ async function cancel(card: AssistantConfirmationCard): Promise<void> {
 
 async function clearConversation(): Promise<void> {
   const id = conversationId.value;
-  if (id === null || busy.value || !window.confirm('清除此对话历史？已确认写入的账单不会被删除。')) return;
+  if (id === null || busy.value || !window.confirm('归档当前对话？归档后会从历史列表隐藏，已确认的账单不会被撤销。')) return;
   busy.value = true;
   try {
     await api.assistant.archiveConversation(id);
@@ -258,26 +359,44 @@ async function clearConversation(): Promise<void> {
       <div><h2>AI 助理</h2><p>查账和分析由服务端计算；所有写入都会先预览并等待确认。</p></div>
       <button class="theme-button" type="button" :disabled="busy" @click="createConversation">新对话</button>
     </header>
-    <nav v-if="conversations.length > 1" aria-label="历史对话">
-      <button v-for="item in conversations" :key="item.id" class="theme-button" type="button" :aria-pressed="item.id === conversationId" :disabled="busy" @click="loadMessages(item.id)">{{ item.title || '新对话' }}</button>
-    </nav>
+    <details class="theme-card assistant-history">
+      <summary><span>历史对话 · {{ conversations.length }} 条</span><span v-if="current" class="assistant-history-current">{{ current.title || '新对话' }}</span></summary>
+      <ul v-if="conversations.length" class="assistant-history-list">
+        <li v-for="item in conversations" :key="item.id">
+          <button class="theme-button" type="button" :aria-pressed="item.id === conversationId" :disabled="busy" @click="selectConversation(item.id)">
+            {{ item.title || '新对话' }} · {{ conversationTime(item.updatedAt) }}
+          </button>
+        </li>
+      </ul>
+      <p v-else class="hint">还没有对话记录。</p>
+    </details>
     <p v-if="error" class="notice notice-danger" role="alert">{{ error }}</p>
     <p v-if="loading" role="status">正在恢复对话…</p>
     <section v-else class="conversation">
       <section v-if="messages.length === 0" class="theme-card">
         <h3>你好，我可以帮你查账和准备操作</h3>
-        <p>账本数据由服务端计算。写入、整理和导入都要先检查确认卡。</p>
+        <p>对话会保存在本账本中，可从历史记录继续查看。账本数据由服务端计算；写入、整理和导入都会先等待你确认。</p>
       </section>
-      <article v-for="message in messages" :key="message.id" class="theme-card" :class="'message-' + message.role">
+      <article v-for="message in messages" :key="message.id" class="theme-card assistant-message" :class="'message-' + message.role">
         <header><strong>{{ message.role === 'user' ? '你' : message.role === 'tool' ? '账本工具' : 'AI 助理' }}</strong></header>
         <p v-if="message.content.text">{{ message.content.text }}</p>
         <p v-if="message.content.attachment">附件：{{ message.content.attachment.fileName }} · {{ message.content.attachment.sizeBytes }} B</p>
         <p v-if="message.content.error" role="alert">{{ message.content.error.message }}</p>
-        <section v-if="message.content.card" class="theme-card">
-          <header><h3>{{ message.content.card.operation }}</h3><span>{{ message.content.card.status === 'pending' ? '待确认' : message.content.card.status === 'confirmed' ? '已完成' : message.content.card.status === 'cancelled' ? '已取消' : '已失效' }}</span></header>
+        <section v-if="message.content.card" class="theme-card notice notice-accent assistant-confirmation">
+          <header>
+            <h3>{{ message.content.card.operation }}</h3>
+            <strong>{{ statusLabel(message.content.card.status) }}</strong>
+          </header>
           <p>{{ message.content.card.summary }}</p>
-          <p>影响 {{ message.content.card.affected.count }} 项</p>
-          <dl><template v-for="[key, value] in Object.entries(message.content.card.values)" :key="key"><dt>{{ key }}</dt><dd>{{ valueLabel(key, value) }}</dd></template></dl>
+          <p><strong>{{ impactText(message.content.card) }}</strong></p>
+          <table class="assistant-value-grid">
+            <tbody>
+              <tr v-for="[key, value] in Object.entries(message.content.card.values)" :key="key">
+                <th scope="row">{{ fieldLabel(key) }}</th>
+                <td><strong v-if="key.toLowerCase().endsWith('cents')">{{ valueLabel(key, value) }}</strong><template v-else>{{ valueLabel(key, value) }}</template></td>
+              </tr>
+            </tbody>
+          </table>
           <template v-if="message.content.card.toolName === 'platform-import.prepare'">
             <p v-if="message.content.card.attachment">{{ message.content.card.attachment.fileName }} · {{ message.content.card.attachment.sizeBytes }} B · {{ message.content.card.attachment.source }}</p>
             <label v-if="actionFiles[message.content.card.actionId] === undefined && message.content.card.status === 'pending'">刷新后请重新附加同一文件<input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="reattach(message.content.card!, $event)" /></label>
@@ -292,9 +411,13 @@ async function clearConversation(): Promise<void> {
               @category-change="setCategory(message.content.card!, $event)"
             />
           </template>
-          <ul v-if="message.content.card.warnings.length"><li v-for="warning in message.content.card.warnings" :key="warning">{{ warning }}</li></ul>
-          <button v-if="message.content.card.status === 'pending'" class="theme-button" type="button" :disabled="busy || (message.content.card.toolName === 'platform-import.prepare' && (!actionFiles[message.content.card.actionId] || selection(message.content.card).length === 0))" @click="confirm(message.content.card!)">{{ busy ? '处理中…' : message.content.card.toolName === 'platform-import.prepare' ? '确认导入所选行' : '确认写入' }}</button>
-          <button v-if="message.content.card.status === 'pending'" class="theme-button" type="button" :disabled="busy" @click="cancel(message.content.card!)">取消</button>
+          <div v-if="message.content.card.warnings.length" class="notice notice-warning assistant-warnings">
+            <strong>请留意</strong><ul><li v-for="warning in message.content.card.warnings" :key="warning">{{ warning }}</li></ul>
+          </div>
+          <div v-if="message.content.card.status === 'pending'" class="assistant-card-actions">
+            <button class="theme-button" type="button" :disabled="busy || (message.content.card.toolName === 'platform-import.prepare' && (!actionFiles[message.content.card.actionId] || selection(message.content.card).length === 0))" @click="confirm(message.content.card!)">{{ busy ? '处理中…' : message.content.card.toolName === 'platform-import.prepare' ? '确认导入所选行' : '确认写入' }}</button>
+            <button class="theme-button assistant-cancel" type="button" :disabled="busy" @click="cancel(message.content.card!)">取消</button>
+          </div>
         </section>
         <section v-if="message.content.result" class="theme-card"><p>{{ message.content.result.summary }}</p><details><summary>查看结果详情</summary><pre>{{ JSON.stringify(message.content.result.data, null, 2) }}</pre></details></section>
       </article>
@@ -308,10 +431,10 @@ async function clearConversation(): Promise<void> {
       <button class="theme-button" type="submit" :disabled="!canSend">{{ busy ? '处理中…' : '发送' }}</button>
       <p>支持微信 xlsx 和支付宝 GBK CSV；附件只在当前页面内存中保留。</p>
     </form>
-    <footer><button class="theme-button" type="button" :disabled="busy || current === null" @click="clearConversation">清除此对话历史</button><span>清除对话不会撤销已确认的账本记录。</span></footer>
+    <footer><button class="theme-button assistant-cancel" type="button" :disabled="busy || current === null" @click="clearConversation">归档当前对话</button><span>归档后会从历史列表隐藏；不会撤销已确认的账单。</span></footer>
   </section>
 </template>
 
 <style>
-.assistant-page{display:grid;gap:.6rem;min-width:0}.assistant-page :is(button,a,summary){min-height:44px}.assistant-page :is(input,select,textarea){min-height:44px;min-width:0;max-width:100%;font-size:16px}.assistant-page textarea{width:100%}.assistant-page input[type=checkbox]{width:44px;height:44px}.assistant-page pre{max-height:14rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.assistant-page{display:grid;gap:.6rem;min-width:0;overflow-wrap:anywhere}.assistant-page summary{min-height:44px}.assistant-page :is(input,select,textarea){min-height:44px;min-width:0;max-width:100%;font-size:16px}.assistant-page textarea{width:100%}.assistant-page pre{max-height:14rem;overflow:auto;white-space:pre-wrap}.assistant-confirmation>header{display:flex;align-items:center;justify-content:space-between;gap:.5rem}.assistant-value-grid{width:100%;table-layout:fixed}.assistant-value-grid th{text-align:left;color:var(--muted)}.assistant-cancel{min-width:44px}
 </style>

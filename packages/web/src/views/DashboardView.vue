@@ -157,6 +157,16 @@ function isRefund(item: Transaction): boolean {
   <p v-else-if="errorMessage !== null" class="error" role="alert">{{ errorMessage }}</p>
 
   <template v-else>
+    <section class="row pending-card" aria-labelledby="assistant-entry-title">
+      <div>
+        <h2 id="assistant-entry-title"><AppIcon name="sparkles" /> AI 助理</h2>
+        <p class="hint">聊天记账、导入账单、分析本月收支。</p>
+      </div>
+      <button type="button" class="theme-button" @click="router.push({ name: 'assistant' })">
+        开始对话<AppIcon name="arrow" />
+      </button>
+    </section>
+
     <!--
       The asset card answers a different question from the summary below it: the summary is
       this month's FLOW (earned, spent, left over) while this is the STOCK of money that
