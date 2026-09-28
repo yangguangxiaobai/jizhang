@@ -155,5 +155,20 @@ describe('loadConfig', () => {
     expect(resolved.sessionTtlDays).toBe(30);
     expect(resolved.trustProxy).toBe(false);
     expect(resolved.nodeEnv).toBe('test');
+    expect(resolved.itemCutoutServiceUrl).toBeUndefined();
+  });
+
+  it('accepts only a local HTTP item-cutout service URL', () => {
+    expect(
+      loadConfig({ ...baseEnv, JIZHANG_ITEM_CUTOUT_SERVICE_URL: 'http://jizhang-cutout:8090' })
+        .itemCutoutServiceUrl,
+    ).toBe('http://jizhang-cutout:8090');
+    expect(
+      loadConfig({ ...baseEnv, JIZHANG_ITEM_CUTOUT_SERVICE_URL: 'http://127.0.0.1:8090' })
+        .itemCutoutServiceUrl,
+    ).toBe('http://127.0.0.1:8090');
+    expect(() =>
+      loadConfig({ ...baseEnv, JIZHANG_ITEM_CUTOUT_SERVICE_URL: 'https://cutout.example.com' }),
+    ).toThrow(/must be a root HTTP URL on the local inference host/);
   });
 });

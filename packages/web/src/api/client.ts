@@ -54,6 +54,7 @@ interface RequestOptions {
   readonly method?: Method;
   readonly body?: unknown;
   readonly query?: Record<string, QueryValue>;
+  readonly responseType?: 'json' | 'blob';
   /**
    * Sends the body verbatim with its own content type, instead of JSON.
    *
@@ -129,6 +130,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (response.status === 204) {
     return undefined as T;
+  }
+
+  if (response.ok && options.responseType === 'blob') {
+    return (await response.blob()) as T;
   }
 
   const text = await response.text();
@@ -288,6 +293,21 @@ export interface ItemSummary {
   readonly retiredItems: number;
   readonly cumulativePurchaseCents: number;
   readonly currentDailyCostCents: number;
+}
+
+export type ItemCutoutState = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled';
+
+export interface ItemCutoutCandidate {
+  readonly id: string;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface ItemCutoutJob {
+  readonly jobId: string;
+  readonly state: ItemCutoutState;
+  readonly message: string;
+  readonly candidates: readonly ItemCutoutCandidate[];
 }
 
 export interface ItemInput {
@@ -1049,6 +1069,30 @@ export const api = {
         body: input,
       }),
     photoUrl: (id: string) => '/api/v1/items/' + encodeURIComponent(id) + '/photo',
+    createCutoutJob: (body: Blob) =>
+      request<{ jobId: string }>('/api/v1/items/cutouts', {
+        method: 'POST',
+        rawBody: { contentType: 'image/webp', body },
+      }),
+    getCutoutJob: (jobId: string) =>
+      request<ItemCutoutJob>('/api/v1/items/cutouts/' + encodeURIComponent(jobId)),
+    cancelCutoutJob: (jobId: string) =>
+      request<void>('/api/v1/items/cutouts/' + encodeURIComponent(jobId), { method: 'DELETE' }),
+    cutoutCandidatePreviewUrl: (jobId: string, candidateId: string) =>
+      '/api/v1/items/cutouts/' +
+      encodeURIComponent(jobId) +
+      '/candidates/' +
+      encodeURIComponent(candidateId) +
+      '/preview',
+    getCutoutCandidateImage: (jobId: string, candidateId: string) =>
+      request<Blob>(
+        '/api/v1/items/cutouts/' +
+          encodeURIComponent(jobId) +
+          '/candidates/' +
+          encodeURIComponent(candidateId) +
+          '/image',
+        { responseType: 'blob' },
+      ),
     uploadPhoto: (id: string, contentType: ItemPhotoMime, body: Blob) =>
       request<void>('/api/v1/items/' + encodeURIComponent(id) + '/photo', {
         method: 'PUT',

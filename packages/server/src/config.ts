@@ -34,6 +34,8 @@ export interface AppConfig {
   readonly sessionTtlDays: number;
   /** Optional hex-encoded 32-byte key used to encrypt the AI provider secret. */
   readonly aiEncryptionKey: string | undefined;
+  /** Private in-container inference URL. Absent means ordinary photo upload only. */
+  readonly itemCutoutServiceUrl: string | undefined;
 }
 
 export class ConfigError extends Error {
@@ -135,6 +137,38 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     problems.push(`LOG_LEVEL must be one of ${LOG_LEVELS.join(' | ')} (got "${logLevelRaw}")`);
   }
 
+  const itemCutoutServiceUrlRaw = read('JIZHANG_ITEM_CUTOUT_SERVICE_URL');
+  let itemCutoutServiceUrl: string | undefined;
+  if (itemCutoutServiceUrlRaw !== undefined) {
+    try {
+      const url = new URL(itemCutoutServiceUrlRaw);
+      const privateHosts = new Set([
+        'jizhang-cutout',
+        'localhost',
+        '127.0.0.1',
+        '[::1]',
+        'host.docker.internal',
+      ]);
+      if (
+        url.protocol !== 'http:' ||
+        !privateHosts.has(url.hostname) ||
+        url.username !== '' ||
+        url.password !== '' ||
+        url.pathname !== '/' ||
+        url.search !== '' ||
+        url.hash !== ''
+      ) {
+        problems.push(
+          'JIZHANG_ITEM_CUTOUT_SERVICE_URL must be a root HTTP URL on the local inference host.',
+        );
+      } else {
+        itemCutoutServiceUrl = url.origin;
+      }
+    } catch {
+      problems.push('JIZHANG_ITEM_CUTOUT_SERVICE_URL must be a valid local HTTP URL.');
+    }
+  }
+
   // Default mirrors the monorepo layout: <repo>/packages/web/dist, resolved from
   // this file in either `src/` (tsx dev) or `dist/` (build).
   const webDistDir = path.resolve(
@@ -160,5 +194,6 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     passwordHash: read('JIZHANG_PASSWORD_HASH') ?? '',
     sessionTtlDays,
     aiEncryptionKey: read('JIZHANG_AI_ENCRYPTION_KEY'),
+    itemCutoutServiceUrl,
   };
 }

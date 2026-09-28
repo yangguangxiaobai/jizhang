@@ -8,8 +8,8 @@ must not change transactions, balances, budgets, or financial statistics.
 - Trigger: additive SQLite migration plus authenticated API and Vue client data-flow contract.
 - Use this contract when changing item records, lifecycle transitions, photos, or optional links
   to existing transactions.
-- Automatic image cutout, visual recognition, receipt OCR, and automatic ledger writes are out
-  of scope.
+- Private automatic photo cutout is in scope through the bounded proxy contract below. Visual
+  recognition, receipt OCR, and automatic ledger writes remain out of scope.
 
 ## 2. Signatures
 
@@ -122,3 +122,122 @@ await api.transactions.create({ type: TYPE_EXPENSE, amountCents: item.purchasePr
 // Store an optional reference only; the server verifies its purpose and leaves the bill intact.
 await api.items.create({ ...item, purchaseTransactionId: selectedExistingExpenseId });
 ```
+
+## Scenario: Private automatic item-photo cutout
+
+### 1. Scope / Trigger
+
+- Trigger: add automatic background removal to the existing item-photo draft flow without
+  creating a ledger entry or changing item/photo persistence.
+- Use only unlabeled segmentation proposals; object naming, classification, and automatic
+  candidate selection are not part of this contract.
+
+### 2. Signatures
+
+- `POST /api/v1/items/cutouts` accepts raw `image/webp` bytes and returns
+  `202 { jobId: string }`.
+- `GET /api/v1/items/cutouts/:jobId` returns `{ jobId, state, message, candidates }`, where
+  `state` is `queued | running | ready | failed | cancelled`, and ready candidates contain
+  only `{ id, width, height }`.
+- `GET /api/v1/items/cutouts/:jobId/candidates/:candidateId/preview` returns a WebP preview;
+  the matching `/image` endpoint returns one transparent PNG candidate.
+- `DELETE /api/v1/items/cutouts/:jobId` cancels work or removes a completed transient result.
+- `JIZHANG_ITEM_CUTOUT_SERVICE_URL` is optional. Compose sets it to the private worker URL;
+  absent means ordinary photo upload stays enabled and cutout returns `503`.
+
+### 3. Contracts
+
+- Register every public cutout route inside the same authenticated `authModule.extraRoutes`
+  plugin as item CRUD. Reads require a session; `POST` and `DELETE` also require the existing
+  CSRF header.
+- The browser calls Fastify only. Fastify proxies to the Python worker on a dedicated Docker
+  internal network. The worker has no published host port and accepts no browser cookies.
+- Accept only the existing prepared WebP draft (<=2 MiB, <=40 MP, longest edge <=1600 px).
+  Keep one active job plus one queued job, at most three retained results, at most eight
+  candidates, and a 120-second job deadline. Expire retained results after ten minutes.
+- Store source images, normalized PNGs, masks, and candidate files only in the worker's
+  transient 512 MiB `tmpfs`; clean them on cancel, expiry, and worker shutdown. Do not put
+  image bytes or job rows into SQLite, logs, backups, or persistent volumes.
+- The 120-second deadline marks an overdue job failed and requests cooperative cancellation.
+  A PyTorch call already in progress cannot be interrupted by its Python thread; continue
+  counting that `Future` against the active-worker cap until it returns. If it never returns,
+  restart only the cutout container; the Fastify app and item data remain available.
+- Set `Cache-Control: no-store` on all public responses and `X-Content-Type-Options: nosniff`
+  on image responses. Bound worker JSON to 64 KiB, previews to 2 MiB, and each PNG to 16 MiB
+  while streaming; reject bad or oversized upstream bodies before buffering them.
+- Selecting a candidate changes only the current form draft. Persist it only when the user
+  submits the existing item form, through `PUT /api/v1/items/:id/photo`; the previous saved
+  photo stays intact until that point. No cutout operation reads or writes ledger rows.
+- The worker is capped at two CPUs and 3 GiB memory with swap disabled for that container; the
+  Fastify container keeps its existing 256 MiB heap/container budget. A worker outage must not
+  make item CRUD or ordinary photo upload unavailable.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+|---|---|
+| Missing session / mutating request without CSRF | `401` / `403` |
+| Service disabled, unreachable, or returns 5xx | `503 CUTOUT_UNAVAILABLE` |
+| Worker queue full | `429 CUTOUT_BUSY` |
+| Missing/expired job or candidate | `404 CUTOUT_JOB_NOT_FOUND` / candidate-not-found |
+| Job result not ready | `409 CUTOUT_NOT_READY` |
+| Invalid/non-WebP input | `400 CUTOUT_INVALID_IMAGE` |
+| Input exceeds 2 MiB | `413` |
+| Invalid or over-limit worker JSON/image body | `502 CUTOUT_UPSTREAM_INVALID` |
+| No useful masks | `200 ready` with an empty candidate list; preserve the original draft |
+
+### 5. Good / Base / Bad Cases
+
+- **Good:** select a generated candidate, verify the preview, then save the item. The selected
+  transparent photo is stored by the existing photo endpoint and transaction counts/balances
+  remain unchanged.
+- **Base:** inference is unavailable or returns no candidates; keep the original photo draft
+  and allow a normal item save/upload.
+- **Bad:** save the original/candidate automatically, expose the Python port publicly, retain
+  uploaded images on a host volume, or describe generic masks as object recognition.
+
+### 6. Tests Required
+
+- `packages/server/test/item-cutouts.test.ts`: assert session/CSRF, content signature/size,
+  disabled service, typed proxy responses, no-store/nosniff, and streamed JSON/image byte caps.
+- `packages/cutout/tests/test_service.py`: use a fake engine to assert bounds, queue behavior,
+  cancellation/cleanup, private headers, and preservation of transparent source pixels.
+- `packages/web/e2e/item-cutout.spec.mjs` on Chromium and WebKit iPhone viewports: assert
+  candidate selection is a draft until save, ledger invariance, service failure/no-candidate
+  fallback, and cancel. Mock the upstream worker at the Fastify transport seam, not with a
+  browser-wide API route that can hide auth/CSRF wiring.
+- Before enabling in production, build the pinned CPU worker and benchmark at least twelve
+  public/synthetic non-personal images: warm p95 <=45 seconds and peak RSS <2.5 GiB. If this
+  gate fails, tune and remeasure or stop; do not silently remove the resource caps.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Do not persist every generated result or create an item before explicit form submission.
+await api.items.uploadPhoto(itemId, 'image/png', generatedCandidate);
+```
+
+#### Correct
+
+```ts
+// Keep the selected result in the form draft; the existing save flow compresses and uploads it.
+preparedPhoto.value = await prepareItemPhoto(candidateFile);
+```
+
+
+### Release regressions: physical work and asynchronous drafts
+
+- Job admission must count physically occupied active/waiting slots, not only public states.
+  A timed-out running job remains charged after DELETE until its inference actually returns.
+  Hold waiting work outside the executor queue; cancel its Future before releasing that slot.
+  Repeated timeout -> DELETE -> retry must never accumulate executor work or delete files
+  still owned by a running inference. Cover both queued cancellation and queued timeout.
+- A candidate download/compression captures the current draft generation and job id. Recheck
+  both after every await and before success, error, or finally mutations. Photo removal,
+  replacement, cancellation, and unmount invalidate the generation. A late response must
+  not resurrect a removed photo or clear the processing flag of a newer selection.
+- Root cause: treating a public failure as physical completion, and assuming asynchronous
+  selection still owns the draft. Regression tests cover timeout/delete/retry capacity and
+  late successful/failed candidate downloads after explicit removal.

@@ -1,6 +1,6 @@
-# jizhang runs as one container next to the reverse proxy that already owns
-# 80/443 on this host. It publishes on the loopback interface ONLY, so bringing
-# the app up or down can never steal a port from the user's other sites.
+# The app publishes on loopback only; the private CPU cutout worker has no
+# published ports and is reachable only over its dedicated internal network.
+# The host reverse proxy keeps ownership of 80/443.
 services:
   jizhang:
     build:
@@ -28,6 +28,7 @@ services:
       NODE_OPTIONS: --max-old-space-size=256
       LOG_LEVEL: '${LOG_LEVEL:-info}'
       TRUST_PROXY: '${TRUST_PROXY:-true}'
+      JIZHANG_ITEM_CUTOUT_SERVICE_URL: http://jizhang-cutout:8090
 
     volumes:
       # Named volume (not a host bind mount) so /data is initialised with the
@@ -40,5 +41,42 @@ services:
       # 127.0.0.1 HARD-CODED on purpose: never 80/443, never 0.0.0.0 (design.md §7.2).
       - '127.0.0.1:8081:8081'
 
+    networks:
+      - default
+      - cutout-internal
+
+  jizhang-cutout:
+    build:
+      context: .
+      dockerfile: packages/cutout/Dockerfile
+      target: runtime
+      args:
+        PYTHON_PACKAGE_INDEX_URL: '${PYTHON_PACKAGE_INDEX_URL:-https://pypi.org/simple}'
+    image: jizhang-cutout:latest
+    container_name: jizhang-cutout
+    restart: unless-stopped
+    init: true
+    environment:
+      JIZHANG_CUTOUT_CHECKPOINT: /opt/models/sam2.1_hiera_small.pt
+      JIZHANG_CUTOUT_CONFIG: configs/sam2.1/sam2.1_hiera_s.yaml
+      JIZHANG_CUTOUT_TMP_DIR: /tmp/jizhang-cutout-jobs
+      JIZHANG_CUTOUT_POINTS_PER_SIDE: '8'
+      JIZHANG_CUTOUT_POINTS_PER_BATCH: '8'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    mem_limit: 3g
+    memswap_limit: 3g
+    cpus: 2.0
+    tmpfs:
+      - /tmp/jizhang-cutout-jobs:rw,noexec,nosuid,size=512m,uid=10001,gid=10001,mode=0700
+    networks:
+      - cutout-internal
+
 volumes:
   jizhang-data:
+
+networks:
+  default: {}
+  cutout-internal:
+    internal: true

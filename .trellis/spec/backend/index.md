@@ -9,8 +9,9 @@
 
 Three properties shape everything below:
 
-1. **It is a single-user, single-container app on a 1 GB VPS.** No ORM, no job queue, no
-   cache layer. Complexity has to earn its place.
+1. **It is a single-user SQLite app.** The Fastify app remains a small service; optional
+   CPU-heavy item-photo inference runs in a separate private, resource-capped container.
+   No ORM, persistent job queue, or cache layer. Complexity has to earn its place.
 2. **The accounting rules live in `@jizhang/shared`**, not here. The server reads rows and
    hands them to pure functions; it does not own the arithmetic.
 3. **Money is integer cents and time is epoch milliseconds**, everywhere, with the
@@ -26,7 +27,7 @@ Three properties shape everything below:
 | [Database Guidelines](./database-guidelines.md) | better-sqlite3, migrations, soft delete, backup | Done |
 | [Error Handling](./error-handling.md) | One error shape, 401 vs 403 vs 404, no leaks | Done |
 | [AI Provider Integration](./ai-provider.md) | Configurable provider HTTP, encrypted secrets, draft contract | Done |
-| [Personal Item Assets](./item-assets.md) | Item lifecycle API, isolated ledger links, and bounded photo BLOBs | Done |
+| [Personal Item Assets](./item-assets.md) | Item lifecycle API, isolated ledger links, bounded photo BLOBs, and private cutout jobs | Done |
 | [Quality Guidelines](./quality-guidelines.md) | Gate commands, Docker field notes, verification rules | Done |
 | [Logging Guidelines](./logging-guidelines.md) | pino levels, what may never be logged | Done |
 

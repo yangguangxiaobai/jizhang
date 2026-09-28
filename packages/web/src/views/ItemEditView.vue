@@ -4,8 +4,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '../components/AppIcon.vue';
 import ItemTransactionPicker from '../components/ItemTransactionPicker.vue';
-import { api } from '../api/client.js';
-import type { Item, ItemStatus, Transaction } from '../api/client.js';
+import { api, ApiError } from '../api/client.js';
+import type { Item, ItemCutoutCandidate, ItemCutoutState, ItemStatus, Transaction } from '../api/client.js';
 import { useItemsStore } from '../stores/items.js';
 import {
   formatCents,
@@ -30,14 +30,23 @@ const purchaseDateText = ref(toDateInputValue(Date.now()));
 const purchaseTransactionId = ref<string | null>(null);
 const serverPhotoUrl = ref<string | null>(null);
 const preparedPhoto = ref<PreparedItemPhoto | null>(null);
+const originalPreparedPhoto = ref<PreparedItemPhoto | null>(null);
 const previewUrl = ref<string | null>(null);
 const optionalFieldsOpen = ref(false);
 const removeExistingPhoto = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 const photoProcessing = ref(false);
+const cutoutState = ref<ItemCutoutState | null>(null);
+const cutoutJobId = ref<string | null>(null);
+const cutoutMessage = ref('');
+const cutoutCandidates = ref<readonly ItemCutoutCandidate[]>([]);
+const selectedCutoutId = ref<string | null>(null);
+const cutoutBusy = computed(() => cutoutState.value === 'queued' || cutoutState.value === 'running');
 const errorMessage = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+let cutoutGeneration = 0;
+let cutoutPollTimer: number | undefined;
 
 const isEditing = computed(() => id.value !== null);
 const liveStatus = computed(
@@ -91,6 +100,10 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  const jobId = cutoutJobId.value;
+  cutoutGeneration += 1;
+  if (cutoutPollTimer !== undefined) window.clearTimeout(cutoutPollTimer);
+  if (jobId !== null) void api.items.cancelCutoutJob(jobId).catch(() => undefined);
   if (previewUrl.value !== null) URL.revokeObjectURL(previewUrl.value);
 });
 
@@ -104,23 +117,181 @@ async function onPhotoSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (file === undefined) return;
+  const generation = cutoutGeneration + 1;
+  await disposeCutoutJob();
+  if (generation !== cutoutGeneration) return;
+  cutoutState.value = null;
+  cutoutMessage.value = '';
   photoProcessing.value = true;
   errorMessage.value = null;
   try {
     const prepared = await prepareItemPhoto(file);
+    if (generation !== cutoutGeneration) return;
+    originalPreparedPhoto.value = prepared;
     preparedPhoto.value = prepared;
+    selectedCutoutId.value = null;
+    cutoutState.value = null;
+    cutoutMessage.value = '';
     removeExistingPhoto.value = false;
     setPreview(prepared.blob);
   } catch (error) {
+    if (generation !== cutoutGeneration) return;
     errorMessage.value = error instanceof Error ? error.message : String(error);
     if (fileInput.value !== null) fileInput.value.value = '';
   } finally {
-    photoProcessing.value = false;
+    if (generation === cutoutGeneration) photoProcessing.value = false;
   }
 }
 
+function cutoutError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === 'CUTOUT_UNAVAILABLE') {
+      return 'AI 抠图服务暂时不可用；物品照片仍可普通上传。';
+    }
+    if (error.code === 'CUTOUT_BUSY') return '抠图服务正忙，请稍后重试。';
+    if (error.code === 'CUTOUT_JOB_NOT_FOUND') return '抠图任务已过期，请重新处理。';
+    if (error.code === 'CUTOUT_UPSTREAM_INVALID') return '抠图服务返回了无效结果，请重试。';
+    if (error.code === 'CUTOUT_INVALID_IMAGE') return '这张图片无法处理，请重新选择。';
+  }
+  return error instanceof Error ? error.message : '抠图失败，请重试或使用原图。';
+}
+
+async function disposeCutoutJob(): Promise<void> {
+  const jobId = cutoutJobId.value;
+  cutoutGeneration += 1;
+  cutoutJobId.value = null;
+  photoProcessing.value = false;
+  if (cutoutPollTimer !== undefined) {
+    window.clearTimeout(cutoutPollTimer);
+    cutoutPollTimer = undefined;
+  }
+  cutoutCandidates.value = [];
+  if (jobId !== null) {
+    try {
+      await api.items.cancelCutoutJob(jobId);
+    } catch {
+      // The worker has a server-side TTL; an unreachable cleanup must not block photo editing.
+    }
+  }
+}
+
+async function startCutout(): Promise<void> {
+  const source = originalPreparedPhoto.value ?? preparedPhoto.value;
+  if (source === null || cutoutBusy.value || photoProcessing.value || saving.value) return;
+  const generation = cutoutGeneration + 1;
+  cutoutState.value = 'queued';
+  cutoutMessage.value = '正在提交图片…';
+  await disposeCutoutJob();
+  if (generation !== cutoutGeneration) return;
+  cutoutState.value = 'queued';
+  selectedCutoutId.value = null;
+  try {
+    const created = await api.items.createCutoutJob(source.blob);
+    if (generation !== cutoutGeneration) {
+      void api.items.cancelCutoutJob(created.jobId).catch(() => undefined);
+      return;
+    }
+    cutoutJobId.value = created.jobId;
+    await pollCutout(created.jobId, generation);
+  } catch (error) {
+    if (generation !== cutoutGeneration) return;
+    cutoutState.value = 'failed';
+    cutoutMessage.value = cutoutError(error);
+  }
+}
+
+async function pollCutout(jobId: string, generation: number): Promise<void> {
+  while (generation === cutoutGeneration && cutoutJobId.value === jobId) {
+    try {
+      const job = await api.items.getCutoutJob(jobId);
+      if (generation !== cutoutGeneration) return;
+      cutoutState.value = job.state;
+      cutoutMessage.value = job.message;
+      cutoutCandidates.value = job.candidates;
+      if (job.state !== 'queued' && job.state !== 'running') return;
+    } catch (error) {
+      if (generation !== cutoutGeneration) return;
+      cutoutState.value = 'failed';
+      cutoutMessage.value = cutoutError(error);
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      cutoutPollTimer = window.setTimeout(resolve, 1200);
+    });
+    cutoutPollTimer = undefined;
+  }
+}
+
+async function cancelCutout(): Promise<void> {
+  const jobId = cutoutJobId.value;
+  cutoutGeneration += 1;
+  cutoutJobId.value = null;
+  photoProcessing.value = false;
+  if (cutoutPollTimer !== undefined) {
+    window.clearTimeout(cutoutPollTimer);
+    cutoutPollTimer = undefined;
+  }
+  cutoutState.value = 'cancelled';
+  cutoutMessage.value = '抠图已取消，原照片草稿没有更改。';
+  cutoutCandidates.value = [];
+  if (jobId !== null) {
+    try {
+      await api.items.cancelCutoutJob(jobId);
+    } catch {
+      // A disconnected worker clears transient files at its ten-minute TTL.
+    }
+  }
+}
+
+async function useCutout(candidate: ItemCutoutCandidate): Promise<void> {
+  const jobId = cutoutJobId.value;
+  const original = originalPreparedPhoto.value;
+  if (jobId === null || original === null || cutoutState.value !== 'ready' || photoProcessing.value) {
+    return;
+  }
+  const generation = cutoutGeneration;
+  const isCurrentSelection = (): boolean =>
+    generation === cutoutGeneration && cutoutJobId.value === jobId;
+  photoProcessing.value = true;
+  cutoutMessage.value = `正在准备候选 ${Number(candidate.id) + 1}…`;
+  try {
+    const blob = await api.items.getCutoutCandidateImage(jobId, candidate.id);
+    if (!isCurrentSelection()) return;
+    if (blob.type.split(';', 1)[0]?.toLowerCase() !== 'image/png') {
+      throw new Error('抠图候选格式无效，请重试。');
+    }
+    const file = new File([blob], 'item-cutout.png', { type: 'image/png' });
+    const prepared = await prepareItemPhoto(file);
+    if (!isCurrentSelection()) return;
+    preparedPhoto.value = prepared;
+    removeExistingPhoto.value = false;
+    selectedCutoutId.value = candidate.id;
+    setPreview(prepared.blob);
+    cutoutMessage.value = `已选择候选 ${Number(candidate.id) + 1}；保存物品后才会替换照片。`;
+  } catch (error) {
+    if (isCurrentSelection()) cutoutMessage.value = cutoutError(error);
+  } finally {
+    if (isCurrentSelection()) photoProcessing.value = false;
+  }
+}
+
+function useOriginalPhoto(): void {
+  const original = originalPreparedPhoto.value;
+  if (original === null) return;
+  preparedPhoto.value = original;
+  selectedCutoutId.value = null;
+  setPreview(original.blob);
+  cutoutMessage.value = '已还原原照片草稿；保存时不会使用抠图候选。';
+}
+
 function clearPhoto(): void {
+  void disposeCutoutJob();
   preparedPhoto.value = null;
+  originalPreparedPhoto.value = null;
+  cutoutState.value = null;
+  cutoutMessage.value = '';
+  selectedCutoutId.value = null;
   setPreview(null);
   removeExistingPhoto.value = serverPhotoUrl.value !== null;
   if (fileInput.value !== null) fileInput.value.value = '';
@@ -135,7 +306,7 @@ function parsePurchaseAmount(): number | null {
 }
 
 async function save(): Promise<void> {
-  if (saving.value || photoProcessing.value) return;
+  if (saving.value || photoProcessing.value || cutoutBusy.value) return;
   errorMessage.value = null;
   saving.value = true;
   try {
@@ -225,6 +396,16 @@ function itemId(): string {
             />
           </label>
           <button
+            v-if="preparedPhoto !== null"
+            class="theme-button ghost cutout-start"
+            type="button"
+            :disabled="photoProcessing || saving || cutoutBusy"
+            @click="startCutout"
+          >
+            <AppIcon name="sparkles" />
+            {{ cutoutState === 'failed' ? '重试自动抠图' : 'AI 自动抠图' }}
+          </button>
+          <button
             v-if="shownPhotoUrl !== null"
             class="text-action"
             type="button"
@@ -234,6 +415,67 @@ function itemId(): string {
             移除照片
           </button>
         </div>
+      </section>
+
+      <section
+        v-if="cutoutState !== null"
+        class="theme-card cutout-panel"
+        aria-label="AI 自动抠图"
+      >
+        <div class="cutout-panel-heading">
+          <div>
+            <h3>透明候选</h3>
+            <p class="hint" role="status">{{ cutoutMessage }}</p>
+          </div>
+          <button
+            v-if="cutoutBusy"
+            class="theme-button ghost cutout-cancel"
+            type="button"
+            @click="cancelCutout"
+          >
+            取消
+          </button>
+        </div>
+
+        <div
+          v-if="cutoutState === 'ready' && cutoutCandidates.length > 0 && cutoutJobId !== null"
+          class="cutout-candidates"
+        >
+          <button
+            v-for="(candidate, index) in cutoutCandidates"
+            :key="candidate.id"
+            class="cutout-candidate"
+            :class="{ selected: selectedCutoutId === candidate.id }"
+            type="button"
+            :aria-pressed="selectedCutoutId === candidate.id"
+            :aria-label="`使用抠图候选 ${index + 1}`"
+            :disabled="photoProcessing || saving"
+            @click="useCutout(candidate)"
+          >
+            <span class="cutout-preview">
+              <img
+                :src="api.items.cutoutCandidatePreviewUrl(cutoutJobId ?? '', candidate.id)"
+                :alt="`透明抠图候选 ${index + 1}`"
+              />
+            </span>
+            <span class="cutout-candidate-label">
+              {{ selectedCutoutId === candidate.id ? '已选择' : `候选 ${index + 1}` }}
+            </span>
+          </button>
+        </div>
+
+        <button
+          v-if="selectedCutoutId !== null && originalPreparedPhoto !== null"
+          class="theme-button ghost cutout-original"
+          type="button"
+          :disabled="photoProcessing || saving"
+          @click="useOriginalPhoto"
+        >
+          还原原照片
+        </button>
+        <p v-if="photoProcessing" class="cutout-preparing" role="status">
+          正在准备所选透明图片…
+        </p>
       </section>
 
       <section class="theme-card form-card">
@@ -402,13 +644,36 @@ function itemId(): string {
   padding: 0.85rem;
 }
 
+.photo-preview,
+.cutout-preview {
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(
+      45deg,
+      var(--surface-soft) 25%,
+      transparent 25%,
+      transparent 75%,
+      var(--surface-soft) 75%,
+      var(--surface-soft)
+    ),
+    linear-gradient(
+      45deg,
+      var(--surface-soft) 25%,
+      transparent 25%,
+      transparent 75%,
+      var(--surface-soft) 75%,
+      var(--surface-soft)
+    );
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+}
+
 .photo-preview {
   display: grid;
   place-items: center;
   aspect-ratio: 1;
   overflow: hidden;
   color: var(--accent);
-  background: var(--surface-soft);
   border-radius: var(--radius-control);
 }
 
@@ -432,6 +697,95 @@ function itemId(): string {
 
 .photo-actions p {
   margin: 0;
+}
+
+.cutout-start,
+.cutout-cancel,
+.cutout-original {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+}
+
+.cutout-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.cutout-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cutout-panel-heading > div {
+  min-width: 0;
+}
+
+.cutout-panel-heading h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.cutout-panel-heading p {
+  margin: 0;
+}
+
+.cutout-candidates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.cutout-candidate {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.45rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cutout-candidate.selected {
+  border: 2px solid var(--accent);
+  background: var(--accent-subtle);
+}
+
+.cutout-preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1.35;
+  overflow: hidden;
+  padding: 0.3rem;
+  border-radius: var(--radius-control);
+}
+
+.cutout-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cutout-candidate-label {
+  min-height: 1.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.cutout-preparing {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .photo-pick {
@@ -617,6 +971,10 @@ function itemId(): string {
   .form-card,
   .link-card {
     padding: 1.15rem;
+  }
+
+  .cutout-candidates {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 </style>

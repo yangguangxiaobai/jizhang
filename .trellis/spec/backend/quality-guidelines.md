@@ -240,10 +240,10 @@ body**, so the "offline" run was exercising a working network and every conclusi
 drawn from it was noise. Two rounds went into reasoning about a caching bug that the
 simulation had invented.
 
-The render script therefore **stops and restarts the container** for its offline check
-(`docker compose stop/start`, inside a `try/finally` so a failing assertion cannot leave
-the app down). This is a single-container app, so that is exactly the failure a phone
-would see.
+The render script therefore **stops and restarts the app service** for its offline check
+(`docker compose stop/start jizhang`, inside a `try/finally` so a failing assertion cannot
+leave the app down). The optional cutout worker is a separate private service; it is not
+the browser's API origin and is not part of this outage simulation.
 
 Whatever method you use, **make the outage prove itself** before trusting the result:
 assert `navigator.onLine === false`, or that the fetch throws. A silent no-op simulation

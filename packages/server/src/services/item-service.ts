@@ -316,6 +316,26 @@ function imageDimensions(bytes: Buffer, mimeType: string): ImageDimensions | nul
   return null;
 }
 
+/** Shared binary-photo validation for both persistent photos and transient cutout input. */
+export function validateItemPhotoBytes(mimeType: string, bytes: Buffer): ItemPhotoMime {
+  if (mimeType !== 'image/jpeg' && mimeType !== 'image/png' && mimeType !== 'image/webp') {
+    throw new ValidationError('图片格式必须为 JPEG、PNG 或 WebP。');
+  }
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
+    throw new ValidationError('图片内容为空。');
+  }
+  if (bytes.length > MAX_ITEM_PHOTO_BYTES) throw new ItemPhotoTooLargeError();
+
+  const dimensions = imageDimensions(bytes, mimeType);
+  if (dimensions === null || dimensions.width < 1 || dimensions.height < 1) {
+    throw new ValidationError('图片内容与格式不匹配，请使用 JPEG、PNG 或 WebP 图片。');
+  }
+  if (dimensions.width * dimensions.height > MAX_ITEM_PHOTO_PIXELS) {
+    throw new ValidationError('图片尺寸不能超过 4000 万像素。');
+  }
+  return mimeType;
+}
+
 /** Single source for item CRUD, ledger-reference checks, image persistence, and cost math. */
 export class ItemService {
   private readonly db: Db;
@@ -607,19 +627,7 @@ export class ItemService {
 
   putPhoto(id: string, mimeType: string, bytes: Buffer): void {
     this.requireLiveRow(id);
-    if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
-      throw new ValidationError('图片内容为空。');
-    }
-    if (bytes.length > MAX_ITEM_PHOTO_BYTES) {
-      throw new ItemPhotoTooLargeError();
-    }
-    const dimensions = imageDimensions(bytes, mimeType);
-    if (dimensions === null || dimensions.width < 1 || dimensions.height < 1) {
-      throw new ValidationError('图片内容与格式不匹配，请使用 JPEG、PNG 或 WebP 图片。');
-    }
-    if (dimensions.width * dimensions.height > MAX_ITEM_PHOTO_PIXELS) {
-      throw new ValidationError('图片尺寸不能超过 4000 万像素。');
-    }
+    const validMimeType = validateItemPhotoBytes(mimeType, bytes);
     const now = this.now();
     const write = this.db.transaction(() => {
       this.db
@@ -628,7 +636,7 @@ export class ItemService {
             'VALUES (?, ?, ?, ?) ON CONFLICT(item_id) DO UPDATE SET ' +
             'mime_type = excluded.mime_type, image_bytes = excluded.image_bytes, updated_at = excluded.updated_at',
         )
-        .run(id, mimeType, bytes, now);
+        .run(id, validMimeType, bytes, now);
       this.db
         .prepare('UPDATE asset_items SET updated_at = ? WHERE id = ? AND deleted = 0')
         .run(now, id);

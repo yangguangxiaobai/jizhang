@@ -16,17 +16,27 @@ export const test = base.extend({
     const dataDir = mkdtempSync(join(tempRoot, `jizhang-iphone-${browserName}-`));
     const username = 'iphone-test';
     const password = randomBytes(18).toString('hex');
+    let cutoutFetch = async () =>
+      new Response(JSON.stringify({ error: { code: 'CUTOUT_UNAVAILABLE', message: 'No test worker configured.' } }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    const fetchImpl = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      return url.hostname === 'jizhang-cutout' ? cutoutFetch(input, init) : fetch(input, init);
+    };
     const config = loadConfig({
       NODE_ENV: 'test', LOG_LEVEL: 'silent', JIZHANG_USERNAME: username,
       JIZHANG_PASSWORD_HASH: 'unused-existing-test-user', DATA_DIR: dataDir,
       JIZHANG_AI_ENCRYPTION_KEY: 'ab'.repeat(32),
+      JIZHANG_ITEM_CUTOUT_SERVICE_URL: 'http://jizhang-cutout:8090',
       WEB_DIST_DIR: resolve(dirname(fileURLToPath(import.meta.url)), '../dist'),
     });
     let db;
     let app;
     let port = 0;
     const start = async () => {
-      app = buildApp({ config, db, secureCookies: false });
+      app = buildApp({ config, db, secureCookies: false, fetchImpl });
       await app.listen({ host: '127.0.0.1', port });
       const address = app.server.address();
       if (address === null || typeof address === 'string') throw new Error('No isolated test port');
@@ -41,6 +51,7 @@ export const test = base.extend({
       await start();
       await use({
         username, password, origin: `http://127.0.0.1:${port}`, stop, start,
+        setCutoutFetch: (handler) => { cutoutFetch = handler; },
         restart: async () => { await stop(); closeDatabase(db); db = openDatabase(config); await start(); },
       });
     } finally {

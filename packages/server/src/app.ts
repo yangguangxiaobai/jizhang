@@ -22,6 +22,7 @@ import { registerTransferRoutes } from './routes/transfers.js';
 import { registerAiRoutes } from './routes/ai.js';
 import { registerAssistantRoutes } from './routes/assistant.js';
 import { registerItemRoutes } from './routes/items.js';
+import { registerItemCutoutRoutes } from './routes/item-cutouts.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
 
@@ -46,7 +47,7 @@ export interface BuildAppOptions {
    * the real clock; tests pin it so "in the future" assertions are deterministic.
    */
   readonly now?: (() => number) | undefined;
-  /** Injectable provider transport for AI route tests. */
+  /** Injectable provider/inference transport for API route tests. */
   readonly fetchImpl?: typeof fetch;
 }
 
@@ -206,6 +207,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
             fetchImpl: options.fetchImpl,
           }),
         (instance) => registerItemRoutes(instance, { db, now: options.now }),
+        (instance) =>
+          registerItemCutoutRoutes(instance, {
+            serviceUrl: config.itemCutoutServiceUrl,
+            fetchImpl: options.fetchImpl,
+          }),
       ],
     });
   } else {

@@ -83,7 +83,7 @@ variables are missing*, never their values.
 | Adding a log line | Put it on `request.log`, so it inherits `reqId` and the child logger |
 | `console.*` | Only in the CLI, where there is no request context. Never in a route or service |
 | Tests | Set `LOG_LEVEL=silent`; a test that needs to assert on output should assert on the response instead |
-| Log volume on a 1 GB VPS | Keep an eye on it; the compose file caps `json-file` at 10 MB × 3 files. `LOG_LEVEL=debug` on a busy instance is not free |
+| Log volume on a resource-capped VPS | Keep an eye on it; the compose file caps `json-file` at 10 MB × 3 files. `LOG_LEVEL=debug` on a busy instance is not free |
 
 ---
 
