@@ -2,7 +2,7 @@
 
 单用户记账 Web PWA:Vue 3 + Vite 前端、Fastify 后端、SQLite 存储。Fastify 同源托管前端；物品自动抠图由一个**可选、私有、资源受限的 CPU 推理服务**处理。
 
-> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:2026-09-18-home-balances`,迁移 v6 已执行;容器 `TZ=Asia/Shanghai`)。
+> 当前状态:**已部署到 `https://jz.yansuu1.com`**(镜像 `jizhang:64be4b1` + `jizhang-cutout:64be4b1`;容器 `TZ=Asia/Shanghai`)。
 > 日常用法请看 [USAGE.md](./USAGE.md);部署与升级请看 [DEPLOY.md](./DEPLOY.md)。
 
 ## 功能
@@ -354,9 +354,9 @@ restore <file.db>            用备份替换在线数据库
 
 ## 部署与运维要点
 
-- 线上:`https://jz.yansuu1.com`,目录 `/opt/jizhang`,镜像 `jizhang:2026-09-18-home-balances`。
+- 线上:`https://jz.yansuu1.com`,目录 `/opt/jizhang`,镜像 `jizhang:64be4b1` + `jizhang-cutout:64be4b1`。
 - 升级见 [DEPLOY.md §6](./DEPLOY.md):构建镜像 → 改 compose 的 `image` tag → `up -d` → 核对 `sqlite ready`、`/api/v1/health` 与前端 chunk 标记。
-- **公网带宽很慢时**优先「上传源码 zip → 在服务器 `docker build`」(约 0.5–1.5MB),不要 `docker save` 整镜像(约 90MB+)。生产 compose 无 `build:`、无宿主机端口,由 Caddy 按容器名 `jizhang:8081` 反代。
+- **先在本地完成 Docker 打包和验证，再上传镜像部署**；服务器只校验、`docker load` 和运行，不在服务器构建。生产应用仅发布 `127.0.0.1:8081`，由宿主机反向代理接入；抠图 worker 不发布端口。
 - 容器环境必须含 **`TZ: Asia/Shanghai`**(见「口径与日历」)。生产 compose、仓库 `Dockerfile` / `docker-compose.yml` / `.env.example` 均已默认写入。
 - 迁移会在启动时自动跑,并把升级前的库备份到 `/data/backups/`。回滚只改 `image` tag,不降级迁移。
 - 平台账单导入**无新迁移**;误导入可在应用内删除或走回收站/备份恢复。

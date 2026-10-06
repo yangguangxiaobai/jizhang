@@ -40,3 +40,15 @@ playwright-report/
 # The browser suites' default screenshot names, written into the web package when no path
 # is passed. Generated, regenerable, and not source. (`public/` keeps the real PWA icons.)
 packages/web/*.png
+
+# Python cutout service caches and local environments
+packages/cutout/**/__pycache__/
+packages/cutout/**/.pytest_cache/
+packages/cutout/**/.venv/
+
+# ── local source-snapshot archives ───────────────────────────────────────────
+# Full source tarballs kept on disk as rollback points before a deploy. Several are
+# ~94 MB, right at GitHub's 100 MB hard per-file limit, and ~660 MB in total, so they
+# stay local.
+jizhang-*.tar
+jizhang-*.tar.gz
