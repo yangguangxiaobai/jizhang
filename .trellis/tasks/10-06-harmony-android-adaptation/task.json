@@ -1,0 +1,30 @@
+{
+  "id": "harmony-android-adaptation",
+  "name": "harmony-android-adaptation",
+  "title": "适配鸿蒙和安卓两端",
+  "description": "为记账应用提供鸿蒙原生（兼容4/5/6）与安卓Kotlin两端适配",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-06",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-06-android-kotlin-native",
+    "10-06-harmony-arkts-native",
+    "10-06-native-parity-release"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -52,3 +52,11 @@ packages/cutout/**/.venv/
 # stay local.
 jizhang-*.tar
 jizhang-*.tar.gz
+
+# clients preview screenshots (local review only, A11)
+/clients/docs/preview/
+
+# ── native build products (rebuilt via CLI; signatures stay user-local) ──
+*.hap
+*.hsp
+*.apk

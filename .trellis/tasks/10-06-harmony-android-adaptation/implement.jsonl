@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "服务端零改动原则、CSRF/session、错误体、recurring 与 portability 陷阱：原生网络层 N1-N7 的依据"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "客户端只呈现不计算、导航与主题 token：双端 UI 与外观对齐的依据"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "auth 单模块封装与路由组织：原生端照抄守卫语义而不碰服务端的依据"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "统一错误体与 401/403/404 语义：原生端错误映射与回登录页逻辑的依据"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "API 分组与 Repository 映射：client.ts 约92个调用点按 auth/transactions/budget/recurring/stats/portability/items/assistant 分组的对照依据"}

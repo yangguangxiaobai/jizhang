@@ -368,3 +368,27 @@ restore <file.db>            用备份替换在线数据库
 - **不支持多用户、多币种、共享账本、日历视图、批量操作、账单模板**——单用户单账本
 - **平台账单分类是关键字粗分**,不是平台官方分类的逐条映射;分不准会落到「其他」,导入后可改
 - **平台导入不改写既有本应用 CSV 导入**:两者 id 空间与校验策略不同(平台按行忽略,本应用 CSV 全有或全无)
+
+## 原生双端(App)
+
+> 任务总纲见 `.trellis/tasks/10-06-harmony-android-adaptation/`（`prd.md`/`design.md`/`implement.md`）。
+> 详细规则见 [`clients/docs/release.md`](./clients/docs/release.md)、[`clients/docs/versions.md`](./clients/docs/versions.md)、
+> [`clients/docs/parity-matrix.md`](./clients/docs/parity-matrix.md)。
+>
+> 生产域名 `https://jz.yansuu1.com` 已重解析不可用,新域名待定。
+> 因此双端**不写死服务端地址**:登录页首启必填并记住上次地址,仅改默认配置不改代码。
+> 等新域名确定后,再回本节把默认地址与线上条目一并更新。
+
+- **Android APK**(Kotlin 纯原生,覆盖安卓主流版本 + 鸿蒙 4):包名 `com.yansuu1.jizhang`(拟定);
+  versionName 与仓库 `package.json` 同源(当前 `0.1.0`),versionCode 自增(当前 `2`);
+  minSdk 26 / targetSdk 34。构建:`cd clients/android && ./gradlew clean assembleRelease`,
+  产物 `app/build/outputs/apk/release/app-release.apk`(2026-10-06 实测 ~10.7MB,`apkanalyzer` 确认 id/version)。
+- **Harmony Hap**(ArkTS 纯原生,覆盖鸿蒙 5/6;鸿蒙 4 走 APK):bundleName 与 APK 同名(拟定);
+  `AppScope/app.json5` 当前 `0.1.0`/`1`;API target 12 起。构建(PowerShell):
+  `cd clients/harmony; $env:DEVECO_SDK_HOME="C:/Program Files/Huawei/DevEco Studio/sdk";`
+  `& ".../hvigor/bin/hvigorw.bat" --no-daemon assembleHap`,
+  产物 `entry/build/default/outputs/default/entry-default-unsigned.hap`(2026-10-06 实测 ~750.8KB,BUILD SUCCESSFUL)。
+- **口径**:原生端零口径代码,只呈现服务端数字;cents↔元仅格式化,ms↔日期仅展示;
+  退款/转账/周期/余额/导入语义与 Web 全量对齐,三端对照见 `parity-matrix.md`(代码对齐完成,
+  三端同屏数字截图待新域名 + 真机联调时翻绿)。
+- **签名**:用户本地生成保管,永不入库(APK:`keystore.properties`/env;Hap:DevEco 内配置);签名丢失=无法覆盖安装,须异地备份。

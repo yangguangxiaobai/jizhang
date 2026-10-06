@@ -534,3 +534,37 @@ docker compose up -d
 | `JIZHANG_PASSWORD_HASH` | **必需** | 占位即可，真实密码用 `set-password` 写入数据库 |
 | `SESSION_TTL_DAYS` | `30` | 会话有效期 |
 | `JIZHANG_AI_ENCRYPTION_KEY` | 可选 | 64 位十六进制；加密设置页保存的 AI API key |
+
+---
+
+## 11. 原生双端发版（APK / Hap，P3）
+
+> 规则总纲见 [`clients/docs/release.md`](./clients/docs/release.md)，基线见 [`clients/docs/versions.md`](./clients/docs/versions.md)，
+> 口径对照见 [`clients/docs/parity-matrix.md`](./clients/docs/parity-matrix.md)。
+> 当前生产域名 `https://jz.yansuu1.com` 已重解析不可用，新域名待定：双端登录页首启必填服务端地址并记住，
+> 不写死域名；等新域名确定后，再回本节与 README 对应条目一并更新默认地址。
+
+### 11.1 Android APK（`clients/android`）
+
+- 包名 `com.yansuu1.jizhang`（拟定）；versionName 与根 `package.json` 同源（当前 `0.1.0`），versionCode 自增（当前 `2`）；minSdk 26 / targetSdk 34。
+- 签名用户本地保管、永不入库：`keystore.properties`（见 `keystore.properties.example`）或 `JIZHANG_*` 环境变量；
+  无 key 材料时 release 回退 debug 签名，仅形状验证、不可分发。签名丢失=无法覆盖安装，须异地备份。
+- 构建：`cd clients/android && ./gradlew clean assembleRelease`，产物 `app/build/outputs/apk/release/app-release.apk`
+  （2026-10-06 实测 ~10.7MB；`apkanalyzer manifest` 确认 id/version）。
+
+### 11.2 Harmony Hap（`clients/harmony`）
+
+- bundleName 与 APK 同名（拟定）；`AppScope/app.json5` 当前 `0.1.0`/`1`；API target 12 起（NEXT 基线，覆盖 5/6；鸿蒙 4 走 APK）。
+- IDE/SDK 基线：DevEco Studio 26.0.0.851 / SDK HarmonyOS 26.0.0.105（API 26）。
+- 无签名配置即产 unsigned Hap（仅形状/可重复构建验证）；正式签名在 DevEco 内配置，永不入库。
+- 构建（PowerShell，2026-10-06 实测 BUILD SUCCESSFUL）：
+  `cd clients/harmony; $env:DEVECO_SDK_HOME="C:/Program Files/Huawei/DevEco Studio/sdk";`
+  `& ".../hvigor/bin/hvigorw.bat" --no-daemon assembleHap`，
+  产物 `entry/build/default/outputs/default/entry-default-unsigned.hap`（~750.8KB）。
+  IDE 等价方式：DevEco 打开 `clients/harmony/` → `Build > Build Hap(s)`。
+
+### 11.3 联调与复现（新域名就绪后）
+
+1. 用 `packages/server/test/` 种子账本起后端（e2e 装置即种子来源，不新增数据）。
+2. 同一账号、同一周期，在 Web / Android / Harmony 三端截图记录 `parity-matrix.md` #1–#7 数字，逐项打勾。
+3. 关键链路演示：登录→记一笔→预算已用变化，三端一致（允许的唯一差异：分→元格式化舍入，需注明）。
