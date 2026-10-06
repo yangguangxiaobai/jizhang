@@ -1,0 +1,5 @@
+## do not commit release keystores (parent PRD R7: user-local signing)
+*.jks
+*.keystore
+keystore.properties
+local.properties
