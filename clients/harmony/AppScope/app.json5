@@ -1,0 +1,11 @@
+{
+  "app": {
+    // NOTE: bundleName is provisional (parent PRD R7: confirm once before release).
+    "bundleName": "com.yansuu1.jizhang",
+    "vendor": "yansuu1",
+    "versionCode": 1,
+    "versionName": "0.1.0",
+    "icon": "$media:app_icon",
+    "label": "$string:app_name"
+  }
+}

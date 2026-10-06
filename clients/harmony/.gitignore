@@ -1,0 +1,14 @@
+# Harmony build output + IDE local state (never committed).
+# Unsigned/signed Hap products are build artifacts, rebuilt via hvigor CLI
+# (see clients/docs/release.md); signing material always stays user-local.
+build/
+.hvigor/
+oh_modules/
+*.hap
+*.hsp
+*.app
+
+# DevEco local state
+.idea/
+*.iml
+local.properties
