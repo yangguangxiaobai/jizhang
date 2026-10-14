@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "WAL-consistent verification and no production restore"}
+{"file": ".trellis/spec/backend/native-delivery.md", "reason": "Production topology and scoped maintenance"}
+{"file": "deploy/API-PRODUCTION-README.md", "reason": "Current production operations and backups"}
+{"file": "deploy/api-production-tools/README.md", "reason": "Maintenance guard and secret boundaries"}
