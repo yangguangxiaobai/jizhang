@@ -99,3 +99,40 @@ sudo /opt/jizhang-production/manage.sh status
 ## 本地验证与交付边界
 
 本地执行 `python -m py_compile archive.py`、`bash -n manage.sh` 和 mock 单元测试；打包检查 LF、成员与 SHA256。测试不连接 Docker 或服务器，不证明 root 权限、实际文件引用、生产健康或现场归档成功。以上是本地工具验证，未连接生产服务器，也不执行 Git 提交或删除操作。用户后续在服务器执行的归档及另行授权的镜像标签清理见[生产部署与维护记录](../API-PRODUCTION-README.md)；本包交付完成不等于旧环境完全清理。
+
+## Bounded backup retention (maintenance-only deployed; no cleanup)
+
+The final implementation plan was approved on 2026-10-14. Independent review passed;
+maintenance-only remote delivery and sudo read-only preview completed at
+2026-10-14T04:38:31Z. The initial rollout registry was empty (zero candidates and apply blocked).
+The approved enrollment follow-up below now records one pinned distinct point,
+still zero candidates and apply blocked. Existing host/app backup trees
+and historical archives are unmanaged/protected, not retention candidates. No production deletion, timer
+activation, API image update, restart or ledger write was performed by this change.
+See [retention operations](RETENTION.md) for installation prerequisites, usable
+snapshot enrollment, off-server attestation, reviewed preview and lock protocol.
+
+`retention.py` defaults to preview. Its only deletion boundary is explicitly
+registered regular `.db` files directly inside `/opt/jizhang-backups/retention`.
+It never traverses `/data`, historical backup trees or `/opt/jizhang-archive`.
+Current and historical configs, all release-associated snapshots, source bundles
+and images remain protected. Unmanaged legacy/app files are NOT automatically
+cleaned. The app's existing root-level 30-day policy remains unchanged, and
+`manage.sh backup` still passes retain-days=0.
+
+The new `manage.sh up` and `backup` acquire the cooperative maintenance lock.
+Provision that lock before installing the changed wrapper; existing commands fail
+closed without it. Status/config/logs remain unchanged. Disabled systemd templates
+are supplied as source only; destructive schedule placeholders always fail.
+
+### Approved existing-snapshot enrollment follow-up (2026-10-14)
+
+At 2026-10-14T05:28:24Z the existing bill-import deployment snapshot was copied
+(not moved) into the managed retention root and enrolled pinned/current-release
+with matching locally verified off-server attestation. Original host/local copies
+remain unchanged. Preview now has ONE distinct verified point, zero candidates
+and zero reclaimable bytes; apply_ready=false because minimum-three is not met.
+No fresh production backup, apply/deletion, restart, config/image change or timer
+activation occurred. Tools still require manual transfer/enrollment; the precise
+next-deployment checklist is in [retention operations](RETENTION.md).
+Evidence: `.trellis/tasks/10-14-backup-retention/enrollment-status.md`.

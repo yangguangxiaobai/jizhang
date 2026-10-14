@@ -11,6 +11,20 @@ compose=(docker compose -p jizhang --env-file /opt/jizhang-production/.env
   -f docker-compose.yml -f docker-compose.migration.yml
   -f runtime.override.yml -f image.override.yml)
 [[ $# == 1 ]] || { echo 'Usage: manage.sh status|config|logs|up|backup' >&2; exit 2; }
+# Shared cooperative lock: provision root-owned mode 600 once at installation.
+# Never replace the lock inode. Direct deployments must hold the same lock for
+# their entire config edit/recreation window, not merely the final compose call.
+if [[ "$1" == up || "$1" == backup ]]; then
+  lock=/opt/jizhang-production/maintenance.lock
+  [[ -f "$lock" && ! -L "$lock" && "$(stat -c '%u:%a' "$lock")" == 0:600 ]] || {
+    echo 'Protected maintenance lock missing or unsafe' >&2; exit 1;
+  }
+  exec 9<>"$lock"
+  flock -n 9 || { echo 'Maintenance/deployment already in progress' >&2; exit 1; }
+  [[ "$(stat -Lc '%d:%i' /proc/$$/fd/9)" == "$(stat -c '%d:%i' "$lock")" ]] || {
+    echo 'Maintenance lock identity changed' >&2; exit 1;
+  }
+fi
 case "$1" in
   status) "${compose[@]}" ps -a ;;
   config) "${compose[@]}" config --quiet; echo 'Merged production configuration valid (values not printed)' ;;

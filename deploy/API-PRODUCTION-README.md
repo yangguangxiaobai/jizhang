@@ -89,3 +89,35 @@ wrapper 新备份位于原卷内 `/data/backups/production-handoff`，不自动�
 版本控制内的维护工具与详细安装/归档说明：[api-production-tools README](api-production-tools/README.md)。工具包 `artifacts/api-production-tools.tar.gz` 及其 SHA256 sidecar 已交付；本地 bash/Python 检查及 9 项 mock 测试通过，不等同于真实生产测试。
 
 archive.py 默认预览，--apply 才归档。检查全部容器（包括停止容器）的挂载和 Compose 引用；被引用目录保留。本轮 `/opt/jizhang` 因抠图引用被正确阻挡。无需为目录外观整洁重建正常工作的依赖服务。
+
+## Backup retention implementation boundary (2026-10-14)
+
+Bounded enrolled-snapshot tooling passed independent review and was deployed
+maintenance-only on 2026-10-14T04:38:31Z. Sudo preview of the empty registry reports
+zero candidates, zero reclaimed bytes and apply_ready=false. All five container
+IDs, image IDs, start times and states plus production configuration bytes remained
+unchanged; API/cutout stayed healthy, public health returned 200 and root 404.
+Existing 9 host DB paths and 8 app backup paths remain unmanaged/protected; the
+649,814,782-byte historical archive file inventory was unchanged. See
+[retention operations](api-production-tools/RETENTION.md). No production apply,
+timer activation, image change, restart or ledger write has been executed by this
+implementation. Historical backups/configs/archives remain protected. The app's
+existing root backup policy is unchanged; the wrapper still uses retain-days=0.
+The protected shared maintenance lock was created before installing the changed
+wrapper. No systemd service/timer was installed or enabled. Private old scripts:
+`/opt/jizhang-production/maintenance-rollback-20261014T043831Z`.
+Future snapshots require manual completed-snapshot transfer and enrollment; the
+wrapper does not enroll automatically. Detailed evidence and plan digest:
+`.trellis/tasks/10-14-backup-retention/deploy-status.md`.
+
+### Approved existing-snapshot enrollment follow-up (2026-10-14)
+
+At 2026-10-14T05:28:24Z the existing bill-import deployment snapshot was copied
+(not moved) into the managed retention root and enrolled pinned/current-release
+with matching locally verified off-server attestation. Original host/local copies
+remain unchanged. Preview now has ONE distinct verified point, zero candidates
+and zero reclaimable bytes; apply_ready=false because minimum-three is not met.
+No fresh production backup, apply/deletion, restart, config/image change or timer
+activation occurred. Tools still require manual transfer/enrollment; the precise
+next-deployment checklist is in [retention operations](api-production-tools/RETENTION.md).
+Evidence: `.trellis/tasks/10-14-backup-retention/enrollment-status.md`.

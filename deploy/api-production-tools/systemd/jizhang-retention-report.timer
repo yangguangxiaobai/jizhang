@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Jizhang retention report (disabled until reviewed)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=jizhang-retention-report.service
+
+[Install]
+WantedBy=timers.target

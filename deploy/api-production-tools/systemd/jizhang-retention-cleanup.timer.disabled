@@ -1,0 +1,8 @@
+# Disabled design placeholder; do not rename/install/enable before separate review.
+[Unit]
+Description=Daily destructive retention placeholder
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+Unit=jizhang-retention-cleanup.service
+# No Install section: deliberately not an activatable delivery.

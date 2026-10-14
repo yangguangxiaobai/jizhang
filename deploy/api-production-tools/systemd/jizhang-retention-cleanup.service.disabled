@@ -1,0 +1,10 @@
+# Deliberately non-installable template. No automatic plan approval.
+# A timer-driven deletion conflicts with the initial reviewed-plan requirement.
+# Designing an approved unattended policy is a later operator review gate.
+[Unit]
+Description=Jizhang destructive retention placeholder (fail closed)
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/false
