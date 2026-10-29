@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end recurring-bill checks against the running container (T13).
 //
 // The load-bearing checks (task AC1-AC9):
@@ -327,12 +328,7 @@ check('POST /recurring/generate requires a session -> 401', noSessionPost.status
 const noCsrf = await fetch(`${BASE}/recurring/generate`, { method: 'POST' });
 check('a mutating call without CSRF -> 403', noCsrf.status === 403, `-> ${noCsrf.status}`);
 
-// ── the SPA route is deployed ────────────────────────────────────────────────
-console.log('\n[shell]');
-for (const path of ['/recurring', '/pending']) {
-  const shell = await fetch(`http://127.0.0.1:8081${path}`);
-  const html = await shell.text();
-  check(`GET ${path} serves the SPA shell`, shell.status === 200 && html.includes('<div id="app"'), `-> ${shell.status}`);
-}
+// Former Web routes stay retired.
+await checkRetiredWeb(check, ['/recurring', '/pending']);
 
 finish('RECURRING E2E');

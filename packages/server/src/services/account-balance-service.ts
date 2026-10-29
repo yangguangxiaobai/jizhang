@@ -24,6 +24,7 @@ import {
   type TransferLike,
 } from '@jizhang/shared';
 import type { Db } from '../db/index.js';
+import { mapLedgerTransactionRow, type LedgerTransactionRow } from './ledger-row-mapping.js';
 
 export interface AccountBalanceDto {
   readonly accountId: string;
@@ -58,14 +59,8 @@ interface AccountRow {
   readonly initial_balance_cents: number;
 }
 
-interface TransactionRow {
-  readonly id: string;
-  readonly type: number;
-  readonly amount_cents: number;
-  readonly category_id: string;
+interface TransactionRow extends LedgerTransactionRow {
   readonly account_id: string;
-  readonly date: number;
-  readonly is_refund: number;
 }
 
 interface SalaryRow {
@@ -122,13 +117,8 @@ export class AccountBalanceService {
       .all() as TransferRow[];
 
     const transactions: AccountFlowTransaction[] = transactionRows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      amountCents: row.amount_cents,
-      categoryId: row.category_id,
+      ...mapLedgerTransactionRow(row),
       accountId: row.account_id,
-      date: row.date,
-      isRefund: row.is_refund === 1,
     }));
 
     const salaries: SalaryReceipt[] = salaryRows.map((row) => ({

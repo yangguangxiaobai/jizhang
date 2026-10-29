@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end master-data management against the running container (T7).
 //
 // Usage: docker compose cp packages/server/scripts/e2e-master-data.mjs jizhang:/app/packages/server/
@@ -275,8 +276,7 @@ const noCsrf = await fetch(`${BASE}/categories`, {
 });
 check('category create requires the CSRF header -> 403', noCsrf.status === 403, `-> ${noCsrf.status}`);
 
-// ── SPA shell ────────────────────────────────────────────────────────────────
-const spa = await fetch('http://127.0.0.1:8081/manage');
-check('GET /manage serves the SPA shell', spa.status === 200, `-> ${spa.status}`);
+// Former Web routes stay retired.
+await checkRetiredWeb(check, ['/manage']);
 
 finish('MASTER-DATA E2E');

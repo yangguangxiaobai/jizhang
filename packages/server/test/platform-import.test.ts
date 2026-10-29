@@ -3,7 +3,7 @@
  *
  * Contract under test:
  *   * GBK Alipay bytes and UTF-8 WeChat CSV both land
- *   * neutral / 不计收支 / 理财 / 信用借还 / refunded rows are ignored, not fatal
+ *   * neutral / 不计收支 / 理财 / 信用借还 rows are ignored; refunded originals and actual refund income remain bookable
  *   * 微信/支付宝 accounts are created on first import
  *   * re-import is idempotent (stable platform order ids)
  *   * dry-run writes nothing
@@ -55,14 +55,14 @@ afterEach(() => {
 });
 
 describe('importPlatformBills — WeChat UTF-8 CSV', () => {
-  it('imports bookable rows, creates the 微信 account, ignores neutral/refunds', () => {
+  it('imports bookable rows, creates the 微信 account, ignores neutral and preserves real refunds', () => {
     const result = service.importPlatformBills(wechatText, { source: 'auto' });
 
     expect(result.source).toBe('wechat');
     expect(result.total).toBe(34);
-    expect(result.ignored).toBe(10);
-    expect(result.importable).toBe(24);
-    expect(result.inserted).toBe(24);
+    expect(result.ignored).toBe(8);
+    expect(result.importable).toBe(26);
+    expect(result.inserted).toBe(26);
     expect(result.skipped).toBe(0);
     expect(result.accountsCreated).toBe(1);
 
@@ -71,24 +71,24 @@ describe('importPlatformBills — WeChat UTF-8 CSV', () => {
     expect(account?.type).toBe(4); // ACCOUNT_TYPE_WECHAT
     expect(account?.deleted).toBe(0);
 
-    expect(liveTxnCount()).toBe(24);
+    expect(liveTxnCount()).toBe(26);
 
     // Idempotent re-import
     const again = service.importPlatformBills(wechatText, { source: 'wechat' });
     expect(again.inserted).toBe(0);
-    expect(again.skipped).toBe(24);
-    expect(liveTxnCount()).toBe(24);
+    expect(again.skipped).toBe(26);
+    expect(liveTxnCount()).toBe(26);
   });
 
   it('dry-run reports counts without writing, and returns a preview table', () => {
     const preview = service.importPlatformBills(wechatText, { source: 'auto', dryRun: true });
     expect(preview.dryRun).toBe(true);
-    expect(preview.inserted).toBe(24);
-    expect(preview.selected).toBe(24);
+    expect(preview.inserted).toBe(26);
+    expect(preview.selected).toBe(26);
     expect(preview.accountsCreated).toBe(1);
     expect(preview.rows).toHaveLength(34);
     const importablePreview = preview.rows.filter((r) => !r.ignored && !r.alreadyExists);
-    expect(importablePreview).toHaveLength(24);
+    expect(importablePreview).toHaveLength(26);
     expect(importablePreview[0]?.categoryName).toBeTruthy();
     expect(liveTxnCount()).toBe(0);
     expect(findAccountByName('微信')).toBeUndefined();
@@ -146,6 +146,26 @@ describe('importPlatformBills — WeChat UTF-8 CSV', () => {
     expect(result.inserted).toBe(0);
     expect(result.selected).toBe(0);
     expect(liveTxnCount()).toBe(0);
+  });
+
+  it('allows an ignored row (e.g. transfer/topup) to be explicitly selected and imported', () => {
+    const preview = service.importPlatformBills(wechatText, { source: 'auto', dryRun: true });
+    const ignoredRow = preview.rows.find((r) => r.ignored && r.amountCents > 0 && !r.alreadyExists);
+    expect(ignoredRow).toBeDefined();
+
+    const result = service.importPlatformBills(wechatText, {
+      source: 'wechat',
+      selectedIds: [ignoredRow!.id],
+    });
+    expect(result.inserted).toBe(1);
+    expect(result.selected).toBe(1);
+    expect(liveTxnCount()).toBe(1);
+
+    const imported = db
+      .prepare('SELECT id, amount_cents FROM transactions WHERE id = ?')
+      .get(ignoredRow!.id) as { id: string; amount_cents: number } | undefined;
+    expect(imported).toBeDefined();
+    expect(imported!.amount_cents).toBe(ignoredRow!.amountCents);
   });
 });
 
@@ -258,5 +278,85 @@ describe('importPlatformBills — error and coexistence', () => {
     expect(result.inserted).toBe(1);
     expect(liveTxnCount()).toBe(4);
     expect(accounts.some((a) => a.name === accountName)).toBe(true);
+  });
+});
+
+describe('strict assistant review compatibility', () => {
+  it('preserves complete untouched source notes, explicit clearing and refund identity independent of chosen category name', () => {
+    const text = readFileSync(join(fixturesDir, 'refund-review.csv'), 'utf8');
+    const preview = service.importPlatformBills(text, { dryRun: true, strictCategories: true });
+    const purchase = preview.rows.find((r) => r.id === 'wx-review-purchase')!;
+    const refund = preview.rows.find((r) => r.id === 'wx-review-refund')!;
+    const result = service.importPlatformBills(text, { strictCategories: true, selectedIds: [purchase.id, refund.id], categoryIds: { [purchase.id]: 'builtin-expense-food', [refund.id]: 'builtin-income-other' }, noteOverrides: { [refund.id]: '' } });
+    expect(result.inserted).toBe(2);
+    expect(result.categoriesCreated).toBe(0);
+    expect(db.prepare('SELECT note, is_refund FROM transactions WHERE id = ?').get(purchase.id)).toEqual({ note: purchase.note, is_refund: 0 });
+    expect(db.prepare('SELECT note, is_refund FROM transactions WHERE id = ?').get(refund.id)).toEqual({ note: '', is_refund: 1 });
+  });
+  it('rejects deleted, wrong-type and parent categories without creating/restoring categories or partially importing', () => {
+    const text = readFileSync(join(fixturesDir, 'refund-review.csv'), 'utf8');
+    const selectedIds = ['wx-review-purchase', 'wx-review-missing'];
+    db.prepare("INSERT INTO categories (id, name, type, parent_id, icon, color, deleted, updated_at) VALUES ('review-child','child',0,'builtin-expense-food','x',0,0,0)").run();
+    for (const id of ['builtin-expense-food', 'builtin-income-other', 'missing']) {
+      expect(() => service.importPlatformBills(text, { strictCategories: true, selectedIds, categoryIds: Object.fromEntries(selectedIds.map((row) => [row, id])) })).toThrow(ValidationError);
+      expect(liveTxnCount()).toBe(0);
+    }
+    db.prepare("UPDATE categories SET deleted = 1 WHERE id = 'review-child'").run();
+    db.prepare("UPDATE categories SET deleted = 1 WHERE id = 'builtin-expense-food'").run();
+    expect(() => service.importPlatformBills(text, { strictCategories: true, selectedIds, categoryIds: Object.fromEntries(selectedIds.map((row) => [row, 'builtin-expense-food'])) })).toThrow(ValidationError);
+    expect(liveTxnCount()).toBe(0);
+  });
+  it('rejects empty/oversized selections and rows outside the displayed 200 without hidden writes', () => {
+    const header = '交易时间,交易类型,交易对方,商品,收/支,金额(元),当前状态,交易单号';
+    const text = [header, ...Array.from({ length: 205 }, (_, i) => `2026-09-12,商户消费,测试商户,商品,支出,10,支付成功,bound-${i}`)].join(String.fromCharCode(10));
+    for (const selectedIds of [[], ['wx-bound-200'], Array.from({ length: 101 }, (_, i) => `wx-bound-${i}`)]) {
+      expect(() => service.importPlatformBills(text, { strictCategories: true, selectedIds, categoryIds: Object.fromEntries(selectedIds.map((id) => [id, 'builtin-expense-food'])) })).toThrow(ValidationError);
+      expect(liveTxnCount()).toBe(0);
+    }
+  });
+});
+
+describe('read-only duplicate candidates use the existing local-day heuristic', () => {
+  it('paginates every match, including empty notes and refund identity, labels deleted references and reads current changes', () => {
+    db.prepare(`INSERT INTO accounts (id, name, type, initial_balance_cents, sort_order, is_builtin, deleted, updated_at)
+      VALUES ('comparison-account', '支付宝', 3, 0, 1, 0, 0, 1)`).run();
+    const date = new Date(2026, 8, 15, 23, 59).getTime();
+    const insert = db.prepare(`INSERT INTO transactions
+      (id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund, deleted, updated_at)
+      VALUES (?, ?, ?, 'builtin-expense-other', ?, ?, ?, '[]', ?, ?, 1)`);
+    insert.run('a', 0, 1400, 'comparison-account', date, '', 0, 0);
+    insert.run('b', 0, 1400, 'comparison-account', date, '完整备注'.repeat(100), 0, 0);
+    insert.run('wrong-type', 1, 1400, 'comparison-account', date, '', 1, 0);
+    insert.run('wrong-day', 0, 1400, 'comparison-account', new Date(2026, 8, 16).getTime(), '', 0, 0);
+    insert.run('wrong-amount', 0, 1401, 'comparison-account', date, '', 0, 0);
+    insert.run('wrong-account', 0, 1400, 'builtin-default-account', date, '', 0, 0);
+    insert.run('deleted', 0, 1400, 'comparison-account', date, '', 0, 1);
+    const preview = service.importPlatformBills(alipayGbk, { source: 'alipay', dryRun: true });
+    const row = preview.rows.find((r) => r.counterparty === '美团' && !r.ignored)!;
+    expect(row).toMatchObject({ possibleDuplicate: true, duplicateOfNote: '', comparisonAccountId: 'comparison-account' });
+    const source = { ...row };
+    db.prepare("UPDATE accounts SET deleted = 1 WHERE id = 'comparison-account'").run();
+    db.prepare("UPDATE categories SET deleted = 1 WHERE id = 'builtin-expense-other'").run();
+    const before = db.serialize();
+    const first = service.duplicateCandidates(source, '1', undefined, 123);
+    expect(first).toMatchObject({ total: 2, nextCursor: 'a', readAt: 123 });
+    expect(first.items[0]).toMatchObject({ id: 'a', note: '', accountName: '支付宝', categoryName: '其他', isRefund: false });
+    const second = service.duplicateCandidates(source, '1', first.nextCursor);
+    expect(second.items.map((item) => item.id)).toEqual(['b']);
+    expect(second.items[0]?.note).toBe('完整备注'.repeat(100));
+    expect(second.nextCursor).toBeNull();
+    const refund = service.duplicateCandidates({ ...source, type: 1 }, undefined, undefined);
+    expect(refund.items[0]).toMatchObject({ id: 'wrong-type', isRefund: true });
+    expect(db.serialize()).toEqual(before);
+    db.prepare("UPDATE transactions SET deleted = 1 WHERE id = 'a'").run();
+    const afterCursorDeletion = service.duplicateCandidates(source, '1', first.nextCursor);
+    expect(afterCursorDeletion).toMatchObject({ total: 1, nextCursor: null });
+    expect(afterCursorDeletion.items.map((item) => item.id)).toEqual(['b']);
+    db.prepare("UPDATE transactions SET deleted = 1 WHERE id IN ('a', 'b')").run();
+    expect(service.duplicateCandidates(source, undefined, undefined)).toMatchObject({ total: 0, items: [], nextCursor: null });
+  });
+  it('refuses absent legacy facts or impossible local dates rather than inferring client facts', () => {
+    expect(() => service.duplicateCandidates({ dateLabel: '2026-09-15', type: 0, amountCents: 100 }, undefined, undefined)).toThrow(/重新上传/);
+    expect(() => service.duplicateCandidates({ comparisonAccountId: null, dateLabel: '2026-02-30', type: 0, amountCents: 100 }, undefined, undefined)).toThrow(/日期无效/);
   });
 });

@@ -277,6 +277,102 @@ describe('AC1/AC3 allocation arithmetic', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Salary create atomicity and replay
+// ---------------------------------------------------------------------------
+
+describe('salary create atomicity and replay', () => {
+  function salaryAndAllocationRows() {
+    return {
+      salaries: db.prepare('SELECT * FROM salary_records ORDER BY id').all(),
+      allocations: db.prepare('SELECT * FROM budget_allocations ORDER BY id').all(),
+    };
+  }
+
+  it('rejects unbalanced and unknown-category allocations without changing either table', async () => {
+    salaries.create({ accountId: ACCOUNT, amountCents: 100, date: AUG(5) });
+    const before = salaryAndAllocationRows();
+
+    for (const [allocations, message] of [
+      [[{ categoryId: FOOD, amountCents: 99 }], /Undistributed/],
+      [[{ categoryId: FOOD, amountCents: 101 }], /exceeds the salary/],
+      [[{ categoryId: 'missing-category', amountCents: 100 }], /Unknown or deleted category/],
+    ] as const) {
+      const response = await post('/api/v1/salaries', {
+        accountId: ACCOUNT,
+        amountCents: 100,
+        date: AUG(6),
+        allocations,
+      });
+      expect(response.statusCode, response.body).toBe(400);
+      expect(response.json().error.code).toBe('VALIDATION');
+      expect(response.json().error.message).toMatch(message);
+      expect(salaryAndAllocationRows()).toEqual(before);
+    }
+  });
+
+  it('rolls back salary, allocation and operation record when allocation insert fails', () => {
+    salaries.create({ accountId: ACCOUNT, amountCents: 100, date: AUG(5) });
+    const before = salaryAndAllocationRows();
+    const operationId = 'c20a9c16-811d-4cb8-9119-14f3c5b24201';
+    const input = { accountId: ACCOUNT, amountCents: 200, date: AUG(6), operationId };
+    db.exec(
+      "CREATE TRIGGER fail_allocation_insert BEFORE INSERT ON budget_allocations BEGIN SELECT RAISE(ABORT, 'allocation insert failed'); END",
+    );
+
+    expect(() => salaries.create(input)).toThrow(/allocation insert failed/);
+    expect(salaryAndAllocationRows()).toEqual(before);
+    expect(db.prepare('SELECT * FROM financial_operations WHERE operation_id = ?').get(operationId))
+      .toBeUndefined();
+
+    // A failed write must not consume the idempotency key.
+    db.exec('DROP TRIGGER fail_allocation_insert');
+    const created = salaries.create(input);
+    expect(salaries.getByIdOrThrow(created.id)).toEqual(created);
+    expect(salaryAndAllocationRows().salaries).toHaveLength(before.salaries.length + 1);
+    expect(salaryAndAllocationRows().allocations).toHaveLength(before.allocations.length + 1);
+  });
+
+  it('replays the original salary after its selected template is edited and deleted', async () => {
+    const template = templates.create('replay template', [
+      { categoryId: FOOD, ratio: 0.5 },
+      { categoryId: TRANSPORT, ratio: 0.5 },
+    ]);
+    const input = {
+      accountId: ACCOUNT,
+      amountCents: 100,
+      date: AUG(5),
+      templateId: template.id,
+      operationId: 'ec8b80f2-84ab-45f1-a29e-e49c47fa0d67',
+    };
+    const first = await post('/api/v1/salaries', input);
+    expect(first.statusCode, first.body).toBe(201);
+    expect(first.json().allocations).toEqual([
+      { categoryId: FOOD, amountCents: 50 },
+      { categoryId: TRANSPORT, amountCents: 50 },
+    ]);
+    const before = salaryAndAllocationRows();
+    expect(before.salaries).toHaveLength(1);
+    expect(before.allocations).toHaveLength(1);
+
+    templates.update(template.id, { modules: [{ categoryId: SHOPPING, ratio: 1 }] });
+    expect(templates.getByIdOrThrow(template.id).modules).toEqual([
+      { categoryId: SHOPPING, ratio: 1 },
+    ]);
+    const afterEdit = await post('/api/v1/salaries', input);
+    expect(afterEdit.statusCode, afterEdit.body).toBe(201);
+    expect(afterEdit.json()).toEqual(first.json());
+    expect(salaryAndAllocationRows()).toEqual(before);
+
+    templates.softDelete(template.id);
+    expect(templates.getById(template.id)).toBeUndefined();
+    const afterDelete = await post('/api/v1/salaries', input);
+    expect(afterDelete.statusCode, afterDelete.body).toBe(201);
+    expect(afterDelete.json()).toEqual(first.json());
+    expect(salaryAndAllocationRows()).toEqual(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC4/AC5 template validation
 // ---------------------------------------------------------------------------
 
@@ -993,6 +1089,95 @@ describe('T14 budget overview for a historical cycle', () => {
     expect(
       historical.modules.find((m: { categoryId: string }) => m.categoryId === FOOD).spentCents,
     ).toBe(200_000);
+  });
+
+  it('AC1 keeps unbudgeted historical spending visible and in the exact pool trend', async () => {
+    // The template funds only FOOD; TRANSPORT is deliberately template-excluded, so
+    // its spending must surface as a zero-budget module in both cycles instead of
+    // disappearing from the historical review or the carryover arithmetic.
+    const template = await post('/api/v1/templates', {
+      name: 'food-only',
+      modules: [{ categoryId: FOOD, ratio: 1 }],
+    });
+    expect(template.statusCode, template.body).toBe(201);
+    const templateId = template.json().id as string;
+
+    const july = await post('/api/v1/salaries', {
+      accountId: ACCOUNT,
+      amountCents: 100_000,
+      date: JUL(3),
+      templateId,
+    });
+    expect(july.statusCode, july.body).toBe(201);
+
+    const august = await post('/api/v1/salaries', {
+      accountId: ACCOUNT,
+      amountCents: 200_000,
+      date: localDay(8, 5),
+      templateId,
+    });
+    expect(august.statusCode, august.body).toBe(201);
+
+    for (const [amountCents, categoryId, date] of [
+      [10_000, FOOD, JUL(6)],
+      [50_000, TRANSPORT, JUL(12)],
+      [7_000, FOOD, localDay(8, 9)],
+      [12_000, TRANSPORT, localDay(8, 10)],
+    ] as const) {
+      const created = await post('/api/v1/transactions', {
+        type: 0,
+        amountCents,
+        categoryId,
+        accountId: ACCOUNT,
+        date,
+      });
+      expect(created.statusCode, created.body).toBe(201);
+    }
+
+    const periodsBody = (await get('/api/v1/budget/periods')).json();
+    expect(periodsBody.periods).toEqual([JUL(3), localDay(8, 5)]);
+    expect(periodsBody.currentPeriodStart).toBe(periodsBody.periods[1]);
+
+    const historical = (
+      await get(`/api/v1/budget/overview?periodStart=${periodsBody.periods[0]}`)
+    ).json();
+    expect(historical.totalBudgetCents).toBe(100_000);
+    // July combines 10,000 funded food and 50,000 unbudgeted transport.
+    expect(historical.totalSpentCents).toBe(60_000);
+    expect(
+      historical.modules.find((m: { categoryId: string }) => m.categoryId === FOOD),
+    ).toMatchObject({ budgetCents: 100_000, spentCents: 10_000, remainingCents: 90_000 });
+    // The zero-budget module still reports its gross spending against July.
+    expect(
+      historical.modules.find((m: { categoryId: string }) => m.categoryId === TRANSPORT),
+    ).toMatchObject({
+      categoryName: '交通',
+      budgetCents: 0,
+      spentCents: 50_000,
+      remainingCents: -50_000,
+    });
+    // A historical overview reports the pool as it stood at that cycle's start.
+    expect(historical.carryoverPoolCents).toBe(0);
+
+    const current = (await get('/api/v1/budget/overview')).json();
+    expect(current.totalBudgetCents).toBe(200_000);
+    expect(current.totalSpentCents).toBe(19_000);
+    expect(
+      current.modules.find((m: { categoryId: string }) => m.categoryId === FOOD),
+    ).toMatchObject({ budgetCents: 200_000, spentCents: 7_000, remainingCents: 193_000 });
+    expect(
+      current.modules.find((m: { categoryId: string }) => m.categoryId === TRANSPORT),
+    ).toMatchObject({ budgetCents: 0, spentCents: 12_000, remainingCents: -12_000 });
+    // July closed with 90,000 food + (-50,000 transport) = 40,000 in the pool;
+    // August's 12,000 unbudgeted transport overspend borrows from it.
+    expect(current.carryoverPoolCents).toBe(28_000);
+
+    const trend = (await get('/api/v1/stats/pool-trend')).json();
+    expect(trend.points).toEqual([
+      { periodStart: periodsBody.periods[0], poolCents: 0 },
+      { periodStart: periodsBody.periods[1], poolCents: 28_000 },
+    ]);
+    expect(trend.currentCents).toBe(28_000);
   });
 
   it('AC2 an overspent historical module is reported negative, not clamped', async () => {

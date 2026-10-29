@@ -18,7 +18,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import { normaliseTags, parseTagsJson, serialiseTags } from './tags.js';
-import { NotFoundError, ValidationError } from './transaction-service.js';
+import { ConflictError, NotFoundError, ValidationError } from './transaction-service.js';
+import { TagCatalogService } from './tag-catalog-service.js';
 
 // ── categories ──────────────────────────────────────────────────────────────
 
@@ -107,10 +108,12 @@ export interface MasterDataServiceOptions {
 export class MasterDataService {
   private readonly db: Db;
   private readonly now: () => number;
+  private readonly tagCatalog: TagCatalogService;
 
   constructor(db: Db, options: MasterDataServiceOptions = {}) {
     this.db = db;
     this.now = options.now ?? (() => Date.now());
+    this.tagCatalog = new TagCatalogService(db, this.now);
   }
 
   // ── categories ────────────────────────────────────────────────────────────
@@ -495,6 +498,11 @@ export class MasterDataService {
   // ── tags (derived: the name is the identity) ──────────────────────────────
 
   /** Distinct tag names with live usage counts, most used first. */
+  listTagHierarchy() { return this.tagCatalog.list(); }
+  createTag(rawName: unknown, parentId?: unknown) { return this.tagCatalog.create(rawName, parentId); }
+  updateTag(id: string, input: { name?: unknown; parentId?: unknown }) { return this.tagCatalog.update(id, input); }
+  deleteTagById(id: string): void { this.tagCatalog.softDelete(id); }
+
   listTags(): { name: string; count: number }[] {
     const rows = this.db
       .prepare("SELECT tags_json FROM transactions WHERE deleted = 0 AND tags_json <> '[]'")
@@ -524,18 +532,45 @@ export class MasterDataService {
     if (target === '') throw new ValidationError('The new tag name is required.');
     if (source === target) return { updated: 0 };
 
-    return this.rewriteTags((tags) => {
-      const renamed = tags.map((tag) => (tag === source ? target : tag));
-      // Renaming onto an existing tag merges them; `normaliseTags` de-duplicates.
-      return renamed;
+    const existing = this.tagCatalog.list().find((tag) => tag.name === source);
+    const nextName = normaliseTags([target])[0];
+    const targetExists = this.tagCatalog.list().some((tag) => tag.name === nextName && tag.id !== existing?.id);
+    if (existing && existing.depth === 0 && targetExists && this.tagCatalog.childrenOf(existing.id).length > 0) {
+      // Merging a parent into an already-existing name would soft-delete the parent
+      // metadata and orphan its active children, which must keep a live root parent.
+      throw new ConflictError('Delete or reassign active child tags before merging this tag.');
+    }
+    const rewrite = this.buildTagRewrite((tags) => tags.map((tag) => (tag === source ? target : tag)));
+    const run = this.db.transaction(() => {
+      const result = rewrite();
+      if (existing && nextName) {
+        if (targetExists) this.db.prepare('UPDATE tags SET deleted=1,updated_at=? WHERE id=?').run(this.now(), existing.id);
+        else this.db.prepare('UPDATE tags SET name=?,updated_at=? WHERE id=?').run(nextName, this.now(), existing.id);
+      }
+      return result;
     });
+    return run();
   }
 
   /** Removes a tag from every transaction that carries it. */
   deleteTag(name: string): { updated: number } {
     const target = name.trim();
     if (target === '') throw new ValidationError('A tag name is required.');
-    return this.rewriteTags((tags) => tags.filter((tag) => tag !== target));
+    const meta = this.tagCatalog.list().find((tag) => tag.name === target);
+    if (meta && meta.depth === 0 && this.tagCatalog.childrenOf(meta.id).length) {
+      throw new ConflictError('Delete or reassign active child tags first.');
+    }
+    const rewrite = this.buildTagRewrite((tags) => tags.filter((tag) => tag !== target));
+    const run = this.db.transaction(() => {
+      const result = rewrite();
+      if (meta) this.db.prepare('UPDATE tags SET deleted=1,updated_at=? WHERE id=?').run(this.now(), meta.id);
+      return result;
+    });
+    return run();
+  }
+
+  private buildTagRewrite(transform: (tags: string[]) => string[]): () => { updated: number } {
+    return () => this.rewriteTags(transform);
   }
 
   /**

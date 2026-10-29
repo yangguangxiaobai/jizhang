@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end transaction flow against the running container.
 //
 // Usage: docker compose cp packages/server/scripts/e2e-transactions.mjs jizhang:/app/packages/server/
@@ -13,11 +14,6 @@ const { check, finish } = makeChecker();
 
 // Every suite starts from the same known state; see scripts/lib/e2e-reset.mjs.
 const { cookie, authHeaders: auth, db } = await resetToKnownState();
-
-/** Marks a deliberately-rejected write as expected, without counting it as a failure. */
-function expectRejected(response, status, label) {
-  check(label, response.status === status, `-> ${response.status}`);
-}
 
 // ── master data ──────────────────────────────────────────────────────────────
 const categories = await (await fetch(`${BASE}/categories`, { headers: auth })).json();
@@ -226,8 +222,7 @@ const noCsrf = await fetch(`${BASE}/transactions`, {
 });
 check('transaction create requires the CSRF header -> 403', noCsrf.status === 403, `-> ${noCsrf.status}`);
 
-// ── SPA shell still served ───────────────────────────────────────────────────
-const spa = await fetch('http://127.0.0.1:8081/transactions');
-check('GET /transactions serves the SPA shell', spa.status === 200, `-> ${spa.status}`);
+// Former Web routes stay retired.
+await checkRetiredWeb(check, ['/transactions']);
 
 finish('TRANSACTION E2E');

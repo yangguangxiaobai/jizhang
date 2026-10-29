@@ -54,13 +54,18 @@ function parseListQuery(query: Record<string, unknown>): ListTransactionsQuery {
     throw new ValidationError('offset must not be negative.');
   }
 
+  const tag = optionalString(query['tag']);
+  const tagId = optionalString(query['tagId']);
+  if (tag !== undefined && tagId !== undefined) throw new ValidationError('tag and tagId cannot be used together.');
+
   return {
     from: optionalNumber(query['from']),
     to: optionalNumber(query['to']),
     type,
     categoryId: optionalString(query['categoryId']),
     accountId: optionalString(query['accountId']),
-    tag: optionalString(query['tag']),
+    tag,
+    tagId,
     q: optionalString(query['q']),
     includeDeleted: query['includeDeleted'] === 'true' || query['includeDeleted'] === true,
     limit,
@@ -95,6 +100,16 @@ export async function registerTransactionRoutes(
     async (request: FastifyRequest, reply: FastifyReply) => {
       const query = parseListQuery((request.query ?? {}) as Record<string, unknown>);
       return reply.send(service.list(query));
+    },
+  );
+
+  app.get(
+    '/api/v1/transactions/daily-summary',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const raw = (request.query ?? {}) as Record<string, unknown>;
+      // Summary scope is independent of paging, even when paging values are invalid.
+      const query = parseListQuery({ ...raw, limit: undefined, offset: undefined });
+      return reply.send(service.dailySummary({ ...query, timeZone: optionalString(raw['timeZone']) }));
     },
   );
 

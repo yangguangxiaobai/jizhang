@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end auth flow against the running container. No curl needed: the base
 // image has no curl on purpose (the HEALTHCHECK uses the Node 22 fetch global).
 //
@@ -126,11 +127,8 @@ check('POST /auth/logout -> 200', logout.status === 200, `-> ${logout.status}`);
 const afterLogout = await fetch(`${BASE}/auth/me`, { headers: { Cookie: cookieValue } });
 check('GET /auth/me after logout -> 401', afterLogout.status === 401, `-> ${afterLogout.status}`);
 
-// ── 10. static shell and SPA fallback stay public ────────────────────────────
-const shell = await fetch('http://127.0.0.1:8081/');
-check('GET / (SPA shell) stays public', shell.status === 200, `-> ${shell.status}`);
-const spa = await fetch('http://127.0.0.1:8081/transactions/42');
-check('GET /transactions/42 (SPA fallback) stays public', spa.status === 200, `-> ${spa.status}`);
+// Former Web routes stay retired.
+await checkRetiredWeb(check, ['/', '/transactions/42']);
 
 // ── 11. unknown API route behaviour ──────────────────────────────────────────
 // While signed out the guard runs BEFORE routing, so an unknown /api path answers

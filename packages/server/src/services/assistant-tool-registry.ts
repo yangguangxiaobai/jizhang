@@ -267,13 +267,32 @@ function preparedTransaction(record: Record<string, unknown>, service: Transacti
     isRefund,
     refundLinkedTxIds: linked,
   });
-  const args = json(input, '交易参数');
+  // Purpose overrides are outside the assistant's Phase 1 write permissions.
+  // The service's prepared DTO now includes a nullable purpose for native callers;
+  // do not round-trip that internal field into this tool's allowlisted arguments.
+  const args = json({
+    type: input.type,
+    amountCents: input.amountCents,
+    categoryId: input.categoryId,
+    accountId: input.accountId,
+    date: input.date,
+    note: input.note,
+    tags: input.tags,
+    isRefund: input.isRefund,
+    refundLinkedTxIds: input.refundLinkedTxIds,
+  }, '交易参数');
   return { args, input };
+}
+
+/** One existing-category projection for analysis, review and stale-preview hashing. */
+function importCategories(context: AssistantToolContext) {
+  const categories = context.services.masterData.listCategories();
+  return categories.filter((category) => category.type !== 0 || !categories.some((child) => child.parentId === category.id)).map(({ id, name, type }) => ({ id, name, type }));
 }
 
 function importArgs(value: unknown): AssistantJsonObject {
   const record = argsRecord(value);
-  onlyKnown(record, ['source', 'fileName', 'selectedIds', 'categoryOverrides']);
+  onlyKnown(record, ['source', 'fileName', 'selectedIds', 'categoryOverrides', 'noteOverrides']);
   const source = record['source'] ?? 'auto';
   if (source !== 'auto' && source !== 'wechat' && source !== 'alipay') {
     throw new AssistantValidationError('source 必须是 auto、wechat 或 alipay。');
@@ -282,31 +301,32 @@ function importArgs(value: unknown): AssistantJsonObject {
   // `null` means "all importable rows" in the platform-import contract. It is
   // persisted in the pending action and may be parsed again during confirmation.
   const selectedIds = record['selectedIds'] === null ? null : stringArrayArg(record, 'selectedIds');
-  const overridesRaw = record['categoryOverrides'];
-  let categoryOverrides: Record<string, string> = {};
-  if (overridesRaw !== undefined) {
-    if (!isRecord(overridesRaw)) throw new AssistantValidationError('categoryOverrides 必须是对象。');
-    categoryOverrides = Object.fromEntries(
-      Object.entries(overridesRaw)
-        .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim() !== '')
-        .slice(0, MAX_RESULT_ITEMS)
-        .map(([key, item]) => [key.slice(0, 100), item.trim().slice(0, 80)]),
-    );
+  const maps: Record<string, Record<string, string>> = {};
+  for (const field of ['categoryOverrides', 'noteOverrides']) {
+    const raw = record[field] ?? {};
+    if (!isRecord(raw) || Object.keys(raw).length > 100 || Object.entries(raw).some(([id, v]) => id.length > 100 || typeof v !== 'string' || v.length > (field === 'noteOverrides' ? 200 : 100))) throw new AssistantValidationError('导入覆盖值无效或超出限制。');
+    maps[field] = raw as Record<string, string>;
   }
-  return json({ source, ...(fileName === undefined ? {} : { fileName }), selectedIds: selectedIds ?? null, categoryOverrides }, '导入参数');
+  if (Array.isArray(record['selectedIds']) && record['selectedIds'].length > 100) throw new AssistantValidationError('最多选择100行。');
+  return json({ source, ...(fileName === undefined ? {} : { fileName }), selectedIds: selectedIds ?? null, ...maps }, '导入参数');
 }
 
 function boundedRows(result: { readonly rows: readonly Record<string, unknown>[] }): Record<string, unknown>[] {
   return result.rows.slice(0, MAX_IMPORT_PREVIEW_ROWS).map((row) => ({
     id: row['id'],
     dateLabel: row['dateLabel'],
+    comparisonAccountId: row['comparisonAccountId'],
+    externalId: row['externalId'],
     type: row['type'],
     amountCents: row['amountCents'],
-    note: typeof row['note'] === 'string' ? row['note'].slice(0, 160) : '',
+    note: typeof row['note'] === 'string' ? row['note'] : '',
     counterparty: typeof row['counterparty'] === 'string' ? row['counterparty'].slice(0, 120) : '',
     sourceCategory: typeof row['sourceCategory'] === 'string' ? row['sourceCategory'].slice(0, 80) : '',
     categoryName: typeof row['categoryName'] === 'string' ? row['categoryName'].slice(0, 80) : '',
     accountName: typeof row['accountName'] === 'string' ? row['accountName'].slice(0, 80) : '',
+    isRefund: row['isRefund'] === true,
+    rawStatus: row['rawStatus'],
+    refundWarning: row['refundWarning'],
     ignored: row['ignored'] === true,
     ignoreReason: typeof row['ignoreReason'] === 'string' ? row['ignoreReason'].slice(0, 160) : null,
     alreadyExists: row['alreadyExists'] === true,
@@ -340,7 +360,7 @@ function createDefinitions(): AssistantToolDefinition[] {
     { name: 'account.delete', access: 'write', description: '准备软删除账户。', inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } },
     { name: 'budget.template.apply', access: 'write', description: '准备将预算模板应用到当前预算周期。', inputSchema: { type: 'object', required: ['templateId'], properties: { templateId: { type: 'string' } } } },
     { name: 'backup.create', access: 'write', description: '准备创建数据库备份。', inputSchema: { type: 'object', properties: {} } },
-    { name: 'platform-import.prepare', access: 'write', description: '准备微信或支付宝账单文件的干跑预览。', inputSchema: { type: 'object', properties: { source: { enum: ['auto', 'wechat', 'alipay'] }, fileName: { type: 'string' }, selectedIds: { type: ['array', 'null'] }, categoryOverrides: { type: 'object' } } } },
+    { name: 'platform-import.prepare', access: 'write', description: '准备微信或支付宝账单文件的干跑预览。', inputSchema: { type: 'object', properties: { source: { enum: ['auto', 'wechat', 'alipay'] }, fileName: { type: 'string' }, selectedIds: { type: ['array', 'null'] }, categoryOverrides: { type: 'object' }, noteOverrides: { type: 'object' } } } },
     { name: 'organization.apply', access: 'write', description: '准备应用已预览的整理动作。', inputSchema: { type: 'object', properties: { actionIds: { type: 'array' } } } },
     { name: 'organization.undo', access: 'write', description: '准备条件撤销一次已应用的整理操作。', inputSchema: { type: 'object', required: ['operationId'], properties: { operationId: { type: 'string' } } } },
     { name: 'recurring.confirm', access: 'write', description: '准备确认一条周期账单。', inputSchema: { type: 'object', required: ['occurrenceId'], properties: { occurrenceId: { type: 'string' } } } },
@@ -569,7 +589,7 @@ export class AssistantToolRegistry {
         const id = stringArg(argsRecord(args), 'id');
         const changes = argsRecord(args['changes']);
         const before = context.services.transactions.getByIdOrThrow(id);
-        const after = context.services.transactions.prepareCreate({ ...before, ...changes });
+        const after = context.services.transactions.prepareUpdate(id, changes);
         return prepared('transaction.update', '修改账单', `准备修改账单 ${id}。`, { count: 1, ids: [id] }, after, { before, after }, args, hashJson({ before, deleted: 0 }));
       },
       confirm: (context, action) => {
@@ -789,17 +809,19 @@ export class AssistantToolRegistry {
               ),
             )
           : {};
-        const preview = context.services.portability.importPlatformBills(Buffer.from(context.attachmentBytes), { source, dryRun: true, fileName, selectedIds, categoryOverrides });
-        const previewData = { ...preview, rows: boundedRows(preview as unknown as { rows: readonly Record<string, unknown>[] }) };
+        const noteOverrides = (args['noteOverrides'] ?? {}) as Record<string, string>;
+        const categories = importCategories(context);
+        const preview = context.services.portability.importPlatformBills(Buffer.from(context.attachmentBytes), { source, dryRun: true, fileName, selectedIds, strictCategories: true, categoryIds: categoryOverrides, noteOverrides });
+        const previewData = { ...preview, categories, rows: boundedRows(preview as unknown as { rows: readonly Record<string, unknown>[] }) };
         return prepared(
           'platform-import.prepare',
           `${preview.source === 'wechat' ? '微信' : '支付宝'}账单导入`,
-          `文件预览完成：共 ${preview.total} 行，当前将导入 ${preview.selected} 行。`,
-          { count: preview.selected, ids: preview.rows.filter((row) => !row.ignored && !row.alreadyExists).slice(0, MAX_RESULT_ITEMS).map((row) => row.id) },
+          `文件预览完成：共 ${preview.total} 行，展示最多200行；请审核分类、备注并显式选择后确认。`,
+          { count: preview.selected, ids: preview.rows.filter((row) => !row.alreadyExists && row.amountCents > 0).slice(0, MAX_RESULT_ITEMS).map((row) => row.id) },
           { source: preview.source, total: preview.total, selected: preview.selected, expenseCents: preview.expenseCents, incomeCents: preview.incomeCents, fileName },
           { ...previewData, attachment: context.attachment },
-          json({ source, fileName, selectedIds, categoryOverrides }, '导入参数'),
-          hashJson({ digest: context.attachment.sha256, source, fileName, selectedIds, categoryOverrides, rows: preview.rows }),
+          json({ source, fileName, selectedIds, categoryOverrides, noteOverrides }, '导入参数'),
+          hashJson({ digest: context.attachment.sha256, source, fileName, selectedIds, categoryOverrides, noteOverrides, categories, rows: preview.rows }),
           context.attachment,
           preview.warnings,
         );
@@ -817,11 +839,14 @@ export class AssistantToolRegistry {
               ),
             )
           : {};
-        const current = context.services.portability.importPlatformBills(Buffer.from(attachmentBytes), { source, dryRun: true, fileName, selectedIds, categoryOverrides });
-        const currentFingerprint = hashJson({ digest: context.attachment.sha256, source, fileName, selectedIds, categoryOverrides, rows: current.rows });
+        const noteOverrides = (record['noteOverrides'] ?? {}) as Record<string, string>;
+        if (!selectedIds || selectedIds.length === 0 || selectedIds.length > 100) throw new AssistantValidationError('必须显式选择1–100行。');
+        const categories = importCategories(context);
+        const current = context.services.portability.importPlatformBills(Buffer.from(attachmentBytes), { source, dryRun: true, fileName, selectedIds, strictCategories: true, categoryIds: categoryOverrides, noteOverrides });
+        const currentFingerprint = hashJson({ digest: context.attachment.sha256, source, fileName, selectedIds, categoryOverrides, noteOverrides, categories, rows: current.rows });
         const expected = typeof action['__fingerprint'] === 'string' ? action['__fingerprint'] : undefined;
         if (expected !== undefined && expected !== currentFingerprint) throw new AssistantActionStaleError('账单预览已变化，请重新上传并预览。');
-        const result = context.services.portability.importPlatformBills(Buffer.from(attachmentBytes), { source, dryRun: false, fileName, selectedIds, categoryOverrides });
+        const result = context.services.portability.importPlatformBills(Buffer.from(attachmentBytes), { source, dryRun: false, fileName, selectedIds, strictCategories: true, categoryIds: categoryOverrides, noteOverrides });
         return toolResult('platform-import.prepare', '账单已导入。', { inserted: result.inserted, skipped: result.skipped, ignored: result.ignored, selected: result.selected, expenseCents: result.expenseCents, incomeCents: result.incomeCents, source: result.source });
       },
     });

@@ -9,7 +9,7 @@
  * - S1-S2  同一自然月多次记工资
  * - X1     跨月分组（整数键回归）
  * - P1-P4  computeCarryoverPool
- * - R1-R3  退款抵扣（§21 净支出 = 支出 − 退款）
+ * - R1-R3  退款处理（退款计入收入，模块支出保持毛额）
  * - C1-C10 配置周期起始日模式
  *
  * ⚠️ 测试里金额一律直接用**分**，避免参考测试的 `amount * 100` 转写歧义。
@@ -733,7 +733,7 @@ describe('computePoolTrend 与 computeCarryoverPool 口径一致', () => {
     expect(trend).toHaveLength(1);
     expect(trend[0]!.poolCents).toBe(0);
 
-    // 一致性契约：最后一点 === 引擎池（引擎池含该分配前的退款抵扣）
+    // 一致性契约：最后一点 === 引擎池（退款作为收入不计入支出）
     const pool = computeCarryoverPool({
       allocationsDesc: [alloc],
       transactions: [beforeRefund],

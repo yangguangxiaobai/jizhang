@@ -25,8 +25,6 @@ export interface AppConfig {
   /** Directory that holds the SQLite file (and later `backups/`). */
   readonly dataDir: string;
   readonly dbFile: string;
-  /** Directory with the built web assets served at `/`. */
-  readonly webDistDir: string;
   /** Reported by GET /api/v1/health. */
   readonly version: string;
   readonly username: string;
@@ -169,11 +167,6 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     }
   }
 
-  // Default mirrors the monorepo layout: <repo>/packages/web/dist, resolved from
-  // this file in either `src/` (tsx dev) or `dist/` (build).
-  const webDistDir = path.resolve(
-    read('WEB_DIST_DIR') ?? path.join(import.meta.dirname, '..', '..', 'web', 'dist'),
-  );
   const dataDir = path.resolve(readWithDefault('DATA_DIR'));
 
   if (problems.length > 0) {
@@ -188,7 +181,6 @@ export function loadConfig(env: EnvSource = process.env): AppConfig {
     logLevel: logLevelRaw,
     dataDir,
     dbFile: path.join(dataDir, 'jizhang.db'),
-    webDistDir,
     version: read('APP_VERSION') ?? packageVersion(),
     username: read('JIZHANG_USERNAME') ?? '',
     passwordHash: read('JIZHANG_PASSWORD_HASH') ?? '',

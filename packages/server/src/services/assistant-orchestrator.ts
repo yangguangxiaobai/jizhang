@@ -1,4 +1,5 @@
 /** Bounded provider/tool loop for persisted assistant conversations. */
+import { BILL_ANALYSIS_SCHEMA, normalizeBillRecommendations, type BillRecommendation, type BillAnalysisRow, type BillAnalysisCategory } from './bill-import-analysis.js';
 import type { AppConfig } from '../config.js';
 import type { Db } from '../db/index.js';
 import { AccountBalanceService } from './account-balance-service.js';
@@ -65,6 +66,50 @@ function jsonObject(value: unknown): AssistantJsonObject {
   return result as AssistantJsonObject;
 }
 
+export interface AssistantContextBundle {
+  readonly config: AiConfigService;
+  readonly provider: AiProviderService;
+  readonly context: AssistantToolContext;
+}
+
+/**
+ * Builds the shared tool context. Extracted so the streaming generation runner and the
+ * legacy orchestrator use exactly the same services, provider and clock.
+ */
+export function buildAssistantContext(
+  options: Omit<AssistantOrchestratorOptions, 'conversations'> & { readonly provider?: AiProviderService },
+): AssistantContextBundle {
+  const now = options.now ?? (() => Date.now());
+  const config = new AiConfigService(options.db, {
+    aiEncryptionKey: options.config.aiEncryptionKey,
+    production: options.config.nodeEnv === 'production',
+    now,
+  });
+  const provider = options.provider ?? new AiProviderService(options.fetchImpl);
+  const masterData = new MasterDataService(options.db, { now });
+  const context: AssistantToolContext = {
+    db: options.db,
+    now,
+    config,
+    provider,
+    services: {
+      transactions: new TransactionService(options.db, { now }),
+      balances: new AccountBalanceService(options.db),
+      budget: new BudgetOverviewService(options.db, { now }),
+      stats: new StatsService(options.db, { now }),
+      recurring: new RecurringService(options.db, { now }),
+      monthly: new MonthlyEvaluationService(options.db, config, provider, now),
+      organization: new AiOrganizationService(options.db, config, provider, { now }),
+      portability: new PortabilityService(options.db, { dataDir: options.config.dataDir }),
+      masterData,
+      salaries: new SalaryService(options.db, { now }),
+      transfers: new TransferService(options.db, { now }),
+      templates: new TemplateService(options.db, { now }),
+    },
+  };
+  return { config, provider, context };
+}
+
 export class AssistantOrchestrator {
   private readonly db: Db;
   private readonly conversations: AssistantConversationService;
@@ -78,33 +123,10 @@ export class AssistantOrchestrator {
     this.db = options.db;
     this.conversations = options.conversations;
     this.now = options.now ?? (() => Date.now());
-    this.config = new AiConfigService(options.db, {
-      aiEncryptionKey: options.config.aiEncryptionKey,
-      production: options.config.nodeEnv === 'production',
-      now: this.now,
-    });
-    this.provider = new AiProviderService(options.fetchImpl);
-    const masterData = new MasterDataService(options.db, { now: this.now });
-    this.context = {
-      db: options.db,
-      now: this.now,
-      config: this.config,
-      provider: this.provider,
-      services: {
-        transactions: new TransactionService(options.db, { now: this.now }),
-        balances: new AccountBalanceService(options.db),
-        budget: new BudgetOverviewService(options.db, { now: this.now }),
-        stats: new StatsService(options.db, { now: this.now }),
-        recurring: new RecurringService(options.db, { now: this.now }),
-        monthly: new MonthlyEvaluationService(options.db, this.config, this.provider, this.now),
-        organization: new AiOrganizationService(options.db, this.config, this.provider, { now: this.now }),
-        portability: new PortabilityService(options.db, { dataDir: options.config.dataDir }),
-        masterData,
-        salaries: new SalaryService(options.db, { now: this.now }),
-        transfers: new TransferService(options.db, { now: this.now }),
-        templates: new TemplateService(options.db, { now: this.now }),
-      },
-    };
+    const built = buildAssistantContext(options);
+    this.config = built.config;
+    this.provider = built.provider;
+    this.context = built.context;
   }
 
   catalog(): ReturnType<AssistantToolRegistry['catalog']> {
@@ -117,12 +139,34 @@ export class AssistantOrchestrator {
         source: attachment.metadata.source,
         fileName: attachment.metadata.fileName,
       });
+      let analysis: Record<string, unknown>;
+      try {
+        const stored = this.config.getStoredOrThrow();
+        const secret = this.config.getSecretOrThrow(stored);
+        const rows = (prepared.preview['rows'] as unknown as readonly (BillAnalysisRow & Record<string, unknown>)[]).map((row) => ({ id: row.id, type: row.type, amountCents: row['amountCents'], dateLabel: row['dateLabel'], note: row['note'], sourceCategory: row['sourceCategory'], counterparty: row['counterparty'], rawStatus: row['rawStatus'], isRefund: row['isRefund'], ignored: row['ignored'], ignoreReason: row['ignoreReason'], alreadyExists: row['alreadyExists'], possibleDuplicate: row['possibleDuplicate'] }));
+        const categories = prepared.preview['categories'] as unknown as readonly (BillAnalysisCategory & { name: string })[];
+        const recommendations: BillRecommendation[] = [];
+        for (let start = 0; start < rows.length; start += 25) {
+          const batch = rows.slice(start, start + 25);
+          const facts = { rows: batch, categories };
+          const raw = await this.provider.complete(stored, secret, {
+            input: JSON.stringify(facts), facts, categories, accounts: [], model: stored.model,
+            today: dateLabel(this.now()), responseSchema: BILL_ANALYSIS_SCHEMA, feature: 'bill-import',
+          });
+          recommendations.push(...normalizeBillRecommendations(raw, batch, categories));
+        }
+        analysis = { status: 'complete', analysed: rows.length, recommendations };
+      } catch {
+        // No raw provider response, endpoint, prompt or credential is stored in messages.
+        analysis = { status: 'failed', analysed: 0, recommendations: [], message: 'AI分析失败或未配置。文件预览仍可核对；请显式重试分析，不代表AI已完成。' };
+      }
+      const analysedPreview = jsonObject({ ...prepared.preview, analysis });
       const pending = this.conversations.createPendingAction({
         conversationId,
         sourceMessageId: userMessageId,
         toolName: prepared.toolName,
         arguments: prepared.arguments,
-        preview: jsonObject(prepared.preview),
+        preview: analysedPreview,
         fingerprint: prepared.fingerprint,
         attachment: attachment.metadata,
       });
@@ -138,7 +182,7 @@ export class AssistantOrchestrator {
         warnings: prepared.warnings,
         fingerprint: prepared.fingerprint,
         status: 'pending' as const,
-        preview: prepared.preview,
+        preview: analysedPreview,
         attachment: attachment.metadata,
       };
       this.conversations.appendMessage({ conversationId, role: 'assistant', kind: 'tool-card', content: { version: 1, text: prepared.summary, card } });
@@ -228,7 +272,7 @@ export class AssistantOrchestrator {
     return { messages: this.conversations.messages(conversationId) };
   }
 
-  async prepareConfirmation(conversationId: string, actionId: string, attachmentBytes?: Uint8Array, edits?: { selectedIds?: readonly string[] | null; categoryOverrides?: Readonly<Record<string, string>> }): Promise<PreparedConfirmation> {
+  async prepareConfirmation(conversationId: string, actionId: string, attachmentBytes?: Uint8Array, edits?: { selectedIds?: readonly string[] | null; categoryOverrides?: Readonly<Record<string, string>>; noteOverrides?: Readonly<Record<string, string>> }): Promise<PreparedConfirmation> {
     const pending = this.conversations.pending(actionId);
     if (pending.conversationId !== conversationId) throw new AssistantActionStaleError();
     if (pending.status !== 'pending') throw new AssistantActionStaleError();
@@ -249,7 +293,9 @@ export class AssistantOrchestrator {
       if (edits?.selectedIds !== undefined && edits.selectedIds !== null && edits.selectedIds.some((id) => !validIds.has(id))) throw new AssistantActionStaleError('选择的导入行不属于当前文件预览。');
       const overrides = edits?.categoryOverrides ?? {};
       if (Object.keys(overrides).some((id) => !validIds.has(id))) throw new AssistantActionStaleError('分类覆盖引用了当前预览中不存在的行。');
-      const editedArguments = jsonObject({ ...pending.arguments, ...(edits?.selectedIds === undefined ? {} : { selectedIds: edits.selectedIds }), ...(edits?.categoryOverrides === undefined ? {} : { categoryOverrides: edits.categoryOverrides }) });
+      if (!edits?.selectedIds || edits.selectedIds.length === 0 || edits.selectedIds.length > 100) throw new AssistantActionStaleError('必须显式选择1–100条账单。');
+      if (Object.keys(edits?.noteOverrides ?? {}).some((id) => !validIds.has(id))) throw new AssistantActionStaleError('备注行不属于预览。');
+      const editedArguments = jsonObject({ ...pending.arguments, ...(edits?.selectedIds === undefined ? {} : { selectedIds: edits.selectedIds }), ...(edits?.categoryOverrides === undefined ? {} : { categoryOverrides: edits.categoryOverrides }), ...(edits?.noteOverrides === undefined ? {} : { noteOverrides: edits.noteOverrides }) });
       const editedPreview = await this.registry.prepare(toolContext, pending.toolName, editedArguments);
       argumentsForConfirm = jsonObject({ ...editedArguments, __fingerprint: editedPreview.fingerprint });
     } else {
@@ -262,7 +308,7 @@ export class AssistantOrchestrator {
     return { pending, context: toolContext, arguments: argumentsForConfirm, ...(attachmentBytes === undefined ? {} : { attachmentBytes }) };
   }
 
-  async confirmAction(conversationId: string, actionId: string, attachmentBytes?: Uint8Array, edits?: { selectedIds?: readonly string[] | null; categoryOverrides?: Readonly<Record<string, string>> }): Promise<{ action: AssistantPendingActionDto; message: AssistantMessageDto }> {
+  async confirmAction(conversationId: string, actionId: string, attachmentBytes?: Uint8Array, edits?: { selectedIds?: readonly string[] | null; categoryOverrides?: Readonly<Record<string, string>>; noteOverrides?: Readonly<Record<string, string>> }): Promise<{ action: AssistantPendingActionDto; message: AssistantMessageDto }> {
     const initial = this.conversations.pending(actionId);
     if (initial.conversationId !== conversationId) throw new AssistantActionStaleError();
     if (initial.status === 'confirmed') {

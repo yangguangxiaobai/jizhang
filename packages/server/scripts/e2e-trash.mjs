@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end recycle-bin checks against the running container (T12).
 //
 // The load-bearing checks (task AC1-AC10):
@@ -290,11 +291,7 @@ check('DELETE /trash requires a session -> 401', signedOutDelete.status === 401,
 const noCsrf = await fetch(`${BASE}/trash/restore-all`, { method: 'POST' });
 check('a mutating call without CSRF -> 403', noCsrf.status === 403, `-> ${noCsrf.status}`);
 
-// ── the SPA route is deployed ────────────────────────────────────────────────
-console.log('\n[shell]');
-const shell = await fetch('http://127.0.0.1:8081/trash');
-check('GET /trash serves the SPA shell', shell.status === 200, `-> ${shell.status}`);
-const shellHtml = await shell.text();
-check('as HTML, not JSON', shellHtml.includes('<div id="app">'));
+// Former Web routes stay retired.
+await checkRetiredWeb(check, ['/trash']);
 
 finish('TRASH E2E');

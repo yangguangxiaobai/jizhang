@@ -23,12 +23,13 @@ const NOW = new Date(2026, 8, 26, 12, 0, 0).getTime();
 const PURCHASE_DATE = new Date(2024, 4, 26).getTime();
 const PURCHASE_CENTS = 879_900;
 const PNG_BYTES = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
-const WEBP_BYTES = Buffer.alloc(30);
-WEBP_BYTES.write('RIFF', 0, 'ascii');
-WEBP_BYTES.writeUInt32LE(22, 4);
-WEBP_BYTES.write('WEBP', 8, 'ascii');
-WEBP_BYTES.write('VP8X', 12, 'ascii');
-WEBP_BYTES.writeUInt32LE(10, 16);
+// Real 24x24 lossless WebP (48 bytes): transparent background, opaque red center.
+// Transparency belongs to this fixture; the server validates the container and
+// must store and return the uploaded bytes unchanged (no image conversion).
+const TRANSPARENT_WEBP_BYTES = Buffer.from(
+  'UklGRigAAABXRUJQVlA4TBsAAAAvF8AFEAYyaRsv9a+zZ9k52l2R/k/Ao6I3URIA',
+  'base64',
+);
 
 let db: Db;
 let app: FastifyInstance;
@@ -321,6 +322,42 @@ describe('item routes and lifecycle', () => {
     });
   });
 
+  it('keeps an explicit purchase price and link through retirement without ledger writes', async () => {
+    const purchaseId = await createTransaction(0, { amountCents: 450_000, note: '物品测试购入' });
+    const countRows = (table: 'transactions' | 'asset_items'): number =>
+      (db.prepare('SELECT COUNT(*) AS count FROM ' + table).get() as { count: number }).count;
+    const beforeTransactions = countRows('transactions');
+    const item = await createItem({
+      name: '家庭测试键盘',
+      category: '数码 / 外设',
+      purchasePriceCents: 450_000,
+      purchaseTransactionId: purchaseId,
+    });
+
+    const retirement = await app.inject({
+      method: 'POST',
+      url: '/api/v1/items/' + item.id + '/retire',
+      headers: headers(),
+      payload: { closedDate: NOW },
+    });
+    expect(retirement.statusCode, retirement.body).toBe(200);
+    const retired = retirement.json() as ItemDto;
+    expect(retired).toMatchObject({
+      status: 'retired',
+      purchasePriceCents: 450_000,
+      purchaseTransactionId: purchaseId,
+      salePriceCents: null,
+      saleTransactionId: null,
+    });
+    expect(retired.netCostCents).toBe(450_000);
+
+    expect(countRows('transactions')).toBe(beforeTransactions);
+    expect(countRows('asset_items')).toBe(1);
+    expect(db.prepare('SELECT deleted FROM transactions WHERE id = ?').get(purchaseId)).toEqual({
+      deleted: 0,
+    });
+  });
+
   it('keeps item references when a linked transaction is later deleted', async () => {
     const expenseId = await createTransaction(0);
     const item = await createItem({ purchaseTransactionId: expenseId });
@@ -349,6 +386,20 @@ describe('item routes and lifecycle', () => {
 });
 
 describe('item photo persistence', () => {
+  it('returns a JSON 404 when the item has no stored photo', async () => {
+    const item = await createItem({ name: '没有照片的物品' });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/items/' + item.id + '/photo',
+      headers: headers(),
+    });
+    expect(response.statusCode).toBe(404);
+    expect(response.headers['content-type']).toContain('application/json');
+    expect(response.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: '物品图片不存在。' },
+    });
+  });
+
   it('requires authentication and validates MIME, signature, and size', async () => {
     const item = await createItem();
     const anonymous = await app.inject({
@@ -433,7 +484,7 @@ describe('item photo persistence', () => {
       method: 'PUT',
       url: '/api/v1/items/' + webpItem.id + '/photo',
       headers: { ...headers(), 'content-type': 'image/webp' },
-      payload: WEBP_BYTES,
+      payload: TRANSPARENT_WEBP_BYTES,
     });
     expect(webpUpload.statusCode).toBe(204);
     const webp = await app.inject({
@@ -443,7 +494,7 @@ describe('item photo persistence', () => {
     });
     expect(webp.statusCode).toBe(200);
     expect(webp.headers['content-type']).toBe('image/webp');
-    expect(Buffer.from(webp.rawPayload)).toEqual(WEBP_BYTES);
+    expect(Buffer.from(webp.rawPayload)).toEqual(TRANSPARENT_WEBP_BYTES);
   });
 });
 

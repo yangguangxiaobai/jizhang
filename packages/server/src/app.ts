@@ -5,10 +5,7 @@
  * lets tests drive the app through `app.inject()` (no real port) and lets
  * index.ts own the process lifecycle (port binding, signals, shutdown).
  */
-import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify';
-import { existsSync } from 'node:fs';
-import path from 'node:path';
 import type { AppConfig } from './config.js';
 import { authModule } from './plugins/auth.js';
 import { registerBudgetRoutes } from './routes/budget.js';
@@ -23,16 +20,15 @@ import { registerAiRoutes } from './routes/ai.js';
 import { registerAssistantRoutes } from './routes/assistant.js';
 import { registerItemRoutes } from './routes/items.js';
 import { registerItemCutoutRoutes } from './routes/item-cutouts.js';
+import { registerFinancialPlanningRoutes } from './routes/financial-planning.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
 
 export interface BuildAppOptions {
   readonly config: AppConfig;
-  /** Override the static-assets directory (tests point it at a fixture dir). */
-  readonly webDistDir?: string;
   /**
    * Database handle. Required to enable authentication; when omitted the app runs
-   * without routes that need storage (used by the static/health tests).
+   * without routes that need storage (used by the API-only/health tests).
    */
   readonly db?: Db;
   /** Override the session-clock/argon2 wrapper (tests inject a fixed clock). */
@@ -49,17 +45,16 @@ export interface BuildAppOptions {
   readonly now?: (() => number) | undefined;
   /** Injectable provider/inference transport for API route tests. */
   readonly fetchImpl?: typeof fetch;
+  /** Streaming generation timing overrides (tests set 0 for deterministic runs). */
+  readonly generationDelayMs?: number | undefined;
+  readonly generationStepDelayMs?: number | undefined;
 }
 
 /** Everything below this prefix is API and must never answer with index.html. */
 const API_PREFIX = '/api';
 
-const SPA_METHODS = new Set(['GET', 'HEAD']);
-
 export function buildApp(options: BuildAppOptions): FastifyInstance {
   const { config } = options;
-  const webDistDir = options.webDistDir ?? config.webDistDir;
-  const hasWebBuild = existsSync(path.join(webDistDir, 'index.html'));
 
   const app = Fastify({
     logger: { level: config.logLevel },
@@ -69,13 +64,9 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     bodyLimit: 8 * 1024 * 1024,
   });
 
-  app.addContentTypeParser(
-    'text/csv',
-    { parseAs: 'string' },
-    (_request, body, done) => {
-      done(null, body);
-    },
-  );
+  app.addContentTypeParser('text/csv', { parseAs: 'string' }, (_request, body, done) => {
+    done(null, body);
+  });
 
   // Platform bill import: Alipay GBK CSV and WeChat xlsx must arrive as raw bytes.
   // A browser File.text() would corrupt GBK; the server decodes after the body lands.
@@ -119,23 +110,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     return reply.status(statusCode).send({ error: { code, message: error.message } });
   });
 
-  // ── API responses must never be stored by the browser ───────────────────────
-  // The service worker already refuses to cache `/api/**` (`vite.config.ts` registers
-  // an explicit `NetworkOnly` route). This is the other half of that rule, applied to
-  // the browser's own HTTP cache:
-  //
-  //   * Privacy — API responses are per-session and carry the ledger, and an HTTP cache
-  //     is keyed by URL, so a stored response outlives a logout on a shared device. That
-  //     is the same reasoning `spec/frontend/quality-guidelines.md` gives for the service
-  //     worker; it applies to the HTTP cache identically.
-  //   * Consistent staleness — the app is online-first (parent task D4), so there is no
-  //     version of "serve this from cache" that is correct. A cacheable 200 can also
-  //     satisfy a request while the server is unreachable, which turns a failure the UI
-  //     would have reported into a silent success.
-  //
-  // `no-store` rather than a validator: there is nothing here worth reusing. Note that
-  // the SPA shell deliberately keeps its own caching — an installed app must still open
-  // with no connection — so this is scoped to the API prefix only.
+  // API responses are session-specific and must not outlive logout in HTTP caches.
+  // The native client is online-first; a cached success must not hide network failure.
   app.addHook('onSend', (request, reply, payload, done) => {
     if (request.url === API_PREFIX || request.url.startsWith(`${API_PREFIX}/`)) {
       reply.header('Cache-Control', 'no-store');
@@ -151,10 +127,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   }));
 
   // ── Authentication (T3) ─────────────────────────────────────────────────────
-  // Registered as ONE module: the guard hook and the routes must share a context,
-  // or the routes escape the guard. Registered before the static/not-found
-  // handlers so the guard runs for API routes while static assets and the SPA
-  // shell stay public (the login page has to be able to load).
+  // The guard and protected routes must share ONE module/context. Health remains
+  // public, and unknown API paths still pass through the same authentication guard.
   const authService =
     options.authService ??
     (options.db === undefined
@@ -162,8 +136,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       : new AuthService(options.db, { sessionTtlDays: config.sessionTtlDays }));
 
   if (authService !== undefined && options.db !== undefined) {
-    const secureCookies =
-      options.secureCookies ?? config.nodeEnv === 'production';
+    const secureCookies = options.secureCookies ?? config.nodeEnv === 'production';
     const db = options.db;
 
     // Protected route groups are passed INTO the auth module so the guard's hooks
@@ -173,10 +146,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       authService,
       secureCookies,
       extraRoutes: [
-        (instance) =>
-          registerTransactionRoutes(instance, { db, now: options.now }),
-        (instance) =>
-          registerMasterDataRoutes(instance, { db, now: options.now }),
+        (instance) => registerTransactionRoutes(instance, { db, now: options.now }),
+        (instance) => registerMasterDataRoutes(instance, { db, now: options.now }),
         (instance) => registerBudgetRoutes(instance, { db, now: options.now }),
         // Must be in this array, not a sibling `app.register`: a hook and the routes it should
         // protect have to share an encapsulation context, or the routes escape the guard
@@ -205,6 +176,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
             config,
             now: options.now,
             fetchImpl: options.fetchImpl,
+            generationDelayMs: options.generationDelayMs,
+            generationStepDelayMs: options.generationStepDelayMs,
           }),
         (instance) => registerItemRoutes(instance, { db, now: options.now }),
         (instance) =>
@@ -212,43 +185,23 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
             serviceUrl: config.itemCutoutServiceUrl,
             fetchImpl: options.fetchImpl,
           }),
+        (instance) =>
+          registerFinancialPlanningRoutes(instance, {
+            db,
+            now: options.now,
+          }),
       ],
     });
   } else {
     app.log.warn('no database supplied — authentication routes are disabled');
   }
 
-  // ── Static web build at / with SPA fallback (R4) ────────────────────────────
-  if (hasWebBuild) {
-    // wildcard:false registers one route per file that exists at boot, so a
-    // missing path falls through to the not-found handler below instead of
-    // being swallowed by the plugin's own wildcard context.
-    app.register(fastifyStatic, {
-      root: webDistDir,
-      index: ['index.html'],
-      wildcard: false,
-    });
-  } else {
-    app.log.warn(
-      { webDistDir },
-      'web build not found — static hosting disabled (run `pnpm --filter web run build`)',
-    );
-  }
-
+  // This is an API-only service. Leftover Web builds or legacy environment
+  // settings must never enable static hosting or an HTML fallback.
   app.setNotFoundHandler((request, reply) => {
     const url = request.url;
 
-    // AC9: an unmatched /api/** route answers JSON, never the SPA shell.
-    if (url === API_PREFIX || url.startsWith(`${API_PREFIX}/`)) {
-      request.log.warn({ method: request.method, url }, 'api route not found');
-      return reply
-        .status(404)
-        .send({ error: { code: 'NOT_FOUND', message: `Route ${request.method} ${url} not found` } });
-    }
-
-    if (hasWebBuild && SPA_METHODS.has(request.method)) {
-      return reply.sendFile('index.html');
-    }
+    request.log.warn({ method: request.method, url }, 'route not found');
 
     return reply
       .status(404)

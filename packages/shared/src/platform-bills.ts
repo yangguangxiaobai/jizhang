@@ -10,10 +10,43 @@
  * `交易时间,交易类型,交易对方,商品,收/支,金额(元),...`. Neutral rows use
  * `收/支 = /` (WeChat) or `不计收支` (Alipay).
  */
-import { parseCsv } from './csv.js';
+import { parseCsv, CsvLimitError, type ParseCsvLimits } from './csv.js';
 import { TYPE_EXPENSE, TYPE_INCOME } from './types.js';
 
 export type PlatformBillSource = 'wechat' | 'alipay';
+
+/**
+ * Optional, feature-scoped parser budgets. Omit every field to get the historical
+ * unbounded behaviour: the legacy single-file import path passes no options and must
+ * keep behaving exactly as before.
+ *
+ * `maxRows` counts raw data rows (every physical row after the located header row).
+ * `deadlineMs` is a *cooperative* checkpoint (a `Date.now()` comparison every N rows),
+ * not a preemptive interrupt — this module is synchronous by design.
+ */
+export interface ParsePlatformBillsLimits {
+  readonly maxRows?: number;
+  readonly maxColumns?: number;
+  readonly maxCellChars?: number;
+  readonly deadlineMs?: number;
+  /** Aggregate raw-row cap for the merged-batch path. */
+  readonly maxTotalRows?: number;
+  /** Injectable clock (tests pin it); defaults to `Date.now`. */
+  readonly now?: () => number;
+}
+
+/** Machine-readable budget failure, so the caller can map it to a limit error. */
+export type PlatformBillsLimitKind = 'rows' | 'columns' | 'cell' | 'deadline';
+
+export class PlatformBillsLimitError extends Error {
+  readonly kind: PlatformBillsLimitKind;
+
+  constructor(kind: PlatformBillsLimitKind, message: string) {
+    super(message);
+    this.name = 'PlatformBillsLimitError';
+    this.kind = kind;
+  }
+}
 
 export interface PlatformBillRow {
   readonly dateLabel: string;
@@ -22,9 +55,16 @@ export interface PlatformBillRow {
   readonly note: string;
   readonly sourceCategory: string;
   readonly counterparty: string;
+  /**
+   * Platform order id, or `null` when the cell is empty or carries the `/` placeholder.
+   * A placeholder is never an identity: `/` used to be returned verbatim, which made every
+   * no-order row share the literal id `wx-/`.
+   */
   readonly externalId: string | null;
   readonly rawDirection: string;
   readonly rawStatus: string;
+  readonly isRefund: boolean;
+  readonly refundWarning: string | null;
   readonly ignored: boolean;
   readonly ignoreReason: string | null;
   /** Suggested application category name (seeded name). */
@@ -32,6 +72,20 @@ export interface PlatformBillRow {
   readonly accountName: string;
   /** Stable transactions.id */
   readonly id: string;
+  /**
+   * Additive source metadata (1-based physical data row, i.e. the row index inside the
+   * parsed table). Absent on rows built by older callers; always set by
+   * `parsePlatformBills`. The merged-batch feature uses it for canonical origin.
+   */
+  readonly sourceRow?: number;
+  /** `externalId` made explicit; `null` when the export has no order id (empty or `/`). */
+  readonly fullExternalId?: string | null;
+  /**
+   * Normalised `交易时间` including the time of day (`YYYY-MM-DD HH:MM:SS`), or `null`
+   * when the export only carries a date. Used only for strong-identity equivalence and
+   * conflict detection inside the merged batch — `transactions.date` stays day-granular.
+   */
+  readonly sourceTimestamp?: string | null;
 }
 
 export interface ParsePlatformBillsResult {
@@ -161,7 +215,7 @@ const SKIP_EXPENSE_KEYWORDS = [
 ];
 
 /** Statuses that mean the row is not a completed new movement to book. */
-const SKIP_STATUS_KEYWORDS = ['失败', '关闭', '异常', '已退款', '全额退款', '退款成功'];
+const SKIP_STATUS_KEYWORDS = ['失败', '关闭', '异常'];
 
 /** WeChat/Alipay success (and WeChat transfer receipt) statuses. */
 const SUCCESS_STATUS = /成功|存入|已收钱|已转账|到账/;
@@ -201,12 +255,18 @@ function headerScore(cells: readonly string[]): number {
 }
 
 /** Finds the header row among the first 80 physical CSV rows (Alipay preamble is long). */
-export function locatePlatformHeaderRow(text: string): { index: number; map: Map<string, number> } | null {
-  const rows = parseCsv(stripBom(text));
+export function locatePlatformHeaderRow(
+  text: string,
+  limits?: ParsePlatformBillsLimits,
+): { index: number; map: Map<string, number> } | null {
+  const budget = budgetFrom(limits);
+  const rows = parseCsvBounded(stripBom(text), limits, undefined, 81);
   let best: { index: number; map: Map<string, number>; score: number } | null = null;
   const limit = Math.min(rows.length, 80);
   for (let i = 0; i < limit; i += 1) {
     const cells = rows[i] ?? [];
+    // The header scan only enforces shape budgets: the raw-row budget starts at the data.
+    checkShapeBudget(budget, cells);
     const score = headerScore(cells);
     if (score >= 3 && (best === null || score > best.score)) {
       best = { index: i, map: mapHeader(cells), score };
@@ -226,7 +286,8 @@ function parseAmountCents(raw: string): number | null {
   if (!/^-?\d+(\.\d{1,2})?$/.test(bare)) return null;
   const yuan = Number(bare);
   if (!Number.isFinite(yuan)) return null;
-  return Math.round(Math.abs(yuan) * 100);
+  const cents = Math.round(Math.abs(yuan) * 100);
+  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 function parseDateLabel(raw: string): string | null {
@@ -237,7 +298,145 @@ function parseDateLabel(raw: string): string | null {
   const mo = Number(m[2]);
   const d = Number(m[3]);
   if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const date = new Date(y, mo - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/**
+ * Normalises the raw `交易时间` cell to `YYYY-MM-DD HH:MM:SS`, or `null` when the export
+ * only carries a date (the common `交易时间` shape is `2026-09-18 12:03:41`).
+ *
+ * Deliberately independent of `parseDateLabel`: the day label is a local calendar label
+ * and must never be recomputed from an epoch, while this value keeps the time of day so two
+ * same-order-id rows at different minutes are not silently treated as the same fact.
+ */
+function normalizeSourceTimestamp(raw: string): string | null {
+  const s = raw.trim().replace(/\//g, '-');
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s);
+  if (match === null) return null;
+  const [, y, mo, d, hh, mm, ss] = match;
+  const date = parseDateLabel(`${y}-${mo}-${d}`);
+  if (date === null) return null;
+  if (hh === undefined) return `${date} 00:00:00`;
+  const h = Number(hh);
+  const m = Number(mm);
+  const sec = ss === undefined ? 0 : Number(ss);
+  if (h > 23 || m > 59 || sec > 59) return date;
+  return `${date} ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+/**
+ * Cooperative budget counter shared by both parsers. Never throws on its own; the caller
+ * raises `PlatformBillsLimitError` so the failure mode is explicit rather than a truncation.
+ */
+interface ParseBudget {
+  readonly maxRows: number | null;
+  readonly maxColumns: number | null;
+  readonly maxCellChars: number | null;
+  readonly deadlineMs: number | null;
+  readonly maxTotalRows: number | null;
+  readonly now: () => number;
+  readonly startedAt: number;
+  rows: number;
+  timedOut: boolean;
+}
+
+const CHECKPOINT_ROWS = 16;
+
+function budgetFrom(limits: ParsePlatformBillsLimits | undefined): ParseBudget {
+  const now = limits?.now ?? (() => Date.now());
+  return {
+    maxRows: positiveIntOrNull(limits?.maxRows),
+    maxColumns: positiveIntOrNull(limits?.maxColumns),
+    maxCellChars: positiveIntOrNull(limits?.maxCellChars),
+    deadlineMs: positiveIntOrNull(limits?.deadlineMs),
+    maxTotalRows: positiveIntOrNull(limits?.maxTotalRows),
+    now,
+    startedAt: now(),
+    rows: 0,
+    timedOut: false,
+  };
+}
+
+function parseLimits(
+  limits: ParsePlatformBillsLimits | undefined,
+  maxRows = limits?.maxRows,
+  stopAfterRows?: number,
+): ParseCsvLimits | undefined {
+  if (limits === undefined && stopAfterRows === undefined) return undefined;
+  return {
+    maxRows,
+    maxColumns: limits?.maxColumns,
+    maxCellChars: limits?.maxCellChars,
+    stopAfterRows,
+  };
+}
+
+function parseCsvBounded(
+  text: string,
+  limits: ParsePlatformBillsLimits | undefined,
+  maxRows?: number,
+  stopAfterRows?: number,
+): string[][] {
+  try {
+    return parseCsv(text, parseLimits(limits, maxRows, stopAfterRows));
+  } catch (error) {
+    if (!(error instanceof CsvLimitError)) throw error;
+    const messages: Record<CsvLimitError['kind'], string> = {
+      rows: '账单数据行超出限制。',
+      columns: '账单列数超出限制。',
+      cell: '账单单元格超出限制。',
+    };
+    throw new PlatformBillsLimitError(error.kind, messages[error.kind]);
+  }
+}
+
+function positiveIntOrNull(value: number | undefined): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+/** Column-count and cell-length guards (shape only; no row accounting). */
+function checkShapeBudget(budget: ParseBudget, cells: readonly string[]): void {
+  if (budget.maxColumns !== null && cells.length > budget.maxColumns) {
+    throw new PlatformBillsLimitError(
+      'columns',
+      `账单列数超出限制（最多 ${budget.maxColumns} 列，本行 ${cells.length} 列）。`,
+    );
+  }
+  if (budget.maxCellChars !== null) {
+    for (const cell of cells) {
+      if (cell.length > budget.maxCellChars) {
+        throw new PlatformBillsLimitError(
+          'cell',
+          `账单单元格超出限制（最多 ${budget.maxCellChars} 字符）。`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * One *raw data row* boundary: shape guards, the raw-row counter and the cooperative
+ * deadline checkpoint. Counted for every non-empty physical row after the header — footer
+ * lines included — so the bound covers actual parsing work rather than only materialised
+ * transactions.
+ */
+function checkRowBudget(budget: ParseBudget, cells: readonly string[]): void {
+  checkShapeBudget(budget, cells);
+  budget.rows += 1;
+  if (budget.maxRows !== null && budget.rows > budget.maxRows) {
+    throw new PlatformBillsLimitError(
+      'rows',
+      `账单数据行超出限制（最多 ${budget.maxRows} 行）。请拆分文件后重试。`,
+    );
+  }
+  if (budget.deadlineMs !== null && budget.rows % CHECKPOINT_ROWS === 0) {
+    if (budget.now() - budget.startedAt > budget.deadlineMs) {
+      budget.timedOut = true;
+      throw new PlatformBillsLimitError('deadline', '账单解析超时，请拆分文件后重试。');
+    }
+  }
 }
 
 function categorizeExpense(text: string, sourceCategory: string): string {
@@ -287,16 +486,17 @@ function ignoreReasonFor(input: {
   const dir = direction.trim();
   if (source === 'alipay') {
     if (dir === '不计收支' || dir === '') return '不计收支';
-  } else if (dir !== '收入' && dir !== '支出') {
+  }
+  if (dir !== '收入' && dir !== '支出') {
     return '中性交易';
   }
 
-  // Refunded/failed rows are not new money movement, on either direction.
+  // Failed/closed rows cannot be booked. Refund status alone does not erase an original expense.
   if (SKIP_STATUS_KEYWORDS.some((k) => status.includes(k))) {
-    return '状态非成功或已退款';
+    return '状态非成功';
   }
   // WeChat uses 对方已收钱 / 已转账 for completed outflows; Alipay uses 交易成功/支付成功.
-  if (status !== '' && !SUCCESS_STATUS.test(status)) {
+  if (status !== '' && !SUCCESS_STATUS.test(status) && !/^(?:已)?(?:全额|部分)?退款$/.test(status)) {
     return `状态:${status}`;
   }
 
@@ -319,7 +519,12 @@ function ignoreReasonFor(input: {
   return null;
 }
 
-export function parsePlatformBills(text: string, sourceHint?: PlatformBillSource | 'auto'): ParsePlatformBillsResult {
+export function parsePlatformBills(
+  text: string,
+  sourceHint?: PlatformBillSource | 'auto',
+  limits?: ParsePlatformBillsLimits,
+): ParsePlatformBillsResult {
+  const budget = budgetFrom(limits);
   const stripped = stripBom(text);
   const detected = detectPlatformBillSource(stripped);
   let source: PlatformBillSource;
@@ -327,12 +532,18 @@ export function parsePlatformBills(text: string, sourceHint?: PlatformBillSource
   else if (detected === 'wechat' || detected === 'alipay') source = detected;
   else throw new Error('无法识别账单来源：请选择「微信」或「支付宝」，或确认文件为对应平台导出。');
 
-  const located = locatePlatformHeaderRow(stripped);
+  const located = locatePlatformHeaderRow(stripped, limits);
   if (located === null) {
     throw new Error('未找到账单表头（需要包含「交易时间」「金额」「收/支」等列）。');
   }
 
-  const table = parseCsv(stripped);
+  const maxMaterializedRows = limits === undefined
+    ? undefined
+    : Math.min(
+        limits.maxRows === undefined ? Number.MAX_SAFE_INTEGER : limits.maxRows + located.index,
+        limits.maxTotalRows === undefined ? Number.MAX_SAFE_INTEGER : limits.maxTotalRows + located.index,
+      );
+  const table = parseCsvBounded(stripped, limits, maxMaterializedRows);
   const { map } = located;
   const get = (cells: readonly string[], field: string): string => {
     const idx = map.get(field);
@@ -349,7 +560,7 @@ export function parsePlatformBills(text: string, sourceHint?: PlatformBillSource
   for (let i = located.index + 1; i < table.length; i += 1) {
     const cells = table[i] ?? [];
     if (cells.length === 0 || cells.every((c) => c.trim() === '')) continue;
-    // Footer separators
+    checkRowBudget(budget, cells);
     if (cells[0]?.includes('---') || cells[0]?.startsWith('共') ) continue;
 
     const timeRaw = get(cells, 'time');
@@ -402,14 +613,23 @@ export function parsePlatformBills(text: string, sourceHint?: PlatformBillSource
       note: note || (isIncome ? '平台收入' : '平台支出'),
       sourceCategory,
       counterparty,
-      externalId: orderId,
+      // `/` is the export's "no order id" placeholder, not an id: it must never participate in
+      // identity, or every no-order row would share the literal ledger id `wx-/`.
+      externalId: orderId === '/' ? null : orderId,
       rawDirection: direction,
       rawStatus: status,
+      isRefund: isIncome && /退款/.test(`${tradeType} ${sourceCategory}`),
+      refundWarning: !isIncome && /退款/.test(status) ? '原支出保留；退款状态不代表独立退款流水，请核对实际退款记录（不自动关联或生成）。' : null,
       ignored: ignore !== null,
       ignoreReason: ignore,
       categoryName,
       accountName,
       id,
+      // Additive metadata for the merged-batch feature. `i` is the physical data-row index
+      // inside the parsed table, which is the canonical origin the batch stores.
+      sourceRow: i,
+      fullExternalId: orderId === '/' ? null : orderId,
+      sourceTimestamp: normalizeSourceTimestamp(timeRaw),
     });
 
     if (ignore === null && amount > 0) {

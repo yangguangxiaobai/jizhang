@@ -39,6 +39,7 @@ const EXPECTED_TABLES = [
   'settings',
   'transactions',
   'transfers',
+  'tags',
   'users',
 ];
 
@@ -71,6 +72,32 @@ function countRows(table: string): number {
 }
 
 describe('migrations', () => {
+  it('013 creates tag indexes and idempotently backfills live and deleted names without changing JSON bytes', () => {
+    const migrations = MIGRATIONS.filter((entry) => entry.version < 13);
+    for (const migration of migrations) db.exec(migration.sql);
+    db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at INTEGER NOT NULL
+    )`);
+    const record = db.prepare('INSERT INTO schema_migrations (version,name,applied_at) VALUES (?,?,?)');
+    for (const migration of migrations) record.run(migration.version,migration.name,1);
+    const insert = db.prepare(`INSERT INTO transactions
+      (id,type,amount_cents,category_id,account_id,date,note,tags_json,is_refund,deleted,updated_at)
+      VALUES (?,0,100,'category','builtin-default-account',1,'',?,0,?,1)`);
+    const raw = '["one","😀"]';
+    insert.run('tag-live',raw,0);
+    insert.run('tag-deleted','["old"]',1);
+    insert.run('tag-malformed','{invalid',0);
+
+    runMigrations(db,null);
+    const names = (db.prepare('SELECT name FROM tags ORDER BY name').all() as {name:string}[]).map((row)=>row.name);
+    expect(names).toEqual(['old','one','😀']);
+    expect((db.prepare('SELECT tags_json FROM transactions WHERE id=?').get('tag-live') as {tags_json:string}).tags_json).toBe(raw);
+    const indexes=(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tags'").all() as {name:string}[]).map((row)=>row.name);
+    expect(indexes).toContain('tags_active_name');
+    expect(indexes).toContain('tags_parent_id');
+    expect(() => runMigrations(db,null)).not.toThrow();
+    expect(countRows('tags')).toBe(3);
+  });
   it('AC1 creates every table on an empty database', () => {
     runMigrations(db, null);
 
@@ -318,6 +345,25 @@ describe('migrations', () => {
     // The database is still usable afterwards.
     const rerun = runMigrations(db, null);
     expect(rerun.applied).toEqual([]);
+  });
+
+  it('AC6 rolls back a migration whose TS run hook throws and never records it', () => {
+    runMigrations(db, null);
+    const before = countRows('schema_migrations');
+    const failing: Migration = {
+      version: 99,
+      name: 'failing-run-hook',
+      sql: 'CREATE TABLE should_not_survive_run_hook (id TEXT)',
+      run() {
+        throw new Error('boom-run-hook');
+      },
+    };
+
+    expect(() => runMigrations(db, null, [failing])).toThrow('boom-run-hook');
+
+    expect(countRows('schema_migrations')).toBe(before);
+    const { tables } = migrationStatus(db);
+    expect(tables).not.toContain('should_not_survive_run_hook');
   });
 
   it('AC5 does not litter backups on a fresh install', () => {

@@ -785,6 +785,30 @@ describe('AC8/AC9 filtering', () => {
     expect((await list('accountId=nope')).total).toBe(0);
   });
 
+  it('filters by child tag id, expands parent assignments and active children without duplicate rows', async () => {
+    const hierarchy=await app.inject({method:'POST',url:'/api/v1/tags/hierarchy',headers:{...CSRF,...as(cookie)},payload:{name:'catalog-root'}});
+    const rootId=hierarchy.json().id as string;
+    const child=await app.inject({method:'POST',url:'/api/v1/tags/hierarchy',headers:{...CSRF,...as(cookie)},payload:{name:'catalog-child',parentId:rootId}});
+    const childId=child.json().id as string;
+    await post(createBody({note:'parent direct',tags:['catalog-root']}));
+    await post(createBody({note:'child member',tags:['catalog-child']}));
+    await post(createBody({note:'untagged branch',tags:['elsewhere']}));
+    expect((await list(`tagId=${childId}`)).total).toBe(1);
+    const parentResult=await list(`tagId=${rootId}`);
+    expect(parentResult.total).toBe(2);
+    expect(parentResult.items.map(x=>x.note).sort()).toEqual(['child member','parent direct']);
+  });
+
+  it('rejects tag and tagId together and returns empty results for unknown or deleted IDs', async () => {
+    const root=await app.inject({method:'POST',url:'/api/v1/tags/hierarchy',headers:{...CSRF,...as(cookie)},payload:{name:'only-tag'}});
+    const id=root.json().id as string;
+    const both=await app.inject({method:'GET',url:`/api/v1/transactions?tag=x&tagId=${id}`,headers:as(cookie)});
+    expect(both.statusCode).toBe(400);
+    expect((await list('tagId=unknown')).total).toBe(0);
+    await app.inject({method:'DELETE',url:`/api/v1/tags/hierarchy/${id}`,headers:{...CSRF,...as(cookie)}});
+    expect((await list(`tagId=${id}`)).total).toBe(0);
+  });
+
   it('filters by tag, matching whole names only', async () => {
     await post(createBody({ note: 'tagged', tags: ['food'] }));
     await post(createBody({ note: 'other', tags: ['seafood'] }));
@@ -856,10 +880,206 @@ describe('AC8/AC9 filtering', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bill-page account switching: existing API contracts, with real funding accounts
+// ---------------------------------------------------------------------------
+
+describe('bill-page account switching', () => {
+  const from = Date.UTC(2026, 7, 1);
+  const to = Date.UTC(2026, 8, 1);
+  const filters = {
+    from: String(from),
+    to: String(to),
+    type: '0',
+    categoryId: FOOD,
+    tag: '工作',
+    q: '午餐',
+  };
+  let accountA: string;
+  let accountB: string;
+  let matchingA: TransactionDto[];
+  let matchingB: TransactionDto[];
+  let expensesA: TransactionDto[];
+  let deletedBill: TransactionDto;
+
+  async function list(query: Record<string, string>) {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/transactions?${new URLSearchParams(query)}`,
+      headers: as(cookie),
+    });
+    expect(response.statusCode).toBe(200);
+    return response.json<{ items: TransactionDto[]; total: number; limit: number; offset: number }>();
+  }
+
+  async function createBill(accountId: string, overrides: Record<string, unknown> = {}) {
+    const response = await post(createBody({ accountId, tags: ['工作'], ...overrides }));
+    expect(response.statusCode).toBe(201);
+    return response.json<TransactionDto>();
+  }
+
+  beforeEach(async () => {
+    const accountIds: string[] = [];
+    for (const name of ['账户 A', '账户 B']) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/accounts',
+        headers: { ...CSRF, ...as(cookie) },
+        payload: { name, type: 0 },
+      });
+      expect(response.statusCode).toBe(201);
+      accountIds.push(response.json<{ id: string }>().id);
+    }
+    accountA = accountIds[0]!;
+    accountB = accountIds[1]!;
+    matchingA = [];
+    matchingB = [];
+    // Distinct dates make page membership deterministic, without relying on tie order.
+    for (const [accountId, count, rows] of [
+      [accountA, 51, matchingA],
+      [accountB, 2, matchingB],
+    ] as const) {
+      for (let i = 0; i < count; i++) {
+        rows.push(await createBill(accountId, { date: from + i * 60_000 }));
+      }
+    }
+    expensesA = [...matchingA];
+    for (const overrides of [
+      { categoryId: TRANSPORT },
+      { tags: ['家庭'] },
+      { note: '晚餐' },
+    ]) {
+      expensesA.push(await createBill(accountA, overrides));
+    }
+    await createBill(accountA, { date: from - 1 });
+    await createBill(accountA, { date: to });
+    await createBill(accountA, { type: 1, categoryId: SALARY });
+    deletedBill = await createBill(accountA);
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/transactions/${deletedBill.id}`,
+      headers: { ...CSRF, ...as(cookie) },
+    });
+    expect(deleted.statusCode).toBe(204);
+  });
+
+  it('isolates accounts, counts the same combined filters on both pages, and unions all accounts', async () => {
+    const first = await list({ ...filters, accountId: accountA, limit: '50', offset: '0' });
+    const second = await list({ ...filters, accountId: accountA, limit: '50', offset: '50' });
+    expect(first).toMatchObject({ total: 51, limit: 50, offset: 0 });
+    expect(second).toMatchObject({ total: 51, limit: 50, offset: 50 });
+    expect(first.items).toHaveLength(50);
+    expect(second.items).toHaveLength(1);
+    expect([...first.items, ...second.items]).toEqual([...matchingA].reverse());
+
+    const switched = await list({ ...filters, accountId: accountB, limit: '50', offset: '0' });
+    expect(switched).toMatchObject({ total: 2, offset: 0 });
+    expect(switched.items).toEqual([...matchingB].reverse());
+
+    // All accounts means no accountId parameter, not the historical-account flag.
+    const all = await list({ ...filters, limit: '100', offset: '0' });
+    expect(all.total).toBe(53);
+    expect(all.items.map((row) => row.id).sort()).toEqual(
+      [...matchingA, ...matchingB].map((row) => row.id).sort(),
+    );
+  });
+
+  it('keeps the month and type scope when switching accounts independently of category', async () => {
+    const monthAndType = { from: String(from), to: String(to), type: '0', limit: '100' };
+    const a = await list({ ...monthAndType, accountId: accountA });
+    expect(a.total).toBe(54);
+    expect(a.items.map((row) => row.id).sort()).toEqual(expensesA.map((row) => row.id).sort());
+    const b = await list({ ...monthAndType, accountId: accountB });
+    expect(b.total).toBe(2);
+    expect(b.items).toEqual([...matchingB].reverse());
+  });
+
+  it('loads historical account names without including deleted bills in the selected account', async () => {
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/accounts/${accountA}`,
+      headers: { ...CSRF, ...as(cookie) },
+    });
+    expect(deleted.statusCode).toBe(204);
+    for (const includeDeleted of [false, true]) {
+      const metadata = await app.inject({
+        method: 'GET',
+        url: `/api/v1/accounts?includeDeleted=${includeDeleted}`,
+        headers: as(cookie),
+      });
+      expect(metadata.statusCode).toBe(200);
+      const items = metadata.json<{ items: { id: string; name: string }[] }>().items;
+      expect(items.some((account) => account.id === accountA)).toBe(includeDeleted);
+      if (includeDeleted) expect(items).toContainEqual(expect.objectContaining({ id: accountA, name: '账户 A' }));
+    }
+
+    const retained = await list({ ...filters, accountId: accountA, limit: '100' });
+    expect(retained.total).toBe(51);
+    expect(retained.items).toEqual([...matchingA].reverse());
+    const other = await list({ ...filters, accountId: accountB });
+    expect(other.total).toBe(2);
+    expect(other.items).toEqual([...matchingB].reverse());
+    const all = await list({ ...filters, limit: '100' });
+    expect(all.total).toBe(53);
+    expect(all.items.map((row) => row.id).sort()).toEqual(
+      [...matchingA, ...matchingB].map((row) => row.id).sort(),
+    );
+
+    // This separate transaction flag really does include deleted bills; metadata does not.
+    const withDeletedBills = await list({ ...filters, accountId: accountA, includeDeleted: 'true', limit: '100' });
+    expect(withDeletedBills.total).toBe(52);
+    expect(withDeletedBills.items).toContainEqual(deletedBill);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // AC10 references
 // ---------------------------------------------------------------------------
 
 describe('AC10 category and account references', () => {
+  it.each([
+    { type: 0, categoryId: SALARY },
+    { type: 1, categoryId: FOOD },
+  ])('rejects creating a transaction with a mismatched category: %j', async ({ type, categoryId }) => {
+    const existing = await post(createBody({ note: 'existing' }));
+    expect(existing.statusCode).toBe(201);
+    const rowsBefore = db.prepare('SELECT * FROM transactions ORDER BY id').all();
+    const tagsBefore = db.prepare('SELECT * FROM tags ORDER BY id').all();
+
+    const response = await post(createBody({ type, categoryId, tags: ['must-not-be-created'] }));
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: {
+      code: 'VALIDATION', message: 'The selected category does not match the transaction type.',
+    } });
+    expect(db.prepare('SELECT * FROM transactions ORDER BY id').all()).toEqual(rowsBefore);
+    expect(db.prepare('SELECT * FROM tags ORDER BY id').all()).toEqual(tagsBefore);
+  });
+
+  it.each([
+    { type: 0, categoryId: FOOD, changes: { categoryId: SALARY } },
+    { type: 1, categoryId: SALARY, changes: { categoryId: FOOD } },
+    { type: 0, categoryId: FOOD, changes: { type: 1 } },
+    { type: 1, categoryId: SALARY, changes: { type: 0 } },
+  ])('rejects updating a transaction to a mismatched category: %j', async ({ type, categoryId, changes }) => {
+    const created = await post(createBody({ type, categoryId, tags: ['kept'] }));
+    expect(created.statusCode).toBe(201);
+    const id = created.json().id as string;
+    const rowsBefore = db.prepare('SELECT * FROM transactions ORDER BY id').all();
+    const tagsBefore = db.prepare('SELECT * FROM tags ORDER BY id').all();
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/transactions/${id}`,
+      headers: { ...CSRF, ...as(cookie) },
+      payload: { ...changes, note: 'must-not-change', tags: ['must-not-be-created'] },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: {
+      code: 'VALIDATION', message: 'The selected category does not match the transaction type.',
+    } });
+    expect(db.prepare('SELECT * FROM transactions ORDER BY id').all()).toEqual(rowsBefore);
+    expect(db.prepare('SELECT * FROM tags ORDER BY id').all()).toEqual(tagsBefore);
+  });
+
   it('rejects an unknown category', async () => {
     const response = await post(createBody({ categoryId: 'no-such-category' }));
     expect(response.statusCode).toBe(400);
@@ -886,6 +1106,121 @@ describe('AC10 category and account references', () => {
 // ---------------------------------------------------------------------------
 // Guard: these routes must sit behind authentication
 // ---------------------------------------------------------------------------
+
+describe('daily transaction summaries', () => {
+  const from = Date.UTC(2026, 7, 1);
+  const to = Date.UTC(2026, 8, 1);
+
+  async function summary(overrides: Record<string, string | undefined> = {}) {
+    const query = new URLSearchParams({ from: String(from), to: String(to), timeZone: 'UTC' });
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value !== undefined) query.set(key, value);
+    }
+    return app.inject({
+      method: 'GET',
+      url: `/api/v1/transactions/daily-summary?${query}`,
+      headers: as(cookie),
+    });
+  }
+
+  it('totals more than 500 rows without paging, counts refund income and excludes deleted rows', async () => {
+    const insert = db.prepare(`INSERT INTO transactions
+      (id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund, deleted, updated_at)
+      VALUES (?, 0, 123, ?, ?, ?, '', '[]', 0, 0, ?)`);
+    db.transaction(() => {
+      for (let i = 0; i < 503; i++) insert.run(`summary-${i}`, FOOD, ACCOUNT, from, NOW);
+    })();
+    service.create(createBody({ type: 1, categoryId: REFUND, amountCents: 321, isRefund: true, date: from }));
+    service.create(createBody({ type: 1, categoryId: SALARY, amountCents: 111, date: from }));
+    const deleted = service.create(createBody({ date: from }));
+    service.softDelete(deleted.id);
+    db.prepare(`INSERT INTO salary_records (id, amount_cents, date, updated_at)
+      VALUES ('summary-salary', 900000, ?, ?)`).run(from, NOW);
+    db.prepare(`INSERT INTO transfers (id, from_account_id, to_account_id, amount_cents, date, updated_at)
+      VALUES ('summary-transfer', ?, 'other-account', 700000, ?, ?)`).run(ACCOUNT, from, NOW);
+    const response = await summary({ limit: '99999', offset: '-1', includeDeleted: 'true' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ items: [
+      { day: '2026-08-01', expenseCents: 503 * 123, incomeCents: 321 + 111, count: 505 },
+    ] });
+    expect((await summary({ type: '1' })).json()).toEqual({ items: [
+      { day: '2026-08-01', expenseCents: 0, incomeCents: 432, count: 2 },
+    ] });
+  });
+
+  it('reuses combined filters and keeps historical-account bills but not boundary/deleted rows', async () => {
+    service.create(createBody({ date: from, tags: ['food'], note: 'literal 50%_ lunch' }));
+    db.prepare(`INSERT INTO accounts (id, name, type, initial_balance_cents, sort_order, is_builtin, deleted, updated_at)
+      VALUES ('summary-other-account', 'Other', 0, 0, 1, 0, 0, ?)`).run(NOW);
+    for (const overrides of [
+      { accountId: 'summary-other-account' },
+      { date: from - 1 }, { date: to }, { type: 1, categoryId: SALARY },
+      { categoryId: TRANSPORT }, { tags: ['seafood'] }, { note: 'literal 50xx lunch' },
+    ]) service.create(createBody({ date: from, tags: ['food'], note: 'literal 50%_ lunch', ...overrides }));
+    db.prepare('UPDATE accounts SET deleted = 1 WHERE id = ?').run(ACCOUNT);
+    const filters = { type: '0', accountId: ACCOUNT, categoryId: FOOD, tag: 'food', q: '50%_' };
+    const result = await summary(filters);
+    expect(result.statusCode).toBe(200);
+    expect(result.json()).toEqual({ items: [
+      { day: '2026-08-01', expenseCents: 1999, incomeCents: 0, count: 1 },
+    ] });
+    for (const overrides of [{ accountId: 'missing' }, { categoryId: 'missing' }, { tag: 'missing' }, { q: 'missing' }, { tagId: 'missing', tag: '' }]) {
+      expect((await summary({ ...filters, ...overrides })).json()).toEqual({ items: [] });
+    }
+    const tag = db.prepare('SELECT id FROM tags WHERE name = ?').get('food') as { id: string };
+    expect((await summary({ ...filters, tag: '', tagId: tag.id })).json()).toEqual(result.json());
+  });
+
+  it('groups by client local day across month boundaries and DST, newest day first', async () => {
+    for (const date of [
+      Date.UTC(2026, 2, 1, 4, 59), Date.UTC(2026, 2, 1, 5),
+      Date.UTC(2026, 2, 8, 6, 59), Date.UTC(2026, 2, 8, 7, 1),
+    ]) service.create(createBody({ date, amountCents: 100 }));
+    const response = await summary({
+      from: String(Date.UTC(2026, 2, 1)), to: String(Date.UTC(2026, 3, 1)), timeZone: 'America/New_York',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ items: [
+      { day: '2026-03-08', expenseCents: 200, incomeCents: 0, count: 2 },
+      { day: '2026-03-01', expenseCents: 100, incomeCents: 0, count: 1 },
+      { day: '2026-02-28', expenseCents: 100, incomeCents: 0, count: 1 },
+    ] });
+    const east = await summary({ from: String(Date.UTC(2026, 2, 1)), to: String(Date.UTC(2026, 3, 1)), timeZone: 'Asia/Shanghai' });
+    expect(east.json().items.map((item: { day: string }) => item.day)).toEqual(['2026-03-08', '2026-03-01']);
+  });
+
+  it.each([
+    { from: '' }, { to: '' }, { from: 'NaN' }, { to: 'Infinity' }, { from: '1.5' },
+    { to: String(from) }, { to: String(from - 1) }, { to: String(from + 32 * 86_400_000 + 1) },
+    { from: '9007199254740991', to: '9007199254740992' },
+    { timeZone: '' }, { timeZone: 'Not/AZone' }, { timeZone: '+08:00' },
+    { type: '2' }, { tag: 'food', tagId: 'some-id' },
+  ])('rejects malformed summary query %j with the validation envelope', async (query) => {
+    const response = await summary(query);
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: { code: 'VALIDATION', message: expect.any(String) } });
+  });
+
+  it('accepts exactly 32 days, returns no fabricated empty days, and validates direct service calls', async () => {
+    expect((await summary({ to: String(from + 32 * 86_400_000) })).json()).toEqual({ items: [] });
+    expect(() => service.dailySummary({ from, to })).toThrow(/IANA/);
+    expect(() => service.dailySummary({ timeZone: 'UTC' })).toThrow(/32/);
+  });
+
+  it('rejects unsafe aggregate cents rather than returning an inexact total', async () => {
+    service.create(createBody({ date: from, amountCents: Number.MAX_SAFE_INTEGER }));
+    service.create(createBody({ date: from, amountCents: 1 }));
+    const response = await summary();
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: { code: 'VALIDATION', message: expect.stringContaining('安全整数') } });
+  });
+
+  it('requires a session before summary validation', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/transactions/daily-summary' });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: { code: 'UNAUTHORIZED', message: expect.any(String) } });
+  });
+});
 
 describe('transaction routes are protected', () => {
   it('rejects every verb without a session', async () => {

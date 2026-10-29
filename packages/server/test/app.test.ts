@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -16,12 +16,16 @@ const baseEnv = {
 
 const config: AppConfig = loadConfig(baseEnv);
 
-/** Minimal stand-in for `packages/web/dist` so the static/SPA paths are real. */
+/** Leftover files from a previous Web image must never enable hosting. */
 const webFixtureDir = mkdtempSync(path.join(tmpdir(), 'jizhang-web-'));
 writeFileSync(
   path.join(webFixtureDir, 'index.html'),
   '<!doctype html><html><body><div id="app">jizhang-shell</div></body></html>',
 );
+mkdirSync(path.join(webFixtureDir, 'assets'));
+writeFileSync(path.join(webFixtureDir, 'assets', 'app.js'), 'window.oldWeb = true;');
+writeFileSync(path.join(webFixtureDir, 'sw.js'), 'self.oldWeb = true;');
+writeFileSync(path.join(webFixtureDir, 'manifest.webmanifest'), '{"name":"Old Web"}');
 
 afterAll(() => {
   rmSync(webFixtureDir, { recursive: true, force: true });
@@ -29,9 +33,14 @@ afterAll(() => {
 
 async function withApp(
   run: (app: FastifyInstance) => Promise<void>,
-  webDistDir: string = config.webDistDir,
+  legacyWebDistDir?: string,
 ): Promise<void> {
-  const app = buildApp({ config, webDistDir });
+  const app = buildApp({
+    config:
+      legacyWebDistDir === undefined
+        ? config
+        : loadConfig({ ...baseEnv, WEB_DIST_DIR: legacyWebDistDir }),
+  });
   try {
     await run(app);
   } finally {
@@ -55,38 +64,44 @@ describe('GET /api/v1/health', () => {
 
 describe('unknown /api/** route', () => {
   it('answers a JSON 404 instead of the SPA shell (AC9)', async () => {
-    await withApp(
-      async (app) => {
-        const response = await app.inject({ method: 'GET', url: '/api/v1/nonexistent' });
+    await withApp(async (app) => {
+      const response = await app.inject({ method: 'GET', url: '/api/v1/nonexistent' });
 
-        expect(response.statusCode).toBe(404);
-        expect(response.headers['content-type']).toContain('application/json');
-        expect(response.json()).toEqual({
-          error: { code: 'NOT_FOUND', message: expect.any(String) as string },
-        });
-      },
-      webFixtureDir,
-    );
+      expect(response.statusCode).toBe(404);
+      expect(response.headers['content-type']).toContain('application/json');
+      expect(response.json()).toEqual({
+        error: { code: 'NOT_FOUND', message: expect.any(String) as string },
+      });
+    }, webFixtureDir);
   });
 });
 
-describe('static hosting with SPA fallback', () => {
-  it('serves the built index.html for a non-api, unmatched path (R4)', async () => {
+describe('API-only server with leftover Web files', () => {
+  it.each([
+    '/',
+    '/login',
+    '/transactions/42',
+    '/index.html',
+    '/assets/app.js',
+    '/sw.js',
+    '/manifest.webmanifest',
+  ])('rejects the former Web path %s with JSON 404', async (url) => {
     await withApp(async (app) => {
-      const response = await app.inject({ method: 'GET', url: '/transactions/42' });
+      const response = await app.inject({ method: 'GET', url });
 
-      expect(response.statusCode).toBe(200);
-      expect(response.headers['content-type']).toContain('text/html');
-      expect(response.body).toContain('jizhang-shell');
+      expect(response.statusCode).toBe(404);
+      expect(response.headers['content-type']).toContain('application/json');
+      expect(response.json()).toEqual({
+        error: { code: 'NOT_FOUND', message: expect.any(String) as string },
+      });
     }, webFixtureDir);
   });
-
-  it('serves the shell at /', async () => {
+  it.each(['HEAD', 'POST'] as const)('does not serve the shell for %s requests', async (method) => {
     await withApp(async (app) => {
-      const response = await app.inject({ method: 'GET', url: '/' });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toContain('jizhang-shell');
+      const response = await app.inject({ method, url: '/' });
+      expect(response.statusCode).toBe(404);
+      expect(response.headers['content-type']).toContain('application/json');
+      expect(response.body).not.toContain('jizhang-shell');
     }, webFixtureDir);
   });
 });
@@ -117,12 +132,11 @@ describe('API cache headers', () => {
     }, webFixtureDir);
   });
 
-  it('does not mark the SPA shell no-store', async () => {
-    // The shell is the one thing worth caching — an installed app must open offline.
+  it('keeps the API cache policy scoped to API routes', async () => {
     await withApp(async (app) => {
       const response = await app.inject({ method: 'GET', url: '/' });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(404);
       expect(response.headers['cache-control']).not.toBe('no-store');
     }, webFixtureDir);
   });

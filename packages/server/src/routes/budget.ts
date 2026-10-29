@@ -16,9 +16,16 @@
  *   POST   /api/v1/templates/:id/apply-current  apply to the newest cycle
  *   GET/PUT /api/v1/settings           cycle start day
  *
+ *   GET    /api/v1/financial-plan          the saved four-purpose plan (or null)
+ *   POST   /api/v1/financial-plan/preview  recompute an unsaved analysis (no writes)
+ *   PUT    /api/v1/financial-plan          save with revision CAS
+ *
  * `/budget/overview` is the only place the envelope arithmetic is exposed, and it
  * delegates entirely to `@jizhang/shared`'s engine — the server never re-derives
  * net expense or carryover itself (design.md §5).
+ *
+ * The financial-plan routes are an independent domain: they read and write exactly one
+ * `settings` key and nothing else (see `services/financial-plan-service.ts`).
  *
  * Registered inside the auth module, so the guard applies to all of it.
  */
@@ -31,6 +38,7 @@ import {
   SalaryService,
 } from '../services/salary-service.js';
 import { BudgetOverviewService } from '../services/budget-overview-service.js';
+import { FinancialPlanService } from '../services/financial-plan-service.js';
 import { TemplateService } from '../services/template-service.js';
 import { ValidationError } from '../services/transaction-service.js';
 
@@ -59,6 +67,7 @@ export async function registerBudgetRoutes(
   const salaries = new SalaryService(db, options);
   const templates = new TemplateService(db, options);
   const overviewService = new BudgetOverviewService(db, options);
+  const financialPlans = new FinancialPlanService(db, options);
 
   /**
    * Parses `?periodStart=`.
@@ -200,5 +209,27 @@ export async function registerBudgetRoutes(
 
     const applied = salaries.setCycleStartDay(day);
     return reply.send({ cycleStartDay: applied ?? null });
+  });
+
+  // ── financial plan (independent domain, one settings key) ──────────────────
+  // Three thin handlers: validation, arithmetic and persistence all live in
+  // `FinancialPlanService`; nothing here re-derives money.
+
+  app.get('/api/v1/financial-plan', async (_request: FastifyRequest, reply: FastifyReply) => {
+    // `null` is a real answer meaning "never saved", distinct from the 503 a corrupt
+    // envelope produces. The client must not conflate the two (see contract.md).
+    return reply.send({ plan: financialPlans.get() });
+  });
+
+  app.post(
+    '/api/v1/financial-plan/preview',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      // Explicit POST (a body is needed) but read-only: no settings row is touched.
+      return reply.send({ analysis: financialPlans.preview(request.body) });
+    },
+  );
+
+  app.put('/api/v1/financial-plan', async (request: FastifyRequest, reply: FastifyReply) => {
+    return reply.send({ plan: financialPlans.save(request.body) });
   });
 }

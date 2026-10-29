@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   ASSISTANT_TOOL_NAMES,
   isAssistantToolName,
+  findClarification,
   normalizeAssistantContent,
   normalizeAssistantJson,
+  normalizeAssistantProviderTurn,
   requireAssistantToolName,
+  AssistantProviderTurnError,
   AssistantValidationError,
 } from '../src/services/assistant-types.js';
 import { AssistantToolRegistry } from '../src/services/assistant-tool-registry.js';
@@ -39,6 +42,7 @@ describe('assistant progress / error / toolName', () => {
       progress: { state: 'running', toolName: 'stats.monthly' },
     });
     expect(ok.progress?.toolName).toBe('stats.monthly');
+    expect(normalizeAssistantContent('progress', { version: 1, progress: { state: 'failed', toolName: 'stats.monthly' } }).progress?.state).toBe('failed');
 
     expect(() =>
       normalizeAssistantContent('progress', {
@@ -89,6 +93,104 @@ describe('assistant progress / error / toolName', () => {
     expect(requireAssistantToolName('transaction.create', 'toolName')).toBe('transaction.create');
     expect(() => requireAssistantToolName('drop table', 'toolName')).toThrow(AssistantValidationError);
     expect(() => requireAssistantToolName(undefined, 'toolName')).toThrow(AssistantValidationError);
+  });
+});
+
+describe('provider clarification and persisted choice cards', () => {
+  it('accepts a bounded clarification and normalizes the labels', () => {
+    const turn = normalizeAssistantProviderTurn({
+      message: '请选择账户',
+      toolCall: null,
+      clarification: { question: ' 使用哪个账户？ ', options: [' 微信 ', '银行卡'] },
+    });
+    expect(turn.toolCall).toBeNull();
+    expect(turn.clarification).toEqual({ question: '使用哪个账户？', options: ['微信', '银行卡'] });
+  });
+
+  it('treats a missing clarification member as null', () => {
+    const turn = normalizeAssistantProviderTurn({ message: 'ok', toolCall: null });
+    expect(turn.clarification).toBeNull();
+  });
+
+  it('bounds a buffered provider message without cutting a surrogate pair', () => {
+    // 3999 BMP units + one astral character: a raw UTF-16 `slice(0, 4000)` keeps the lone
+    // high surrogate and persists half an emoji (JSON escapes it, the client renders '�').
+    const emoji = '\u{1F600}';
+    const bounded = normalizeAssistantProviderTurn({ message: 'a'.repeat(3_999) + emoji, toolCall: null });
+    expect(bounded.message.length).toBe(3_999);
+    expect(bounded.message.endsWith('a')).toBe(true);
+    const last = bounded.message.charCodeAt(bounded.message.length - 1);
+    expect(last >= 0xd800 && last <= 0xdbff).toBe(false);
+
+    // A message that fits keeps its astral characters intact.
+    const intact = normalizeAssistantProviderTurn({ message: 'a'.repeat(100) + emoji, toolCall: null });
+    expect(intact.message.endsWith(emoji)).toBe(true);
+    expect(intact.message.length).toBe(102);
+  });
+
+  it('rejects clarification combined with a tool call', () => {
+    expect(() =>
+      normalizeAssistantProviderTurn({
+        message: 'both',
+        toolCall: { name: 'stats.monthly', arguments: {} },
+        clarification: { question: 'q', options: ['a', 'b'] },
+      }),
+    ).toThrow(AssistantProviderTurnError);
+  });
+
+  it('rejects option counts outside 2-6, duplicates and blank labels', () => {
+    const withOptions = (options: string[]): unknown => ({
+      message: 'q',
+      toolCall: null,
+      clarification: { question: '选一个', options },
+    });
+    expect(() => normalizeAssistantProviderTurn(withOptions(['只有一个']))).toThrow(AssistantProviderTurnError);
+    expect(() => normalizeAssistantProviderTurn(withOptions(['a', 'b', 'c', 'd', 'e', 'f', 'g']))).toThrow(AssistantProviderTurnError);
+    expect(() => normalizeAssistantProviderTurn(withOptions(['a', 'a']))).toThrow(AssistantProviderTurnError);
+    expect(() => normalizeAssistantProviderTurn(withOptions(['a', '   ']))).toThrow(AssistantProviderTurnError);
+    expect(() => normalizeAssistantProviderTurn(withOptions(['a'.repeat(101), 'b']))).toThrow(AssistantProviderTurnError);
+    expect(() =>
+      normalizeAssistantProviderTurn({ message: 'q', toolCall: null, clarification: { question: '', options: ['a', 'b'] } }),
+    ).toThrow(AssistantProviderTurnError);
+  });
+
+  it('round-trips a persisted clarification and rejects malformed ones', () => {
+    const content = normalizeAssistantContent('text', {
+      version: 1,
+      text: '请选择',
+      generationId: 'gen_1',
+      clarification: {
+        id: 'q_1',
+        selection: 'single',
+        question: '使用哪个账户？',
+        options: [
+          { id: 'o_1', label: '微信' },
+          { id: 'o_2', label: '银行卡' },
+        ],
+        allowFreeText: true,
+      },
+    });
+    expect(content.generationId).toBe('gen_1');
+    expect(content.clarification?.options.length).toBe(2);
+    expect(findClarification({ content })?.question).toBe('使用哪个账户？');
+
+    const base = { id: 'q_1', selection: 'single', question: 'q', allowFreeText: true };
+    expect(() =>
+      normalizeAssistantContent('text', { ...base, version: 1, clarification: { ...base, options: [{ id: 'o_1', label: 'a' }] } }),
+    ).toThrow(AssistantValidationError);
+    expect(() =>
+      normalizeAssistantContent('text', {
+        version: 1,
+        clarification: { ...base, options: [{ id: 'o_1', label: 'a' }, { id: 'o_1', label: 'b' }] },
+      }),
+    ).toThrow(AssistantValidationError);
+    expect(() =>
+      normalizeAssistantContent('text', {
+        version: 1,
+        clarification: { ...base, selection: 'multi', options: [{ id: 'o_1', label: 'a' }, { id: 'o_2', label: 'b' }] },
+      }),
+    ).toThrow(AssistantValidationError);
+    expect(findClarification({ content: { version: 1, text: 'x' } })).toBeNull();
   });
 });
 

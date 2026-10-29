@@ -24,11 +24,21 @@ import { MIGRATION_007_CATEGORY_HIERARCHY } from './migrations/007-category-hier
 import { MIGRATION_008_AI_ORGANIZATION_AUDIT } from './migrations/008-ai-organization-audit.js';
 import { MIGRATION_009_ASSISTANT } from './migrations/009-assistant.js';
 import { MIGRATION_010_ITEM_ASSETS } from './migrations/010-item-assets.js';
+import { MIGRATION_011_ASSISTANT_GENERATIONS } from './migrations/011-assistant-generations.js';
+import { MIGRATION_012_IMPORT_BATCHES } from './migrations/012-import-batches.js';
+import { MIGRATION_013_TAG_HIERARCHY, backfillTagCatalog } from './migrations/013-tag-hierarchy.js';
+import { MIGRATION_014_AI_ANALYSIS_RUNS } from './migrations/014-ai-analysis-runs.js';
+import { MIGRATION_015_AI_TEMPLATE_PROPOSALS } from './migrations/015-ai-template-proposals.js';
+import { MIGRATION_016_AI_ORGANIZATION_OPERATIONS } from './migrations/016-ai-organization-operations.js';
+import { MIGRATION_017_AI_ORGANIZATION_PROGRESS } from './migrations/017-ai-organization-progress.js';
+import { MIGRATION_018_AI_ORGANIZATION_CHECKPOINTS } from './migrations/018-ai-organization-checkpoints.js';
+import { MIGRATION_019_FINANCIAL_EXECUTION } from './migrations/019-financial-execution.js';
 
 export interface Migration {
   readonly version: number;
   readonly name: string;
   readonly sql: string;
+  readonly run?: (db: Db) => void;
 }
 
 /**
@@ -46,6 +56,15 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 8, name: 'ai-organization-audit', sql: MIGRATION_008_AI_ORGANIZATION_AUDIT },
   { version: 9, name: 'assistant', sql: MIGRATION_009_ASSISTANT },
   { version: 10, name: 'item-assets', sql: MIGRATION_010_ITEM_ASSETS },
+  { version: 11, name: 'assistant-generations', sql: MIGRATION_011_ASSISTANT_GENERATIONS },
+  { version: 12, name: 'import-batches', sql: MIGRATION_012_IMPORT_BATCHES },
+  { version: 13, name: 'tag-hierarchy', sql: MIGRATION_013_TAG_HIERARCHY, run: backfillTagCatalog },
+  { version: 14, name: 'ai-analysis-runs', sql: MIGRATION_014_AI_ANALYSIS_RUNS },
+  { version: 15, name: 'ai-template-proposals', sql: MIGRATION_015_AI_TEMPLATE_PROPOSALS },
+  { version: 16, name: 'ai-organization-operations', sql: MIGRATION_016_AI_ORGANIZATION_OPERATIONS },
+  { version: 17, name: 'ai-organization-progress', sql: MIGRATION_017_AI_ORGANIZATION_PROGRESS },
+  { version: 18, name: 'ai-organization-checkpoints', sql: MIGRATION_018_AI_ORGANIZATION_CHECKPOINTS },
+  { version: 19, name: 'financial-execution', sql: MIGRATION_019_FINANCIAL_EXECUTION },
 ];
 
 interface AppliedRow {
@@ -118,16 +137,16 @@ function tableRowCount(db: Db, table: string): number {
  * @param dataDir directory that holds the database file; backups go to
  *   `<dataDir>/backups`. Pass `null` to skip the backup (tests only).
  */
-export function runMigrations(db: Db, dataDir: string | null): MigrateResult {
+export function runMigrations(db: Db, dataDir: string | null, migrations: readonly Migration[] = MIGRATIONS): MigrateResult {
   ensureMigrationTable(db);
 
   const done = appliedVersions(db);
-  const pending = MIGRATIONS.filter((migration) => !done.has(migration.version));
+  const pending = migrations.filter((migration) => !done.has(migration.version));
 
   if (pending.length === 0) {
     return {
       applied: [],
-      alreadyApplied: MIGRATIONS.map((m) => m.version),
+      alreadyApplied: migrations.map((m) => m.version),
       backupPath: null,
     };
   }
@@ -152,6 +171,7 @@ export function runMigrations(db: Db, dataDir: string | null): MigrateResult {
     // back on throw, which is exactly the contract we want per migration.
     const apply = db.transaction(() => {
       db.exec(migration.sql);
+      migration.run?.(db);
       record.run(migration.version, migration.name, Date.now());
     });
     apply();

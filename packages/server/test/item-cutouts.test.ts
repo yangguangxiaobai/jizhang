@@ -14,12 +14,33 @@ const PASSWORD = 'correct horse battery staple';
 const CSRF = { 'x-requested-with': 'fetch' } as const;
 const SERVICE_URL = 'http://jizhang-cutout:8090';
 const JOB_ID = 'a'.repeat(32);
-const WEBP_BYTES = Buffer.alloc(30);
-WEBP_BYTES.write('RIFF', 0, 'ascii');
-WEBP_BYTES.writeUInt32LE(22, 4);
-WEBP_BYTES.write('WEBP', 8, 'ascii');
-WEBP_BYTES.write('VP8X', 12, 'ascii');
-WEBP_BYTES.writeUInt32LE(10, 16);
+// Real 24x24 lossless WebP (48 bytes): transparent background, opaque red center.
+// A genuine container keeps this test about proxy semantics, not a stub header.
+const WEBP_BYTES = Buffer.from(
+  'UklGRigAAABXRUJQVlA4TBsAAAAvF8AFEAYyaRsv9a+zZ9k52l2R/k/Ao6I3URIA',
+  'base64',
+);
+
+function sqliteCounts(): Record<'transactions' | 'asset_items' | 'asset_item_photos', number> {
+  const count = (table: string): number =>
+    (db.prepare('SELECT COUNT(*) AS count FROM ' + table).get() as { count: number }).count;
+  return {
+    transactions: count('transactions'),
+    asset_items: count('asset_items'),
+    asset_item_photos: count('asset_item_photos'),
+  };
+}
+
+async function createItemForPhoto(): Promise<string> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/items',
+    headers: headers(),
+    payload: { name: '抠图后保存的物品', purchaseDate: Date.now() - 10 * 86_400_000 },
+  });
+  expect(response.statusCode, response.body).toBe(201);
+  return (response.json() as { id: string }).id;
+}
 
 function streamBytesAbove(limit: number): ReadableStream<Uint8Array> {
   let remaining = limit + 1;
@@ -139,6 +160,7 @@ describe('authenticated item cutout proxy', () => {
   });
 
   it('proxies bounded WebP jobs and returns no-store, correctly-typed candidates', async () => {
+    const before = sqliteCounts();
     const created = await app.inject({
       method: 'POST',
       url: '/api/v1/items/cutouts',
@@ -191,6 +213,10 @@ describe('authenticated item cutout proxy', () => {
     });
     expect(cancelled.statusCode).toBe(204);
     expect(cancelled.headers['cache-control']).toBe('no-store');
+
+    // The whole create/status/candidate/cancel cycle is transient: no item, photo,
+    // or ledger row may be written as a side effect of using the proxy.
+    expect(sqliteCounts()).toEqual(before);
   });
 
   it('rejects malformed, oversized, and non-WebP inputs before contacting inference', async () => {
@@ -246,6 +272,69 @@ describe('authenticated item cutout proxy', () => {
     });
     expect(oversizedImage.statusCode).toBe(502);
     expect(oversizedImage.json().error.code).toBe('CUTOUT_UPSTREAM_INVALID');
+  });
+
+  it('keeps ordinary photo upload available after an upstream failure and an empty ready result', async () => {
+    fetchImpl.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ error: { code: 'CUTOUT_UNAVAILABLE', message: 'worker unavailable' } }),
+        { status: 503, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const failed = await app.inject({
+      method: 'POST',
+      url: '/api/v1/items/cutouts',
+      headers: { ...headers(), 'content-type': 'image/webp' },
+      payload: WEBP_BYTES,
+    });
+    expect(failed.statusCode).toBe(503);
+    expect(failed.json().error.code).toBe('CUTOUT_UNAVAILABLE');
+
+    const retried = await app.inject({
+      method: 'POST',
+      url: '/api/v1/items/cutouts',
+      headers: { ...headers(), 'content-type': 'image/webp' },
+      payload: WEBP_BYTES,
+    });
+    expect(retried.statusCode, retried.body).toBe(202);
+
+    fetchImpl.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          jobId: JOB_ID,
+          state: 'ready',
+          message: '没有找到合适的透明候选，请使用原图或重试。',
+          candidates: [],
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const empty = await app.inject({
+      method: 'GET',
+      url: '/api/v1/items/cutouts/' + JOB_ID,
+      headers: headers(),
+    });
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json()).toMatchObject({ state: 'ready', candidates: [] });
+
+    // An empty cutout result changes the draft decision, never the ordinary upload path:
+    // the original WebP still saves and downloads byte-for-byte unchanged.
+    const itemId = await createItemForPhoto();
+    const upload = await app.inject({
+      method: 'PUT',
+      url: '/api/v1/items/' + itemId + '/photo',
+      headers: { ...headers(), 'content-type': 'image/webp' },
+      payload: WEBP_BYTES,
+    });
+    expect(upload.statusCode).toBe(204);
+    const photo = await app.inject({
+      method: 'GET',
+      url: '/api/v1/items/' + itemId + '/photo',
+      headers: headers(),
+    });
+    expect(photo.statusCode).toBe(200);
+    expect(photo.headers['content-type']).toBe('image/webp');
+    expect(Buffer.from(photo.rawPayload)).toEqual(WEBP_BYTES);
   });
 
   it('maps a disabled service to a stable code without leaking the internal URL', async () => {

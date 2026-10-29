@@ -25,6 +25,7 @@
  * owns the escaping rules.
  */
 import { randomUUID } from 'node:crypto';
+import { TagCatalogService } from './tag-catalog-service.js';
 import { basename, join } from 'node:path';
 import { mkdirSync, readdirSync, statSync } from 'node:fs';
 import {
@@ -42,7 +43,7 @@ import {
 import { createBackup } from '../cli-db.js';
 import type { Db } from '../db/index.js';
 import { decodeBillFile } from './bill-decode.js';
-import { ValidationError } from './transaction-service.js';
+import { TransactionService, ValidationError } from './transaction-service.js';
 
 /** The columns of the transactions export. Order is the file's contract. */
 export const TRANSACTION_COLUMNS = [
@@ -92,10 +93,15 @@ export interface ImportResult {
 export interface PlatformImportRowDto {
   readonly id: string;
   readonly dateLabel: string;
+  readonly comparisonAccountId: string | null;
+  readonly externalId: string | null;
   /** 0 expense, 1 income — before ignore rules. */
   readonly type: number;
   readonly amountCents: number;
   readonly note: string;
+  readonly isRefund: boolean;
+  readonly refundWarning: string | null;
+  readonly rawStatus: string;
   readonly counterparty: string;
   readonly sourceCategory: string;
   /** Keyword-suggested category name; the client may override before confirm. */
@@ -142,6 +148,10 @@ export interface PlatformImportResult {
 }
 
 export interface PlatformImportOptions {
+  /** Assistant-only strict existing-ID review; legacy name import remains unchanged. */
+  readonly strictCategories?: boolean;
+  readonly categoryIds?: Readonly<Record<string, string>>;
+  readonly noteOverrides?: Readonly<Record<string, string>>;
   readonly source?: 'auto' | PlatformBillSource;
   readonly dryRun?: boolean;
   readonly fileName?: string;
@@ -211,6 +221,33 @@ export class PortabilityService {
   constructor(db: Db, options: PortabilityServiceOptions) {
     this.db = db;
     this.dataDir = options.dataDir;
+  }
+
+  /** Current, read-only heuristic matches. Facts must come from a stored preview, not the client. */
+  duplicateCandidates(source: Record<string, unknown>, limitInput: unknown, cursorInput: unknown, readAt = Date.now()) {
+    const limit = limitInput === undefined ? 20 : typeof limitInput === 'string' && /^[1-9]\d*$/.test(limitInput) ? Number(limitInput) : NaN;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50 || (cursorInput !== undefined && (typeof cursorInput !== 'string' || cursorInput.length === 0 || cursorInput.length > 100))) {
+      throw new ValidationError('分页参数无效：limit 为1–50，cursor 为有效账单编号。');
+    }
+    if (!Object.hasOwn(source, 'comparisonAccountId') || typeof source['dateLabel'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(source['dateLabel']) || (source['type'] !== 0 && source['type'] !== 1) || typeof source['amountCents'] !== 'number' || !Number.isSafeInteger(source['amountCents']) || source['amountCents'] <= 0 || (source['comparisonAccountId'] !== null && typeof source['comparisonAccountId'] !== 'string')) {
+      throw new ValidationError('旧预览缺少对比事实，请重新上传账单并预览。');
+    }
+    const [year, month, day] = source['dateLabel'].split('-').map(Number);
+    const start = new Date(year!, month! - 1, day!);
+    if (start.getFullYear() !== year || start.getMonth() !== month! - 1 || start.getDate() !== day) throw new ValidationError('预览日期无效，请重新上传账单并预览。');
+    const end = new Date(year!, month! - 1, day! + 1);
+    const where = 'account_id = ? AND date >= ? AND date < ? AND type = ? AND amount_cents = ? AND deleted = 0';
+    const params = [source['comparisonAccountId'], start.getTime(), end.getTime(), source['type'], source['amountCents']];
+    const total = (this.db.prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${where}`).get(...params) as { n: number }).n;
+    const ids = this.db.prepare(`SELECT id FROM transactions WHERE ${where} AND id > ? ORDER BY id LIMIT ?`).all(...params, cursorInput ?? '', limit + 1) as { id: string }[];
+    const accounts = this.nameMap('accounts');
+    const categories = this.nameMap('categories');
+    const transactions = new TransactionService(this.db);
+    const items = ids.slice(0, limit).map(({ id }) => {
+      const row = transactions.getById(id)!;
+      return { ...row, accountName: accounts.get(row.accountId) ?? null, categoryName: categories.get(row.categoryId) ?? null };
+    });
+    return { source, total, items, nextCursor: ids.length > limit ? items.at(-1)?.id ?? null : null, readAt, rationale: '同平台账户、服务端本地同日、同类型、同金额，仅为疑似重复线索，不证明是同一笔账。' };
   }
 
   /** `<dataDir>/backups`, matching what `cli.js backup` writes to by default. */
@@ -571,7 +608,9 @@ export class PortabilityService {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
     );
     const insertMany = this.db.transaction((rows: readonly Pending[]) => {
+      const catalog = new TagCatalogService(this.db, () => at);
       for (const row of rows) {
+        for (const tag of row.tags) catalog.ensureTag(this.db, tag, at);
         insert.run(
           row.id,
           row.type,
@@ -811,9 +850,14 @@ export class PortabilityService {
       return {
         id: row.id,
         dateLabel: row.dateLabel,
+        comparisonAccountId: liveAccountId ?? null,
+        externalId: row.externalId,
         type: row.type,
         amountCents: row.amountCents,
         note: row.note,
+        isRefund: row.isRefund,
+        refundWarning: row.refundWarning,
+        rawStatus: row.rawStatus,
         counterparty: row.counterparty,
         sourceCategory: row.sourceCategory,
         categoryName: row.categoryName,
@@ -833,15 +877,41 @@ export class PortabilityService {
       return row.categoryName;
     };
 
-    const isSelected = (id: string): boolean =>
-      selectedIds === undefined || selectedIds === null ? true : selectedIds.includes(id);
-
     // Candidate write set: platform-importable, not already in the ledger, and selected.
     const importableRows = parsed.rows.filter((row) => {
-      if (row.ignored || row.amountCents <= 0) return false;
+      if (row.amountCents <= 0) return false;
       if (existingIds.has(row.id)) return false;
-      return isSelected(row.id);
+      if (selectedIds !== undefined && selectedIds !== null) {
+        return selectedIds.includes(row.id);
+      }
+      return !row.ignored;
     });
+
+    const strict = options.strictCategories === true;
+    const reviewedCategories = new Map<string, string>();
+    if (strict) {
+      const visible = parsed.rows.slice(0, 200);
+      if (selectedIds !== null && selectedIds !== undefined) {
+        if (selectedIds.length > 100 || new Set(selectedIds).size !== selectedIds.length || selectedIds.some((id) => !visible.some((r) => r.id === id && !existingIds.has(id) && r.amountCents > 0))) {
+          throw new ValidationError('请选择当前预览中最多100条有效且未导入的账单。');
+        }
+      }
+      if (!dryRun && (!selectedIds || selectedIds.length === 0)) throw new ValidationError('必须显式选择账单。');
+      for (const id of Object.keys(options.categoryIds ?? {})) {
+        if (!visible.some((r) => r.id === id)) throw new ValidationError('分类覆盖行不属于当前预览。');
+      }
+      for (const [id, note] of Object.entries(options.noteOverrides ?? {})) {
+        if (!visible.some((r) => r.id === id) || typeof note !== 'string' || note.length > 200) throw new ValidationError('备注覆盖无效（最多200字符）。');
+      }
+      for (const row of importableRows) {
+        const id = options.categoryIds?.[row.id];
+        if (id === undefined && dryRun && !selectedIds) continue;
+        const category = this.db.prepare('SELECT id, type FROM categories WHERE id = ? AND deleted = 0').get(id ?? '') as { id: string; type: number } | undefined;
+        const child = category?.type === 0 && this.db.prepare('SELECT id FROM categories WHERE parent_id = ? AND deleted = 0 LIMIT 1').get(id);
+        if (!category || category.type !== row.type || child) throw new ValidationError('请为所选账单选择有效的同类型现有叶分类。');
+        reviewedCategories.set(row.id, category.id);
+      }
+    }
 
     // Category names actually needed for the write set (after overrides).
     const categoryPlan = new Map<string, { name: string; type: number }>();
@@ -861,7 +931,7 @@ export class PortabilityService {
       const account = this.ensureNamedAccount(accountName, accountType, dryRun);
       const accountsCreated = account.created ? 1 : 0;
       const categoryIds = new Map<string, string>();
-      for (const [key, plan] of categoryPlan) {
+      for (const [key, plan] of strict ? [] : categoryPlan) {
         const ensured = this.ensureNamedCategory(plan.name, plan.type, dryRun);
         categoryIds.set(key, ensured.id);
         if (ensured.created) categoriesCreated += 1;
@@ -909,13 +979,15 @@ export class PortabilityService {
       for (const row of importableRows) {
         const date = parseDateLabel(row.dateLabel);
         if (date === null) {
+          if (strict) throw new ValidationError('所选账单日期无效，请重新预览。');
           warnings.push(`跳过无法解析日期的行：${row.dateLabel}`);
           continue;
         }
         const type = row.type;
         const name = effectiveCategory(row);
-        const categoryId = resolved.categoryIds.get(`${type}:${name}`);
+        const categoryId = strict ? reviewedCategories.get(row.id) : resolved.categoryIds.get(`${type}:${name}`);
         if (categoryId === undefined) {
+          if (strict && dryRun && !selectedIds) continue;
           warnings.push(`缺少分类「${name}」，跳过：${row.note}`);
           continue;
         }
@@ -927,9 +999,9 @@ export class PortabilityService {
           type,
           amountCents: row.amountCents,
           categoryId,
-          note: row.note,
+          note: options.noteOverrides?.[row.id] ?? row.note,
           date,
-          isRefund: type === 1 && name === '退款',
+          isRefund: row.isRefund,
         });
       }
 

@@ -20,6 +20,7 @@ import {
   type AiOrganizationRecommendation,
 } from './ai-types.js';
 import { normaliseTags, parseTagsJson, serialiseTags } from './tags.js';
+import { TagCatalogService } from './tag-catalog-service.js';
 
 const MAX_SELECTED_ACTIONS = 100;
 const MAX_SAMPLE_IDS = 5;
@@ -993,6 +994,8 @@ export class AiOrganizationService {
           .run(row.categoryId, at, row.id);
       }
       if (row.tagsJson !== undefined) {
+        const catalog = new TagCatalogService(this.db, () => at);
+        for (const name of parseTagsJson(row.tagsJson)) catalog.ensureTag(this.db, name, at);
         this.db
           .prepare('UPDATE transactions SET tags_json = ?, updated_at = ? WHERE id = ?')
           .run(row.tagsJson, at, row.id);

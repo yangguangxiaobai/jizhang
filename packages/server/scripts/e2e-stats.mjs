@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end statistics checks against the running container (T8).
 //
 // The load-bearing assertions (parent task AC5 / T8 AC1-AC4):
@@ -257,8 +258,7 @@ for (const url of ['/stats/category-share', '/stats/monthly-trend', '/stats/pool
   check(`${url} requires a session`, res.status === 401, `-> ${res.status}`);
 }
 
-// ── SPA shell ────────────────────────────────────────────────────────────────
-const spa = await fetch('http://127.0.0.1:8081/stats');
-check('GET /stats serves the SPA shell', spa.status === 200, `-> ${spa.status}`);
+// Former Web routes stay retired.
+await checkRetiredWeb(check, ['/stats']);
 
 finish('STATS E2E');

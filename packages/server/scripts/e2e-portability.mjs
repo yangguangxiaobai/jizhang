@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end data-portability checks against the running container (T15).
 //
 // The load-bearing checks (task AC1-AC13):
@@ -288,9 +289,7 @@ check('POST /import/transactions requires a session -> 401', anonymousImport.sta
 const noCsrf = await fetch(`${BASE}/backups`, { method: 'POST' });
 check('a mutating call without CSRF -> 403', noCsrf.status === 403, `-> ${noCsrf.status}`);
 
-// ── the SPA route is deployed ────────────────────────────────────────────────
-const shell = await fetch('http://127.0.0.1:8081/data');
-const html = await shell.text();
-check('GET /data serves the SPA shell', shell.status === 200 && html.includes('<div id="app"'), `-> ${shell.status}`);
+// Former Web routes stay retired.
+await checkRetiredWeb(check, ['/data']);
 
 finish('PORTABILITY E2E');

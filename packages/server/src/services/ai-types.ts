@@ -93,8 +93,8 @@ export interface AiPromptContext {
   readonly today: string;
   readonly responseSchema: Record<string, unknown>;
   /** Optional feature discriminator; omitted means the original transaction-draft prompt. */
-  readonly feature?: 'transaction-draft' | 'monthly-evaluation' | 'organization' | 'assistant';
-  /** Aggregate-only facts for feature prompts; never transaction rows or notes. */
+  readonly feature?: 'transaction-draft' | 'monthly-evaluation' | 'organization' | 'spending-organization' | 'assistant' | 'bill-import';
+  /** Feature-scoped server facts; spending organization may include bounded untrusted bill summaries. */
   readonly facts?: Record<string, unknown>;
 }
 
@@ -344,5 +344,40 @@ export class AiOrganizationResponseInvalidError extends AiError {
   constructor() {
     super(502, 'AI_RESPONSE_INVALID', 'AI 返回内容无法解析为有效的整理建议。');
     this.name = 'AiOrganizationResponseInvalidError';
+  }
+}
+
+export class AiSpendingRunsInputError extends AiError {
+  constructor(message: string) {
+    super(400, 'AI_ORGANIZATION_RUNS_INVALID', message);
+    this.name = 'AiSpendingRunsInputError';
+  }
+}
+
+export class AiSpendingOverCapError extends AiError {
+  constructor(message: string) {
+    super(400, 'AI_ORGANIZATION_OVER_CAP', message);
+    this.name = 'AiSpendingOverCapError';
+  }
+}
+
+export class AiSpendingRunNotFoundError extends AiError {
+  constructor() {
+    super(404, 'AI_ORGANIZATION_RUN_NOT_FOUND', '分析任务不存在。');
+    this.name = 'AiSpendingRunNotFoundError';
+  }
+}
+
+export class AiSpendingCardNotReadyError extends AiError {
+  constructor() {
+    super(409, 'AI_ORGANIZATION_NOT_READY', '分析尚未完成，无法生成审查卡片。');
+    this.name = 'AiSpendingCardNotReadyError';
+  }
+}
+
+export class AiSpendingOperationNotFoundError extends AiError {
+  constructor() {
+    super(404, 'AI_ORGANIZATION_OPERATION_NOT_FOUND', '整理操作不存在。');
+    this.name = 'AiSpendingOperationNotFoundError';
   }
 }

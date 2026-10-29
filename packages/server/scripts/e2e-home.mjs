@@ -1,3 +1,4 @@
+import { checkRetiredWeb } from './lib/retired-web.mjs';
 // End-to-end checks for the home dashboard (09-11-home-dashboard).
 //
 // The dashboard is a pure reader: it adds no endpoint. What it *does* add is a
@@ -10,12 +11,8 @@
 // made to `monthlyTrend`), and the "recent transactions" query the dashboard relies on
 // returns newest-first at its own limit.
 //
-// Usage: docker compose cp packages/server/scripts/. jizhang:/app/packages/server/scripts/
-//        docker compose exec -T -w /app/packages/server/scripts jizhang node e2e-home.mjs
-//
-// This suite never stops the container. The offline path (server unreachable) is
-// covered by `packages/web/scripts/render-dashboard.mjs`, which stops and restarts the
-// container around its check because the difference is only observable in a browser.
+// Run only against an isolated disposable ledger: resetToKnownState clears ledger data.
+// This suite does not test native offline behavior and must not target production.
 
 import { makeChecker, resetToKnownState } from './lib/e2e-reset.mjs';
 
@@ -246,22 +243,8 @@ check(
 const one = (await get('/transactions?limit=1')).json;
 check('a limit of 1 returns exactly 1 row', one.items.length === 1, `-> ${one.items.length}`);
 
-// ── the SPA shell ────────────────────────────────────────────────────────────
-// The dashboard is the SPA's landing route, so `/` must serve the built shell (not
-// JSON, not a 404), while `/api/**` must stay JSON.
-console.log('\n[shell and routing]');
-const root = await fetch(`${ORIGIN}/`);
-const rootHtml = await root.text();
-check('GET / serves a 200', root.status === 200, `-> ${root.status}`);
-check('the shell carries the Vue mount point', rootHtml.includes('<div id="app">'));
-check('and links the hashed entry bundle', /\/assets\/index-[\w-]+\.js/.test(rootHtml));
-check('and links the web manifest', rootHtml.includes('manifest.webmanifest'));
-check('and is HTML, not JSON', rootHtml.trimStart().startsWith('<!doctype html'));
-
-const deepLink = await fetch(`${ORIGIN}/transactions`);
-check('the transaction list path serves the shell too', deepLink.status === 200, `-> ${deepLink.status}`);
-const deepHtml = await deepLink.text();
-check('as HTML', deepHtml.includes('<div id="app">'));
+// Former Web routes are retired.
+await checkRetiredWeb(check, ['/', '/transactions'], ORIGIN);
 
 const apiUnknown = await fetch(`${BASE}/definitely-not-a-route`, { headers: auth });
 check(
@@ -272,17 +255,6 @@ check(
 
 const health = await fetch(`${BASE}/health`);
 check('health is unaffected', health.status === 200, `-> ${health.status}`);
-
-// ── the deployable app is actually being served ───────────────────────────────
-// The dashboard is a route inside the SPA bundle, not something HTTP can reach by
-// itself: its view chunk is a dynamic import that `index.html` never references, so no
-// amount of fetching can prove "the home tab exists" without re-implementing the
-// bundler. What IS worth pinning is that this origin serves the real application (an
-// HTML shell plus its module entry) rather than API-only output, because every
-// dashboard assertion above depends on the app being the thing deployed here.
-console.log('\n[served application]');
-check('the shell loads a module entry bundle', /<script[^>]+type="module"[^>]+src="\/assets\//.test(rootHtml));
-check('and the app mount point is present', rootHtml.includes('<div id="app">'));
 
 // ── guard ────────────────────────────────────────────────────────────────────
 console.log('\n[guard]');

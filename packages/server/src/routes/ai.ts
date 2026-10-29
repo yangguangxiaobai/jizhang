@@ -9,6 +9,11 @@
  *   POST /api/v1/ai/organization-preview  preview safe data organization actions
  *   POST /api/v1/ai/organization-apply    apply selected organization actions
  *   POST /api/v1/ai/organization-undo     conditionally undo an operation
+ *   POST /api/v1/ai/organization-runs     start bounded date-range analysis
+ *   GET  /api/v1/ai/organization-runs/:id read run status
+ *   GET  /api/v1/ai/organization-runs/:id/card read the completed review card
+ *   POST /api/v1/ai/organization-runs/:id/apply apply selected card actions
+ *   POST /api/v1/ai/organization-operations/:id/undo conditionally undo an operation
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppConfig } from '../config.js';
@@ -16,9 +21,11 @@ import type { Db } from '../db/index.js';
 import { AiConfigService } from '../services/ai-config-service.js';
 import { AiProviderService } from '../services/ai-provider-service.js';
 import type { AiProviderConfigInput } from '../services/ai-types.js';
+import { AiSpendingOperationNotFoundError, AiSpendingRunNotFoundError } from '../services/ai-types.js';
 import { MonthlyEvaluationService } from '../services/monthly-evaluation-service.js';
 import { AiTransactionService } from '../services/ai-transaction-service.js';
 import { AiOrganizationService } from '../services/ai-organization-service.js';
+import { AiSpendingOrganizationService } from '../services/ai-spending-organization-service.js';
 
 export interface AiRoutesOptions {
   readonly db: Db;
@@ -49,6 +56,11 @@ export async function registerAiRoutes(
   const organization = new AiOrganizationService(options.db, config, provider, {
     now: options.now,
   });
+  const spendingOrganization = new AiSpendingOrganizationService(options.db, config, provider, {
+    now: options.now,
+  });
+  // Abort provider work before Fastify waits for in-flight legacy synchronous POSTs.
+  app.addHook('preClose', async () => { await spendingOrganization.close(); });
 
   app.get('/api/v1/ai/config', async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.send(config.summary());
@@ -56,6 +68,11 @@ export async function registerAiRoutes(
 
   app.put('/api/v1/ai/config', async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.send(config.save(bodyRecord(request) as AiProviderConfigInput));
+  });
+
+  app.post('/api/v1/ai/models', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const saved = config.getStoredForModelListingOrThrow();
+    return reply.send(await provider.listModels(saved, config.getSecretOrThrow(saved)));
   });
 
   app.post('/api/v1/ai/test', async (_request: FastifyRequest, reply: FastifyReply) => {
@@ -86,5 +103,47 @@ export async function registerAiRoutes(
   app.post('/api/v1/ai/organization-undo', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = bodyRecord(request);
     return reply.send(organization.undo(body['operationId']));
+  });
+
+  app.post('/api/v1/ai/organization-runs', async (request: FastifyRequest, reply: FastifyReply) => {
+    return reply.status(202).send(await spendingOrganization.startAnalysis(bodyRecord(request)));
+  });
+
+  app.post('/api/v1/ai/organization-runs/:id/resume', async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { id?: string };
+    if (typeof params.id !== 'string' || params.id.trim() === '') throw new AiSpendingRunNotFoundError();
+    return reply.status(202).send(await spendingOrganization.resumeAnalysis(params.id, bodyRecord(request)));
+  });
+
+  app.get('/api/v1/ai/organization-runs/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { id?: string };
+    if (typeof params.id !== 'string' || params.id.trim() === '') {
+      throw new AiSpendingRunNotFoundError();
+    }
+    return reply.send(spendingOrganization.getRun(params.id));
+  });
+
+  app.get('/api/v1/ai/organization-runs/:id/card', async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { id?: string };
+    if (typeof params.id !== 'string' || params.id.trim() === '') {
+      throw new AiSpendingRunNotFoundError();
+    }
+    return reply.send(spendingOrganization.getCard(params.id));
+  });
+
+  app.post('/api/v1/ai/organization-runs/:id/apply', async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { id?: string };
+    if (typeof params.id !== 'string' || params.id.trim() === '') {
+      throw new AiSpendingRunNotFoundError();
+    }
+    return reply.send(spendingOrganization.apply(params.id, bodyRecord(request)['actionIds']));
+  });
+
+  app.post('/api/v1/ai/organization-operations/:id/undo', async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { id?: string };
+    if (typeof params.id !== 'string' || params.id.trim() === '') {
+      throw new AiSpendingOperationNotFoundError();
+    }
+    return reply.send(spendingOrganization.undo(params.id));
   });
 }

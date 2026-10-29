@@ -297,6 +297,38 @@ describe('AI organization preview and category merge', () => {
     expect(JSON.stringify(providerBody)).not.toContain(API_KEY);
   });
 
+  it('rolls back the entire undo when direct SQL changed an affected tag after apply', async () => {
+    seedDependencies();
+    const preview = (await post('/api/v1/ai/organization-preview')).json() as {
+      previewHash: string;
+      actions: { actionId: string; kind: string; status: string }[];
+    };
+    const tag = preview.actions.find((action) => action.kind === 'tag-merge' && action.status === 'ready');
+    const category = preview.actions.find((action) => action.kind === 'category-merge' && action.status === 'ready');
+    const applied = await post('/api/v1/ai/organization-apply', {
+      previewHash: preview.previewHash,
+      actionIds: [tag?.actionId, category?.actionId],
+    });
+    expect(applied.statusCode).toBe(200);
+    const operationId = applied.json().operationId as string;
+    const appliedTags = (db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json;
+    db.prepare("UPDATE transactions SET tags_json = '[\"external-edit\"]' WHERE id='organization-source-tx'").run();
+    const concurrentTags = (db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json;
+    const auditBefore = db.prepare('SELECT COUNT(*) AS count FROM ai_organization_audit').get() as { count: number };
+
+    const undone = await post('/api/v1/ai/organization-undo', { operationId });
+    expect(undone.statusCode).toBe(409);
+    expect(undone.json()).toMatchObject({ error: { code: 'AI_ORGANIZATION_CONFLICT' } });
+    expect((db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json).toBe(concurrentTags);
+    expect(concurrentTags).not.toBe(appliedTags);
+    expect((db.prepare('SELECT COUNT(*) AS count FROM ai_organization_audit').get() as { count: number }).count).toBe(auditBefore.count);
+    expect((db.prepare("SELECT deleted FROM categories WHERE id='organization-source'").get() as { deleted: number }).deleted).toBe(1);
+    expect((db.prepare("SELECT category_id FROM transactions WHERE id='organization-source-tx'").get() as { category_id: string }).category_id).toBe('organization-target');
+    expect((db.prepare("SELECT allocations_json FROM budget_allocations WHERE id='organization-allocation'").get() as { allocations_json: string }).allocations_json).toBe(JSON.stringify([
+      { categoryId: 'organization-target', amountCents: 1000 },
+    ]));
+  });
+
   it('rejects undo when a user changed an affected value afterwards', async () => {
     seedDependencies();
     const preview = (await post('/api/v1/ai/organization-preview')).json() as {
@@ -326,5 +358,29 @@ describe('AI organization route boundary', () => {
       headers: CSRF,
     });
     expect(response.statusCode).toBe(401);
+  });
+
+  it('requires a session on spending organization run endpoints', async () => {
+    const attempts = [
+      { method: 'POST' as const, url: '/api/v1/ai/organization-runs', headers: CSRF, payload: { startDate: '2026-08-01', endDate: '2026-08-02' } },
+      { method: 'GET' as const, url: '/api/v1/ai/organization-runs/x' },
+      { method: 'GET' as const, url: '/api/v1/ai/organization-runs/x/card' },
+      { method: 'POST' as const, url: '/api/v1/ai/organization-runs/x/apply', headers: CSRF, payload: { actionIds: ['a'] } },
+      { method: 'POST' as const, url: '/api/v1/ai/organization-operations/x/undo', headers: CSRF },
+    ];
+    for (const attempt of attempts) {
+      const response = await app.inject(attempt);
+      expect(response.statusCode, `${attempt.method} ${attempt.url}`).toBe(401);
+    }
+  });
+
+  it('requires the CSRF header to start a spending organization run', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/ai/organization-runs',
+      headers: { Cookie: `${SESSION_COOKIE}=${cookie}` },
+      payload: { startDate: '2026-08-01', endDate: '2026-08-02' },
+    });
+    expect(response.statusCode).toBe(403);
   });
 });

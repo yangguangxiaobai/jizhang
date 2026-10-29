@@ -2,8 +2,8 @@
  * T8 acceptance tests: category share, monthly trend, and the pool series.
  *
  * The load-bearing assertions are the accounting ones (parent task AC5):
- *   * a refund reduces net expense and NEVER counts as income;
- *   * a category whose refunds cancel its spending nets to zero;
+ *   * a refund counts as income and does not reduce gross expense;
+ *   * category expense is gross;
  *   * the pool series ends exactly at the engine's current pool.
  *   * monthly income is transactions PLUS recorded salaries, but salary income never
  *     leaks into the expense category share.

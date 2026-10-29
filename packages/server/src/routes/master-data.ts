@@ -149,7 +149,21 @@ export async function registerMasterDataRoutes(
     return reply.send({ items: service.moveAccount(requireId(request), dir) });
   });
 
-  // ── tags (no table: the name is the identity) ─────────────────────────────
+  // ── additive stable tag hierarchy ───────────────────────────────────────
+  app.get('/api/v1/tags/hierarchy', async (_request, reply) => reply.send({ items: service.listTagHierarchy() }));
+  app.post('/api/v1/tags/hierarchy', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    return reply.status(201).send(service.createTag(body['name'], body['parentId']));
+  });
+  app.patch('/api/v1/tags/hierarchy/:id', async (request, reply) => {
+    return reply.send(service.updateTag(requireId(request), (request.body ?? {}) as { name?: unknown; parentId?: unknown }));
+  });
+  app.delete('/api/v1/tags/hierarchy/:id', async (request, reply) => {
+    service.deleteTagById(requireId(request));
+    return reply.status(204).send();
+  });
+
+  // ── legacy flat tag API ──────────────────────────────────────────────────
   app.get('/api/v1/tags', async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.send({ items: service.listTags() });
   });

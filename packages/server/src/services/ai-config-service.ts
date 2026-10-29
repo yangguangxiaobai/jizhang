@@ -295,6 +295,22 @@ export class AiConfigService {
     return stored;
   }
 
+  /** Listing bootstraps a saved connection without requiring AI or a model to be enabled. */
+  getStoredForModelListingOrThrow(): StoredAiProviderConfig {
+    try {
+      const stored = this.stored();
+      if (stored === undefined) throw new AiNotConfiguredError();
+      // Disabled saves intentionally skip destination validation; do not trust them for I/O.
+      validateUrlTemplate(stored.url, stored.mode, this.options.production);
+      return stored;
+    } catch (error) {
+      if (error instanceof AiConfigValidationError) {
+        throw new AiConfigValidationError('已保存的 AI 连接配置无效，请检查地址（生产环境须使用 HTTPS）并重新保存，或手动填写模型。');
+      }
+      throw error;
+    }
+  }
+
   getSecretOrThrow(stored: StoredAiProviderConfig): string | null {
     if (stored.auth.kind === 'none') return null;
     if (stored.encryptedSecret === null) throw new AiSecretUnavailableError();

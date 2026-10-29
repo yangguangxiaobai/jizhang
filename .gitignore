@@ -34,13 +34,6 @@ pnpm-debug.log*
 # ── local scratch ────────────────────────────────────────────────────────────
 .tmp-*/
 
-# Isolated browser verification output
-test-results/
-playwright-report/
-# The browser suites' default screenshot names, written into the web package when no path
-# is passed. Generated, regenerable, and not source. (`public/` keeps the real PWA icons.)
-packages/web/*.png
-
 # Python cutout service caches and local environments
 packages/cutout/**/__pycache__/
 packages/cutout/**/.pytest_cache/
@@ -60,3 +53,18 @@ jizhang-*.tar.gz
 *.hap
 *.hsp
 *.apk
+
+# Native caches, SDK paths and local signing material are machine-specific.
+clients/android/.gradle/
+clients/android/**/build/
+clients/android/local.properties
+clients/android/keystore.properties
+*.jks
+*.keystore
+clients/harmony/oh_modules/
+clients/harmony/.hvigor/
+clients/harmony/**/build/
+
+# Generated delivery bundles; source tooling remains under deploy/.
+/artifacts/
+deploy/__pycache__/

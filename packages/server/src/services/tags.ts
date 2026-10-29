@@ -58,6 +58,15 @@ export function serialiseTags(tags: readonly string[]): string {
   return JSON.stringify(normaliseTags(tags));
 }
 
+/** Stable lossless identity for SQLite TEXT, which cannot represent lone UTF-16 surrogates. */
+export function tagNameKey(name: string): string {
+  let key = '';
+  for (let index = 0; index < name.length; index += 1) {
+    key += name.charCodeAt(index).toString(16).padStart(4, '0');
+  }
+  return key;
+}
+
 /** Tag name plus how many transactions reference it (management view, T7). */
 export interface TagCount {
   readonly name: string;

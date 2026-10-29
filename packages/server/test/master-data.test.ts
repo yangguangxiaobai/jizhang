@@ -596,6 +596,53 @@ describe('account management', () => {
 // Tags
 // ---------------------------------------------------------------------------
 
+describe('hierarchy tag API', () => {
+  it('is read-only on GET and supports root/child CRUD while preserving identity on rename', async () => {
+    const emptyBefore = (db.prepare('SELECT COUNT(*) AS c FROM tags').get() as {c:number}).c;
+    expect((await inject('GET','/api/v1/tags/hierarchy')).statusCode).toBe(200);
+    expect((db.prepare('SELECT COUNT(*) AS c FROM tags').get() as {c:number}).c).toBe(emptyBefore);
+    const rootResponse=await inject('POST','/api/v1/tags/hierarchy',{name:'root'});
+    expect(rootResponse.statusCode).toBe(201);
+    const root=rootResponse.json() as {id:string;name:string};
+    const childResponse=await inject('POST','/api/v1/tags/hierarchy',{name:'child',parentId:root.id});
+    expect(childResponse.statusCode).toBe(201);
+    const child=childResponse.json() as {id:string;name:string;parentId:string};
+    expect(child.parentId).toBe(root.id);
+    expect((await inject('DELETE',`/api/v1/tags/hierarchy/${root.id}`)).statusCode).toBe(409);
+    const renamed=await inject('PATCH',`/api/v1/tags/hierarchy/${child.id}`,{name:'renamed'});
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json().id).toBe(child.id);
+    expect((await inject('DELETE',`/api/v1/tags/hierarchy/${child.id}`)).statusCode).toBe(204);
+    expect((await inject('DELETE',`/api/v1/tags/hierarchy/${root.id}`)).statusCode).toBe(204);
+  });
+
+  it('keeps legacy rename and delete synchronized with stable metadata ids', async () => {
+    await addTransaction(FOOD,{tags:['before']});
+    const before=(await inject('GET','/api/v1/tags/hierarchy')).json().items as {id:string;name:string}[];
+    const beforeId=before.find(t=>t.name==='before')!.id;
+    expect((await inject('PATCH','/api/v1/tags',{from:'before',to:'after'})).statusCode).toBe(200);
+    const after=(await inject('GET','/api/v1/tags/hierarchy')).json().items as {id:string;name:string}[];
+    expect(after.find(t=>t.name==='after')?.id).toBe(beforeId);
+    expect((await inject('DELETE',`/api/v1/tags/${encodeURIComponent('after')}`)).statusCode).toBe(200);
+    expect((await inject('GET','/api/v1/tags/hierarchy')).json().items).toEqual([]);
+    expect(db.prepare('SELECT deleted FROM tags WHERE id=?').get(beforeId)).toMatchObject({deleted:1});
+  });
+
+  it('rejects a legacy rename that would orphan a parent tag with active children', async () => {
+    const root = (await inject('POST', '/api/v1/tags/hierarchy', { name: 'merge-root' })).json() as { id: string };
+    await inject('POST', '/api/v1/tags/hierarchy', { name: 'merge-child', parentId: root.id });
+    await addTransaction(FOOD, { tags: ['merge-root'] });
+    await addTransaction(FOOD, { tags: ['other'] });
+
+    const response = await inject('PATCH', '/api/v1/tags', { from: 'merge-root', to: 'other' });
+    expect(response.statusCode).toBe(409);
+
+    const items = (await inject('GET', '/api/v1/tags/hierarchy')).json().items as { id: string; name: string; parentId: string | null }[];
+    expect(items.find((tag) => tag.name === 'merge-root')).toBeDefined();
+    expect(items.find((tag) => tag.name === 'merge-child')?.parentId).toBe(root.id);
+  });
+});
+
 describe('tag management (derived from transactions)', () => {
   it('lists tag names with live usage counts', async () => {
     await addTransaction(FOOD, { tags: ['家', '工作'] });
@@ -744,12 +791,35 @@ describe('master-data writes are protected', () => {
     }
   });
 
+  it('protects the tag hierarchy endpoints without a session', async () => {
+    const attempts = [
+      { method: 'GET' as const, url: '/api/v1/tags/hierarchy' },
+      { method: 'POST' as const, url: '/api/v1/tags/hierarchy', headers: CSRF, payload: { name: 'x' } },
+      { method: 'PATCH' as const, url: '/api/v1/tags/hierarchy/x', headers: CSRF, payload: { name: 'y' } },
+      { method: 'DELETE' as const, url: '/api/v1/tags/hierarchy/x', headers: CSRF },
+    ];
+    for (const attempt of attempts) {
+      const response = await app.inject(attempt);
+      expect(response.statusCode, `${attempt.method} ${attempt.url}`).toBe(401);
+    }
+  });
+
   it('requires the CSRF header on writes when signed in', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/categories',
       headers: { Cookie: `${SESSION_COOKIE}=${cookie}` },
       payload: { name: 'X', type: 0 },
+    });
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('requires the CSRF header on hierarchy writes when signed in', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/tags/hierarchy',
+      headers: { Cookie: `${SESSION_COOKIE}=${cookie}` },
+      payload: { name: 'X' },
     });
     expect(response.statusCode).toBe(403);
   });

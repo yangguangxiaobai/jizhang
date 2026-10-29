@@ -59,7 +59,25 @@ export function encodeCsvWithBom(rows: readonly CsvRow[]): string {
  * A character-by-character state machine rather than `split`, because a quoted field may
  * contain the delimiter and the line terminator. The BOM, if present, is stripped.
  */
-export function parseCsv(text: string): string[][] {
+export interface ParseCsvLimits {
+  readonly maxRows?: number;
+  readonly maxColumns?: number;
+  readonly maxCellChars?: number;
+  /** Parse only the first N records for bounded header discovery. */
+  readonly stopAfterRows?: number;
+}
+
+export class CsvLimitError extends Error {
+  readonly kind: 'rows' | 'columns' | 'cell';
+
+  constructor(kind: 'rows' | 'columns' | 'cell') {
+    super(`CSV ${kind} limit exceeded`);
+    this.name = 'CsvLimitError';
+    this.kind = kind;
+  }
+}
+
+export function parseCsv(text: string, limits?: ParseCsvLimits): string[][] {
   // Strip a UTF-8 BOM so the first header cell is not "\uFEFFid".
   const input = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 
@@ -71,13 +89,20 @@ export function parseCsv(text: string): string[][] {
 
   /** Finishes the current field and pushes the row when the line ends. */
   const endField = (): void => {
+    if (limits?.maxCellChars !== undefined && field.length > limits.maxCellChars) throw new CsvLimitError('cell');
+    if (limits?.maxColumns !== undefined && row.length >= limits.maxColumns) throw new CsvLimitError('columns');
     row.push(field);
     field = '';
   };
   const endRow = (): void => {
     endField();
+    if (limits?.maxRows !== undefined && rows.length >= limits.maxRows) throw new CsvLimitError('rows');
     rows.push(row);
     row = [];
+  };
+  const append = (value: string): void => {
+    field += value;
+    if (limits?.maxCellChars !== undefined && field.length > limits.maxCellChars) throw new CsvLimitError('cell');
   };
 
   while (index < input.length) {
@@ -87,7 +112,7 @@ export function parseCsv(text: string): string[][] {
       if (char === '"') {
         // A doubled quote inside a quoted field is one literal quote.
         if (input[index + 1] === '"') {
-          field += '"';
+          append('"');
           index += 2;
           continue;
         }
@@ -95,7 +120,7 @@ export function parseCsv(text: string): string[][] {
         index += 1;
         continue;
       }
-      field += char;
+      append(char);
       index += 1;
       continue;
     }
@@ -107,7 +132,7 @@ export function parseCsv(text: string): string[][] {
         index += 1;
         continue;
       }
-      field += char;
+      append(char);
       index += 1;
       continue;
     }
@@ -121,17 +146,19 @@ export function parseCsv(text: string): string[][] {
     if (char === '\r') {
       // CRLF or a lone CR both terminate the record.
       endRow();
+      if (limits?.stopAfterRows !== undefined && rows.length >= limits.stopAfterRows) return rows;
       index += input[index + 1] === '\n' ? 2 : 1;
       continue;
     }
 
     if (char === '\n') {
       endRow();
+      if (limits?.stopAfterRows !== undefined && rows.length >= limits.stopAfterRows) return rows;
       index += 1;
       continue;
     }
 
-    field += char;
+    append(char);
     index += 1;
   }
 

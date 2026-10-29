@@ -82,9 +82,9 @@ export interface TransferLike {
 export interface AccountFlow {
   readonly accountId: string;
   readonly initialBalanceCents: number;
-  /** Income transactions into this account. Refunds are excluded (they are not income). */
+  /** Income transactions into this account (including refunds, which count as income). */
   readonly incomeCents: number;
-  /** NET expense out of this account: refunds are already subtracted, so may be negative. */
+  /** Gross expense out of this account; refunds do not reduce this figure. */
   readonly expenseCents: number;
   /** Salaries recorded into this account. */
   readonly salaryCents: number;

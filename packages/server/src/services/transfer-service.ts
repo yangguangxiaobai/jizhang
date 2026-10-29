@@ -18,10 +18,7 @@ import {
   assertAccountUsable,
   requireNonEmptyString,
 } from './transaction-service.js';
-
-/** Earliest plausible transfer date: 2000-01-01. Mirrors `SalaryService`. */
-const MIN_DATE_MS = Date.UTC(2000, 0, 1);
-const FUTURE_SLACK_MS = 86_400_000;
+import { requireLedgerDate, requirePositiveSafeIntegerCents } from './ledger-input-validation.js';
 
 export const DEFAULT_TRANSFER_PAGE_SIZE = 50;
 export const MAX_TRANSFER_PAGE_SIZE = 500;
@@ -84,26 +81,6 @@ export class TransferService {
   constructor(db: Db, options: TransferServiceOptions = {}) {
     this.db = db;
     this.now = options.now ?? (() => Date.now());
-  }
-
-  private requireAmount(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
-      throw new ValidationError(
-        'amountCents must be a positive integer number of cents.',
-      );
-    }
-    return value;
-  }
-
-  private requireDate(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      throw new ValidationError('date must be an epoch-millisecond timestamp.');
-    }
-    if (value < MIN_DATE_MS) throw new ValidationError('date is before the year 2000.');
-    if (value > this.now() + FUTURE_SLACK_MS) {
-      throw new ValidationError('date is in the future.');
-    }
-    return value;
   }
 
   /**
@@ -184,8 +161,8 @@ export class TransferService {
       input.fromAccountId,
       input.toAccountId,
     );
-    const amountCents = this.requireAmount(input.amountCents);
-    const date = this.requireDate(input.date);
+    const amountCents = requirePositiveSafeIntegerCents(input.amountCents);
+    const date = requireLedgerDate(input.date, () => this.now());
     const note = typeof input.note === 'string' ? input.note : '';
 
     const id = randomUUID();
@@ -235,8 +212,8 @@ export class TransferService {
     const amountCents =
       changes.amountCents === undefined
         ? current.amountCents
-        : this.requireAmount(changes.amountCents);
-    const date = changes.date === undefined ? current.date : this.requireDate(changes.date);
+        : requirePositiveSafeIntegerCents(changes.amountCents);
+    const date = changes.date === undefined ? current.date : requireLedgerDate(changes.date, () => this.now());
     if (changes.note !== undefined && typeof changes.note !== 'string') {
       throw new ValidationError('note must be a string.');
     }

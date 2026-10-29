@@ -22,11 +22,45 @@ import {
   incomeContribution,
   TYPE_EXPENSE,
   TYPE_INCOME,
+  type SpendingPurpose,
   type Transaction,
 } from '@jizhang/shared';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import { normaliseTags, parseTagsJson, serialiseTags } from './tags.js';
+import { TagCatalogService } from './tag-catalog-service.js';
+import {
+  FinancialInvalidError,
+  FinancialRevisionConflictError,
+  FinancialSourceChangedError,
+} from './financial-errors.js';
+import { runFinancialOperation } from './financial-operation-store.js';
+import {
+  financialTransactionToken,
+  parseFinancialPurpose,
+  resolveFinancialActorId,
+  writeBillPurposeOverride,
+} from './financial-purpose-store.js';
+import { invalidateFinancialRefundSources } from './financial-source-lifecycle.js';
+import { ConflictError, NotFoundError, ValidationError } from './transaction-errors.js';
+import type {
+  CreateTransactionInput,
+  PreparedTransactionInput,
+  RefundDetail,
+  RefundSummary,
+  TransactionDto,
+  UpdateTransactionInput,
+} from './transaction-types.js';
+
+export { ConflictError, NotFoundError, ValidationError } from './transaction-errors.js';
+export type {
+  CreateTransactionInput,
+  PreparedTransactionInput,
+  RefundDetail,
+  RefundSummary,
+  TransactionDto,
+  UpdateTransactionInput,
+} from './transaction-types.js';
 
 /** Row shape of the `transactions` table. */
 interface TransactionRow {
@@ -40,42 +74,9 @@ interface TransactionRow {
   readonly tags_json: string;
   readonly is_refund: number;
   readonly deleted: number;
+  readonly financial_purpose: string | null;
+  readonly financial_purpose_revision: number;
   readonly updated_at: number;
-}
-
-/** Wire/domain representation. Field names match the API contract (design.md §5). */
-/** Reverse-refund summary for an original expense: how much has been refunded. */
-export interface RefundSummary {
-  /** Sum of all linked refund amounts, in cents. */
-  readonly totalRefundCents: number;
-  /** Number of linked refund transactions. */
-  readonly refundCount: number;
-}
-
-/** One linked refund row for an original expense (forward-view detail). */
-export interface RefundDetail {
-  readonly id: string;
-  readonly amountCents: number;
-  readonly date: number;
-  readonly note: string;
-  readonly updatedAt: number;
-}
-
-/** Wire/domain representation. Field names match the API contract (design.md §5). */
-export interface TransactionDto {
-  readonly id: string;
-  readonly type: number;
-  readonly amountCents: number;
-  readonly categoryId: string;
-  readonly accountId: string;
-  readonly date: number;
-  readonly note: string;
-  readonly tags: string[];
-  readonly isRefund: boolean;
-  readonly refundLinkedTxIds?: string[];
-  readonly refundSummary?: RefundSummary;
-  readonly refundDetails?: RefundDetail[];
-  readonly updatedAt: number;
 }
 
 function toDto(
@@ -94,6 +95,8 @@ function toDto(
     note: row.note,
     tags: parseTagsJson(row.tags_json),
     isRefund: row.is_refund === 1,
+    financialPurpose: row.financial_purpose as SpendingPurpose | null,
+    financialPurposeRevision: row.financial_purpose_revision,
     refundLinkedTxIds,
     refundSummary,
     refundDetails,
@@ -101,76 +104,10 @@ function toDto(
   };
 }
 
-export class ValidationError extends Error {
-  readonly statusCode = 400;
-  readonly code = 'VALIDATION';
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-export class NotFoundError extends Error {
-  readonly statusCode = 404;
-  readonly code = 'NOT_FOUND';
-  constructor(message = 'Transaction not found.') {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-/**
- * The request was well-formed but the resource is not in a state that allows it.
- *
- * Currently raised only by `purge`, which refuses to hard-delete a transaction that is
- * still live. That refusal is the guard rail protecting real data from a mistyped id or
- * a mismatched UI state, so it is a distinct condition from "not found" and must not be
- * flattened into one.
- */
-export class ConflictError extends Error {
-  readonly statusCode = 409;
-  readonly code = 'CONFLICT';
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
-
 /** Earliest plausible transaction date: 2000-01-01. Guards absurd input. */
 const MIN_DATE_MS = Date.UTC(2000, 0, 1);
 /** One day of slack past "now" absorbs client clock skew and timezone edges. */
 const FUTURE_SLACK_MS = 86_400_000;
-
-export interface CreateTransactionInput {
-  readonly type?: unknown;
-  readonly amountCents?: unknown;
-  readonly categoryId?: unknown;
-  readonly accountId?: unknown;
-  readonly date?: unknown;
-  readonly note?: unknown;
-  readonly tags?: unknown;
-  readonly isRefund?: unknown;
-  readonly refundLinkedTxIds?: unknown;
-}
-
-/**
- * A partial update uses the same optional-field shape as create: absent keys are
- * left untouched.
- */
-export type UpdateTransactionInput = CreateTransactionInput;
-
-/** A create payload after the same validation used by the ledger writer. */
-export interface PreparedTransactionInput {
-  readonly type: number;
-  readonly amountCents: number;
-  readonly categoryId: string;
-  readonly accountId: string;
-  readonly date: number;
-  readonly note: string;
-  readonly tags: string[];
-  readonly isRefund: boolean;
-  readonly refundLinkedTxIds: string[];
-}
 
 function requireIntegerCents(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isInteger(value)) {
@@ -217,6 +154,55 @@ function requireTimestamp(value: unknown, field: string, nowMs: number): number 
   return value;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/i;
+
+/** Present-and-not-undefined is different from "explicitly null" (clear). */
+function hasFinancialPurpose(input: UpdateTransactionInput): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(input, 'financialPurpose') &&
+    input.financialPurpose !== undefined
+  );
+}
+
+function requireOperationId(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
+    throw new FinancialInvalidError('operationId must be a UUID.');
+  }
+  return value;
+}
+
+function requireExpectedPurposeRevision(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new FinancialInvalidError(
+      'expectedFinancialPurposeRevision must be a non-negative safe integer.',
+    );
+  }
+  return value;
+}
+
+function requireExpectedTransactionToken(value: unknown): string {
+  if (typeof value !== 'string' || !SHA256_PATTERN.test(value)) {
+    throw new FinancialInvalidError('expectedTransactionToken must be a SHA-256 hex string.');
+  }
+  return value;
+}
+
+/** The pre-image facts that guard a financial-purpose PATCH. */
+function financialTokenFor(dto: TransactionDto): string {
+  return financialTransactionToken({
+    id: dto.id,
+    type: dto.type,
+    amountCents: dto.amountCents,
+    categoryId: dto.categoryId,
+    accountId: dto.accountId,
+    date: dto.date,
+    isRefund: dto.isRefund,
+    deleted: false,
+  });
+}
+
 /** `%` and `_` are LIKE wildcards; a literal search must escape them. */
 export function escapeLikePattern(input: string): string {
   return input.replace(/[\\%_]/g, (char) => `\\${char}`);
@@ -229,6 +215,7 @@ export interface ListTransactionsQuery {
   readonly categoryId?: string | undefined;
   readonly accountId?: string | undefined;
   readonly tag?: string | undefined;
+  readonly tagId?: string | undefined;
   readonly q?: string | undefined;
   readonly includeDeleted?: boolean | undefined;
   readonly limit?: number | undefined;
@@ -242,12 +229,28 @@ export interface ListTransactionsResult {
   readonly offset: number;
 }
 
+export interface DailySummaryQuery extends ListTransactionsQuery {
+  readonly timeZone?: string | undefined;
+}
+
+export interface DailySummaryItem {
+  readonly day: string;
+  expenseCents: number;
+  incomeCents: number;
+  count: number;
+}
+
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 500;
 
 export interface TransactionServiceOptions {
   /** Injectable clock, so date validation is deterministic in tests. */
   readonly now?: () => number;
+  /**
+   * Explicit actor for financial-operation replay. Normal route construction
+   * omits it and the service resolves the single local user from the database.
+   */
+  readonly actorId?: string;
 }
 
 /**
@@ -271,10 +274,17 @@ export function assertAccountUsable(db: Db, accountId: string): void {
 export class TransactionService {
   private readonly db: Db;
   private readonly now: () => number;
+  private readonly actorId: string | undefined;
 
   constructor(db: Db, options: TransactionServiceOptions = {}) {
     this.db = db;
     this.now = options.now ?? (() => Date.now());
+    this.actorId = options.actorId;
+  }
+
+  /** Stable financial actor: injected in tests, otherwise the one local user. */
+  private resolveActorId(): string {
+    return this.actorId ?? resolveFinancialActorId(this.db);
   }
 
   /** Returns the ids of refunds linked TO this original expense (reverse lookup). */
@@ -486,6 +496,18 @@ export class TransactionService {
       throw new ValidationError('isRefund can only be set on an income (type 1).');
     }
 
+    // `undefined` means the old writer omitted the field; `null` means an
+    // explicit "no override". Neither may carry a non-null value on income.
+    const financialPurpose =
+      input.financialPurpose === undefined
+        ? null
+        : parseFinancialPurpose(input.financialPurpose);
+    if (financialPurpose !== null && type !== TYPE_EXPENSE) {
+      throw new FinancialInvalidError(
+        'A financial purpose can only be set on an expense.',
+      );
+    }
+
     this.assertCategoryUsable(categoryId, type);
     this.assertAccountUsable(accountId);
 
@@ -505,15 +527,59 @@ export class TransactionService {
       tags,
       isRefund,
       refundLinkedTxIds,
+      financialPurpose,
     };
   }
 
   create(input: CreateTransactionInput, id?: string): TransactionDto {
+    const purposeProvided = hasFinancialPurpose(input);
+    if (input.operationId !== undefined && !purposeProvided) {
+      throw new FinancialInvalidError(
+        'operationId is only supported on a create that carries financialPurpose.',
+      );
+    }
+
+    if (input.operationId !== undefined) {
+      const operationId = requireOperationId(input.operationId);
+      const nowMs = this.now();
+      const actorId = this.resolveActorId();
+      const result = runFinancialOperation(
+        this.db,
+        {
+          operationId,
+          actorId,
+          method: 'POST',
+          resource: '/api/v1/transactions',
+          canonicalPayload: this.createReplayPayload(input, id),
+          now: nowMs,
+        },
+        () => ({
+          statusCode: 201,
+          response: this.createInternal(input, id, nowMs, operationId, actorId),
+        }),
+      );
+      return result.response;
+    }
+
+    const write = this.db.transaction((): TransactionDto =>
+      this.createInternal(input, id, this.now(), null, null),
+    );
+    return write();
+  }
+
+  /** The ledger insert + purpose override, always inside one caller transaction. */
+  private createInternal(
+    input: CreateTransactionInput,
+    id: string | undefined,
+    nowMs: number,
+    operationId: string | null,
+    actorId: string | null,
+  ): TransactionDto {
     const prepared = this.prepareCreate(input);
 
     const rowId = id ?? randomUUID();
-    const nowMs = this.now();
-
+    const catalog = new TagCatalogService(this.db, () => nowMs);
+    for (const tag of prepared.tags) catalog.ensureTag(this.db, tag, nowMs);
     this.db
       .prepare(
         `INSERT INTO transactions
@@ -540,16 +606,132 @@ export class TransactionService {
       }
     }
 
+    if (prepared.financialPurpose !== null) {
+      writeBillPurposeOverride(this.db, {
+        transactionId: rowId,
+        purpose: prepared.financialPurpose,
+        expectedRevision: 0,
+        reason: 'create',
+        operationId,
+        actorId: actorId ?? this.resolveActorId(),
+        now: nowMs,
+      });
+    }
+
     return this.getByIdOrThrow(rowId);
+  }
+
+  /** Canonical replay payload for a purpose-bearing create (no generated id). */
+  private createReplayPayload(
+    input: CreateTransactionInput,
+    id: string | undefined,
+  ): Record<string, unknown> {
+    return {
+      id: id ?? null,
+      type: input.type,
+      amountCents: input.amountCents,
+      categoryId: input.categoryId,
+      accountId: input.accountId,
+      date: input.date,
+      note: input.note,
+      tags: input.tags,
+      isRefund: input.isRefund,
+      refundLinkedTxIds: input.refundLinkedTxIds,
+      financialPurpose: input.financialPurpose,
+    };
+  }
+
+  /**
+   * Validates a prospective PATCH without writing.
+   *
+   * The assistant preview used `prepareCreate` on a merged DTO before; that
+   * cannot express "changing the type to income clears an override". This
+   * method mirrors the real update semantics exactly and returns the same
+   * `PreparedTransactionInput` shape as `prepareCreate`.
+   */
+  prepareUpdate(id: string, input: UpdateTransactionInput): PreparedTransactionInput {
+    return this.computeUpdate(id, input, this.now()).next;
   }
 
   /**
    * Partial update. Only the keys present in `input` are changed.
    *
    * `isRefund` is special-cased: flipping it on an expense row is rejected, and
-   * clearing it is always allowed.
+   * clearing it is always allowed. An explicit `financialPurpose` additionally
+   * requires an operationId + purpose-revision + transaction-token guard; an
+   * omitted purpose preserves the existing override, while an expense→income
+   * type change clears it with an audit event.
    */
   update(id: string, input: UpdateTransactionInput): TransactionDto {
+    const purposeProvided = hasFinancialPurpose(input);
+    if (
+      !purposeProvided &&
+      (input.operationId !== undefined ||
+        input.expectedFinancialPurposeRevision !== undefined ||
+        input.expectedTransactionToken !== undefined)
+    ) {
+      throw new FinancialInvalidError(
+        'operationId, expectedFinancialPurposeRevision and expectedTransactionToken require an explicit financialPurpose.',
+      );
+    }
+
+    if (!purposeProvided) {
+      const nowMs = this.now();
+      const write = this.db.transaction((): TransactionDto =>
+        this.writeUpdate(id, input, nowMs, false, null, null),
+      );
+      return write();
+    }
+
+    const operationId = requireOperationId(input.operationId);
+    const nowMs = this.now();
+    const actorId = this.resolveActorId();
+    const result = runFinancialOperation(
+      this.db,
+      {
+        operationId,
+        actorId,
+        method: 'PATCH',
+        resource: `/api/v1/transactions/${id}`,
+        canonicalPayload: this.updateReplayPayload(id, input),
+        now: nowMs,
+      },
+      () => ({
+        statusCode: 200,
+        response: this.writeUpdate(id, input, nowMs, true, operationId, actorId),
+      }),
+    );
+    return result.response;
+  }
+
+  /** Canonical replay payload for a purpose-bearing PATCH. */
+  private updateReplayPayload(
+    id: string,
+    input: UpdateTransactionInput,
+  ): Record<string, unknown> {
+    return {
+      id,
+      type: input.type,
+      amountCents: input.amountCents,
+      categoryId: input.categoryId,
+      accountId: input.accountId,
+      date: input.date,
+      note: input.note,
+      tags: input.tags,
+      isRefund: input.isRefund,
+      refundLinkedTxIds: input.refundLinkedTxIds,
+      financialPurpose: input.financialPurpose,
+      expectedFinancialPurposeRevision: input.expectedFinancialPurposeRevision,
+      expectedTransactionToken: input.expectedTransactionToken,
+    };
+  }
+
+  /** Computes the next validated row without writing it. */
+  private computeUpdate(
+    id: string,
+    input: UpdateTransactionInput,
+    nowMs: number,
+  ): { current: TransactionDto; next: PreparedTransactionInput } {
     const current = this.getByIdOrThrow(id);
 
     const nextType = input.type === undefined ? current.type : requireType(input.type);
@@ -566,7 +748,7 @@ export class TransactionService {
         ? current.accountId
         : requireNonEmptyString(input.accountId, 'accountId');
     const nextDate =
-      input.date === undefined ? current.date : requireTimestamp(input.date, 'date', this.now());
+      input.date === undefined ? current.date : requireTimestamp(input.date, 'date', nowMs);
     const nextNote = input.note === undefined ? current.note : input.note;
     if (typeof nextNote !== 'string') {
       throw new ValidationError('note must be a string.');
@@ -581,11 +763,85 @@ export class TransactionService {
       throw new ValidationError('isRefund can only be set on an income (type 1).');
     }
 
+    // An omitted purpose preserves the current override, except that an
+    // expense→income transition must clear it. An explicit null also clears.
+    const purposeProvided = hasFinancialPurpose(input);
+    let nextPurpose = current.financialPurpose;
+    if (purposeProvided) {
+      nextPurpose = parseFinancialPurpose(input.financialPurpose);
+    } else if (nextType !== TYPE_EXPENSE) {
+      nextPurpose = null;
+    }
+    if (nextPurpose !== null && nextType !== TYPE_EXPENSE) {
+      throw new FinancialInvalidError(
+        'A financial purpose can only be set on an expense.',
+      );
+    }
+
     if (nextCategory !== current.categoryId || nextType !== current.type) {
       this.assertCategoryUsable(nextCategory, nextType);
     }
     if (nextAccount !== current.accountId) this.assertAccountUsable(nextAccount);
 
+    let nextLinkedIds: string[];
+    if (!nextIsRefund) {
+      nextLinkedIds = [];
+    } else if (Array.isArray(input.refundLinkedTxIds)) {
+      const linkedIds = (input.refundLinkedTxIds as readonly unknown[]).filter(
+        (v): v is string => typeof v === 'string',
+      );
+      nextLinkedIds = this.validateRefundLinks(linkedIds, id);
+    } else {
+      nextLinkedIds = current.isRefund ? (current.refundLinkedTxIds ?? []) : [];
+    }
+
+    return {
+      current,
+      next: {
+        type: nextType,
+        amountCents: nextAmount,
+        categoryId: nextCategory,
+        accountId: nextAccount,
+        date: nextDate,
+        note: nextNote,
+        tags: nextTags,
+        isRefund: nextIsRefund,
+        refundLinkedTxIds: nextLinkedIds,
+        financialPurpose: nextPurpose,
+      },
+    };
+  }
+
+  /** Writes a validated update; the caller owns the transaction. */
+  private writeUpdate(
+    id: string,
+    input: UpdateTransactionInput,
+    nowMs: number,
+    explicitPurpose: boolean,
+    operationId: string | null,
+    actorId: string | null,
+  ): TransactionDto {
+    const { current, next } = this.computeUpdate(id, input, nowMs);
+
+    if (explicitPurpose) {
+      const expectedRevision = requireExpectedPurposeRevision(
+        input.expectedFinancialPurposeRevision,
+      );
+      const expectedToken = requireExpectedTransactionToken(input.expectedTransactionToken);
+      if (current.financialPurposeRevision !== expectedRevision) {
+        throw new FinancialRevisionConflictError(
+          'The financial purpose revision is stale. Reload the bill and retry.',
+        );
+      }
+      if (financialTokenFor(current) !== expectedToken) {
+        throw new FinancialSourceChangedError(
+          'The bill changed since the purpose editor loaded it. Reload and retry.',
+        );
+      }
+    }
+
+    const catalog = new TagCatalogService(this.db, () => nowMs);
+    for (const tag of next.tags) catalog.ensureTag(this.db, tag, nowMs);
     this.db
       .prepare(
         `UPDATE transactions
@@ -594,29 +850,69 @@ export class TransactionService {
           WHERE id = ?`,
       )
       .run(
-        nextType,
-        nextAmount,
-        nextCategory,
-        nextAccount,
-        nextDate,
-        nextNote,
-        serialiseTags(nextTags),
-        nextIsRefund ? 1 : 0,
-        this.now(),
+        next.type,
+        next.amountCents,
+        next.categoryId,
+        next.accountId,
+        next.date,
+        next.note,
+        serialiseTags(next.tags),
+        next.isRefund ? 1 : 0,
+        nowMs,
         id,
       );
 
     // Refund links: cleared when not a refund; replaced when the caller
     // provides them; left untouched when the caller omits them on a row
     // that is already a refund.
-    if (!nextIsRefund) {
-      this.replaceRefundLinks(id, [], this.now());
+    if (!next.isRefund) {
+      this.replaceRefundLinks(id, [], nowMs);
     } else if (Array.isArray(input.refundLinkedTxIds)) {
-      const linkedIds = (input.refundLinkedTxIds as readonly unknown[]).filter(
-        (v): v is string => typeof v === 'string',
-      );
-      const validated = this.validateRefundLinks(linkedIds, id);
-      this.replaceRefundLinks(id, validated, this.now());
+      this.replaceRefundLinks(id, next.refundLinkedTxIds, nowMs);
+    }
+
+    // Amount/type/refund-flag changes invalidate every durable split set that
+    // mentions this bill. Category/date/purpose edits are resolved at read time
+    // and deliberately do not destroy a confirmed split.
+    const invalidationReason =
+      next.type !== current.type || next.isRefund !== current.isRefund
+        ? 'type-change'
+        : next.amountCents !== current.amountCents
+          ? 'amount-change'
+          : null;
+    if (invalidationReason !== null) {
+      invalidateFinancialRefundSources(this.db, {
+        transactionIds: [id],
+        reason: invalidationReason,
+        operationId,
+        now: nowMs,
+      });
+    }
+
+    const needsPurposeWrite =
+      explicitPurpose || (current.financialPurpose !== null && next.type !== TYPE_EXPENSE);
+    const auditActorId = needsPurposeWrite ? (actorId ?? this.resolveActorId()) : null;
+
+    if (explicitPurpose) {
+      writeBillPurposeOverride(this.db, {
+        transactionId: id,
+        purpose: next.financialPurpose,
+        expectedRevision: current.financialPurposeRevision,
+        reason: next.financialPurpose === null ? 'cleared' : 'explicit-override',
+        operationId,
+        actorId: auditActorId,
+        now: nowMs,
+      });
+    } else if (current.financialPurpose !== null && next.type !== TYPE_EXPENSE) {
+      writeBillPurposeOverride(this.db, {
+        transactionId: id,
+        purpose: null,
+        expectedRevision: current.financialPurposeRevision,
+        reason: 'type-change',
+        operationId,
+        actorId: auditActorId,
+        now: nowMs,
+      });
     }
 
     return this.getByIdOrThrow(id);
@@ -631,13 +927,21 @@ export class TransactionService {
    */
   softDelete(id: string): void {
     this.getByIdOrThrow(id);
+    const nowMs = this.now();
     const run = this.db.transaction((): void => {
       this.db
         .prepare('UPDATE transactions SET deleted = 1, updated_at = ? WHERE id = ?')
-        .run(this.now(), id);
+        .run(nowMs, id);
       this.db
         .prepare('DELETE FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
         .run(id, id);
+      // Durable split sets are independent of refund_links: invalidate the
+      // whole set while the row still exists, in this same transaction.
+      invalidateFinancialRefundSources(this.db, {
+        transactionIds: [id],
+        reason: 'delete',
+        now: nowMs,
+      });
     });
     run();
   }
@@ -657,10 +961,21 @@ export class TransactionService {
     if (deleted === undefined) throw new NotFoundError();
     if (deleted === 0) return this.getByIdOrThrow(id);
 
-    this.db
-      .prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE id = ?')
-      .run(this.now(), id);
-    return this.getByIdOrThrow(id);
+    const nowMs = this.now();
+    const run = this.db.transaction((): TransactionDto => {
+      this.db
+        .prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE id = ?')
+        .run(nowMs, id);
+      // Restore never revives a previously invalidated split set; the hook is
+      // still called for audit symmetry and to catch any active stale set.
+      invalidateFinancialRefundSources(this.db, {
+        transactionIds: [id],
+        reason: 'restore',
+        now: nowMs,
+      });
+      return this.getByIdOrThrow(id);
+    });
+    return run();
   }
 
   /**
@@ -683,7 +998,15 @@ export class TransactionService {
       );
     }
 
+    const nowMs = this.now();
     const run = this.db.transaction((): void => {
+      // Purge is a tombstone/detach, not a silent disappearance: the durable
+      // split set gets a purged audit and its executable rows are removed.
+      invalidateFinancialRefundSources(this.db, {
+        transactionIds: [id],
+        reason: 'purge',
+        now: nowMs,
+      });
       this.db
         .prepare('DELETE FROM refund_links WHERE refund_tx_id = ? OR original_tx_id = ?')
         .run(id, id);
@@ -694,17 +1017,30 @@ export class TransactionService {
 
   /** Restores every soft-deleted row. Returns how many came back. */
   restoreAll(): number {
-    const run = this.db.transaction(
-      (): number =>
-        this.db
-          .prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE deleted = 1')
-          .run(this.now()).changes,
-    );
+    const nowMs = this.now();
+    const run = this.db.transaction((): number => {
+      const ids = (
+        this.db.prepare('SELECT id FROM transactions WHERE deleted = 1').all() as {
+          id: string;
+        }[]
+      ).map((row) => row.id);
+      if (ids.length === 0) return 0;
+      const changed = this.db
+        .prepare('UPDATE transactions SET deleted = 0, updated_at = ? WHERE deleted = 1')
+        .run(nowMs).changes;
+      invalidateFinancialRefundSources(this.db, {
+        transactionIds: ids,
+        reason: 'restore',
+        now: nowMs,
+      });
+      return changed;
+    });
     return run();
   }
 
   /** Permanently deletes every soft-deleted row. Returns how many are gone. */
   purgeAll(): number {
+    const nowMs = this.now();
     const run = this.db.transaction((): number => {
       const ids = (
         this.db.prepare('SELECT id FROM transactions WHERE deleted = 1').all() as {
@@ -712,13 +1048,21 @@ export class TransactionService {
         }[]
       ).map((row) => row.id);
       if (ids.length > 0) {
-        const placeholders = ids.map(() => '?').join(',');
+        // Tombstone/detach every affected split set before the rows disappear.
+        invalidateFinancialRefundSources(this.db, {
+          transactionIds: ids,
+          reason: 'purge',
+          now: nowMs,
+        });
+        // A subquery keeps the parameter count constant for any table size;
+        // binding every deleted id here would hit SQLite's variable limit.
         this.db
           .prepare(
             `DELETE FROM refund_links
-                WHERE refund_tx_id IN (${placeholders}) OR original_tx_id IN (${placeholders})`,
+                WHERE refund_tx_id IN (SELECT id FROM transactions WHERE deleted = 1)
+                   OR original_tx_id IN (SELECT id FROM transactions WHERE deleted = 1)`,
           )
-          .run(...ids, ...ids);
+          .run();
       }
       return this.db.prepare('DELETE FROM transactions WHERE deleted = 1').run().changes;
     });
@@ -774,8 +1118,11 @@ export class TransactionService {
     return items.reduce((sum, item) => sum + incomeContribution(item as unknown as Transaction), 0);
   }
 
-  /** Filtered, paginated list. Newest first; newest-edited first within a day. */
-  list(query: ListTransactionsQuery = {}): ListTransactionsResult {
+  /** One predicate builder for paged rows and complete daily summaries. */
+  private listPredicates(query: ListTransactionsQuery): {
+    whereSql: string;
+    params: (string | number)[];
+  } {
     const where: string[] = [];
     const params: (string | number)[] = [];
 
@@ -802,6 +1149,14 @@ export class TransactionService {
       where.push('account_id = ?');
       params.push(query.accountId);
     }
+    if (query.tagId !== undefined) {
+      const catalog = new TagCatalogService(this.db);
+      const selected = catalog.getById(query.tagId);
+      if (!selected) return { whereSql: 'WHERE 0', params: [] };
+      const names = [selected.name, ...catalog.childrenOf(selected.id).map((child) => child.name)];
+      where.push(`(${names.map(() => "tags_json LIKE ? ESCAPE '\\'").join(' OR ')})`);
+      for (const name of names) params.push(`%"${escapeLikePattern(name)}"%`);
+    }
     if (query.tag !== undefined && query.tag.trim() !== '') {
       // Tags are a JSON array of names. Matching the quoted name keeps "food" from
       // matching a tag named "seafood".
@@ -813,8 +1168,58 @@ export class TransactionService {
       params.push(`%${escapeLikePattern(query.q.trim())}%`);
     }
 
-    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    return { whereSql: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '', params };
+  }
 
+  /** Complete live ordinary-transaction totals; salaries and transfers are separate tables. */
+  dailySummary(query: DailySummaryQuery): { items: DailySummaryItem[] } {
+    const { from, to, timeZone } = query;
+    if (
+      from === undefined || to === undefined ||
+      !Number.isSafeInteger(from) || !Number.isSafeInteger(to) ||
+      Math.abs(from) > 8_640_000_000_000_000 || Math.abs(to) > 8_640_000_000_000_000 ||
+      from >= to || to - from > 32 * 86_400_000
+    ) {
+      throw new ValidationError('请提供有效的 from/to 毫秒时间戳，范围须为 [from,to) 且不超过 32 天。');
+    }
+    if (typeof timeZone !== 'string' || timeZone.trim() === '' || /^[+-]/.test(timeZone)) {
+      throw new ValidationError('请提供有效的 IANA timeZone 时区名称。');
+    }
+    let formatter: Intl.DateTimeFormat;
+    try {
+      formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone, calendar: 'iso8601', numberingSystem: 'latn',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      });
+    } catch {
+      throw new ValidationError('请提供有效的 IANA timeZone 时区名称。');
+    }
+
+    const { whereSql, params } = this.listPredicates({ ...query, includeDeleted: false });
+    const rows = this.db.prepare(`SELECT * FROM transactions ${whereSql}`).iterate(...params);
+    const days = new Map<string, DailySummaryItem>();
+    for (const raw of rows) {
+      const row = raw as TransactionRow;
+      const parts = formatter.formatToParts(row.date);
+      const part = (type: Intl.DateTimeFormatPartTypes): string =>
+        parts.find((value) => value.type === type)!.value;
+      const day = `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
+      const item = days.get(day) ?? { day, expenseCents: 0, incomeCents: 0, count: 0 };
+      const transaction = toDto(row);
+      item.expenseCents += expenseContribution(transaction);
+      item.incomeCents += incomeContribution(transaction);
+      if (!Number.isSafeInteger(item.expenseCents) || !Number.isSafeInteger(item.incomeCents)) {
+        throw new ValidationError('当日汇总金额超出安全整数范围，无法准确计算。');
+      }
+      item.count++;
+      days.set(day, item);
+    }
+    return { items: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
+  }
+
+  /** Filtered, paginated list. Newest first; newest-edited first within a day. */
+  list(query: ListTransactionsQuery = {}): ListTransactionsResult {
+    const { whereSql, params } = this.listPredicates(query);
     const limit = Math.min(
       Math.max(Math.trunc(query.limit ?? DEFAULT_PAGE_SIZE), 1),
       MAX_PAGE_SIZE,

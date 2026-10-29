@@ -22,9 +22,7 @@
 import {
   FALLBACK_CATEGORY_COLOR,
   NATURAL_MONTH,
-  computeCarryoverPool,
-  computeModuleViews,
-  computePoolTrend,
+  computeBudgetProjection,
   expenseContribution,
   incomeContribution,
   type BudgetAllocation,
@@ -32,16 +30,17 @@ import {
   type Transaction,
 } from '@jizhang/shared';
 import type { Db } from '../db/index.js';
+import { mapLedgerTransactionRow, type LedgerTransactionRow } from './ledger-row-mapping.js';
 import { parseAllocationsJson, SalaryService } from './salary-service.js';
-import { ValidationError } from './transaction-service.js';
+import { ValidationError } from './transaction-errors.js';
 
 export interface CategoryShareItem {
   readonly categoryId: string;
   readonly categoryName: string;
   readonly color: number;
-  /** Net expense in cents; may be negative when refunds exceed spending. */
+  /** Gross expense in cents; historical name kept for wire compatibility. */
   readonly amountCents: number;
-  /** Share of the net expense total, 0..1 (0 when the total is 0). */
+  /** Share of the expense total, 0..1 (0 when the total is 0). */
   readonly ratio: number;
 }
 
@@ -57,6 +56,7 @@ export interface MonthlyTrendPoint {
   readonly month: string;
   readonly monthStart: number;
   readonly incomeCents: number;
+  /** Gross expense in cents; historical name kept for wire compatibility. */
   readonly netExpenseCents: number;
 }
 
@@ -125,23 +125,9 @@ export class StatsService {
           WHERE ${where.join(' AND ')}
           ORDER BY date`,
       )
-      .all(...params) as {
-      id: string;
-      type: number;
-      amount_cents: number;
-      category_id: string;
-      date: number;
-      is_refund: number;
-    }[];
+      .all(...params) as LedgerTransactionRow[];
 
-    return rows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      amountCents: row.amount_cents,
-      categoryId: row.category_id,
-      date: row.date,
-      isRefund: row.is_refund === 1,
-    }));
+    return rows.map(mapLedgerTransactionRow);
   }
 
   private categoryParentMap(): Map<string, string> {
@@ -328,31 +314,14 @@ export class StatsService {
     const cycle = this.cycleConfig();
     const parentByCategoryId = this.categoryParentMap();
 
-    const views = computeModuleViews({
+    const projection = computeBudgetProjection({
       allocationsDesc: allocations,
       transactions,
-      cycle,
-      parentByCategoryId,
-    });
-    const currentCents = computeCarryoverPool({
-      allocationsDesc: allocations,
-      transactions,
-      currentModuleViews: views,
       cycle,
       parentByCategoryId,
     });
 
-    // Pass the views so the series ends at the same number the budget page shows,
-    // instead of at "the pool when the current cycle began".
-    const points = computePoolTrend({
-      allocationsDesc: allocations,
-      transactions,
-      currentModuleViews: views,
-      cycle,
-      parentByCategoryId,
-    });
-
-    return { points, currentCents, cycle };
+    return { points: projection.poolTrend, currentCents: projection.carryoverPoolCents, cycle };
   }
 
   /** Months available for the range picker: the range that has any activity. */

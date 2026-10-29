@@ -7,9 +7,7 @@
  */
 import {
   NATURAL_MONTH,
-  computeCarryoverPool,
-  computeModuleViews,
-  computePoolTrend,
+  computeBudgetProjection,
   dateOnly,
   listCycleStarts,
   type BudgetAllocation,
@@ -17,11 +15,12 @@ import {
   type Transaction,
 } from '@jizhang/shared';
 import type { Db } from '../db/index.js';
+import { mapLedgerTransactionRow, type LedgerTransactionRow } from './ledger-row-mapping.js';
 import {
   SalaryService,
   parseAllocationsJson,
 } from './salary-service.js';
-import { ValidationError } from './transaction-service.js';
+import { ValidationError } from './transaction-errors.js';
 
 export interface BudgetOverviewModuleChild {
   readonly categoryId: string;
@@ -93,23 +92,9 @@ export class BudgetOverviewService {
       .prepare(
         'SELECT id, type, amount_cents, category_id, date, is_refund FROM transactions WHERE deleted = 0',
       )
-      .all() as {
-      id: string;
-      type: number;
-      amount_cents: number;
-      category_id: string;
-      date: number;
-      is_refund: number;
-    }[];
+      .all() as LedgerTransactionRow[];
 
-    return rows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      amountCents: row.amount_cents,
-      categoryId: row.category_id,
-      date: row.date,
-      isRefund: row.is_refund === 1,
-    }));
+    return rows.map(mapLedgerTransactionRow);
   }
 
   private loadCategoryHierarchy(): {
@@ -153,7 +138,7 @@ export class BudgetOverviewService {
       throw new ValidationError('Unknown budget period.');
     }
 
-    const views = computeModuleViews({
+    const projection = computeBudgetProjection({
       allocationsDesc: allocations,
       transactions,
       cycle,
@@ -161,24 +146,7 @@ export class BudgetOverviewService {
       parentByCategoryId: hierarchy.parentByCategoryId,
     });
 
-    const pool =
-      target === undefined
-        ? computeCarryoverPool({
-            allocationsDesc: allocations,
-            transactions,
-            currentModuleViews: views,
-            cycle,
-            parentByCategoryId: hierarchy.parentByCategoryId,
-          })
-        : (computePoolTrend({
-            allocationsDesc: allocations,
-            transactions,
-            currentModuleViews: views,
-            cycle,
-            parentByCategoryId: hierarchy.parentByCategoryId,
-          }).find((point) => point.periodStart === target)?.poolCents ?? 0);
-
-    const modules = views
+    const modules = projection.modules
       .map((view) => {
         const childIds = hierarchy.childrenByParent.get(view.categoryId) ?? [];
         const { children: childViews, ...baseView } = view;
@@ -200,16 +168,16 @@ export class BudgetOverviewService {
         };
       })
       .sort((a, b) => b.budgetCents - a.budgetCents);
-    const totalBudget = views.reduce((sum, view) => sum + view.budgetCents, 0);
-    const totalSpent = views.reduce((sum, view) => sum + view.spentCents, 0);
+    const totalBudget = projection.modules.reduce((sum, view) => sum + view.budgetCents, 0);
+    const totalSpent = projection.modules.reduce((sum, view) => sum + view.spentCents, 0);
 
     return {
       cycle,
       modules,
-      carryoverPoolCents: pool,
+      carryoverPoolCents: projection.carryoverPoolCents,
       totalBudgetCents: totalBudget,
       totalSpentCents: totalSpent,
-      hasBudget: views.length > 0,
+      hasBudget: projection.modules.length > 0,
     };
   }
 

@@ -27,9 +27,18 @@ import {
   requireNonEmptyString,
 } from './transaction-service.js';
 import { TemplateService } from './template-service.js';
+import { requireFinancialOperationId, runFinancialOperation } from './financial-operation-store.js';
+import { requireLedgerDate, requirePositiveSafeIntegerCents } from './ledger-input-validation.js';
 
 /** `settings` key holding the optional budget cycle start day. */
 export const CYCLE_START_DAY_KEY = 'budget.cycle_start_day';
+
+/**
+ * 重放作用域里这次写操作的资源名。
+ *
+ * 与路由字符串一致,但它是**服务层的常量**:指纹的一部分,改动它会作废旧 key。
+ */
+export const SALARY_CREATE_RESOURCE = '/api/v1/salaries';
 
 /** Allowed range for the configurable cycle start day (T6 PRD R5). */
 export const MIN_CYCLE_START_DAY = 1;
@@ -102,12 +111,15 @@ export function parseAllocationsJson(raw: unknown): ParsedAllocationItem[] {
   }
 }
 
-/** Earliest plausible salary date: 2000-01-01. */
-const MIN_DATE_MS = Date.UTC(2000, 0, 1);
-const FUTURE_SLACK_MS = 86_400_000;
-
 export interface SalaryServiceOptions {
   readonly now?: () => number;
+  /**
+   * 重放作用域里的操作者。
+   *
+   * 这个应用是单用户的,操作者就是库里唯一的 `users` 行;测试可以注入固定值,
+   * 免得为了一个幂等键去建用户。与 `transaction-service` 的取值方式保持一致。
+   */
+  readonly actorId?: string | undefined;
 }
 
 export interface CreateSalaryInput {
@@ -117,35 +129,50 @@ export interface CreateSalaryInput {
   readonly accountId?: unknown;
   readonly templateId?: unknown;
   readonly allocations?: unknown;
+  /**
+   * 可选的幂等键( UUID )。
+   *
+   * 旧客户端不带这个字段 → 行为与今天完全一致(每次调用都新增一笔)。
+   * 新客户端在**第一次尝试**前生成它,重发同一个 key 只会拿回原来那笔工资,
+   * 不会多记一次收入。
+   */
+  readonly operationId?: unknown;
+}
+
+/** 一次写入的调用上下文(当前只有重放作用域需要的操作者)。 */
+export interface SalaryCreateContext {
+  readonly actorId?: string | undefined;
 }
 
 export class SalaryService {
   private readonly db: Db;
   private readonly now: () => number;
   private readonly templates: TemplateService;
+  private readonly actorIdOption: string | undefined;
 
   constructor(db: Db, options: SalaryServiceOptions = {}) {
     this.db = db;
     this.now = options.now ?? (() => Date.now());
     this.templates = new TemplateService(db, options);
+    this.actorIdOption = options.actorId;
   }
 
-  private requireAmount(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
-      throw new ValidationError('amountCents must be a positive integer number of cents.');
+  /**
+   * 重放作用域里的操作者 id。
+   *
+   * 单用户应用:`users` 表只有一行。注入值时优先用注入值(测试确定性)。
+   */
+  private resolveActorId(): string {
+    if (this.actorIdOption !== undefined && this.actorIdOption !== '') return this.actorIdOption;
+    const row = this.db.prepare('SELECT id FROM users ORDER BY id LIMIT 1').get() as
+      | { id: string }
+      | undefined;
+    if (row === undefined) {
+      // 没有用户 = 没有可归属的操作者。绝不能退化成"全局共享 key":
+      // 那会让不同实例的重放互相串台。
+      throw new ValidationError('Cannot record a salary before the account exists.');
     }
-    return value;
-  }
-
-  private requireDate(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      throw new ValidationError('date must be an epoch-millisecond timestamp.');
-    }
-    if (value < MIN_DATE_MS) throw new ValidationError('date is before the year 2000.');
-    if (value > this.now() + FUTURE_SLACK_MS) {
-      throw new ValidationError('date is in the future.');
-    }
-    return value;
+    return row.id;
   }
 
   /** Validates a prospective salary and resolves its allocation without inserting rows. */
@@ -157,8 +184,8 @@ export class SalaryService {
     readonly templateId?: string;
     readonly allocations: AllocationItemDto[];
   } {
-    const amountCents = this.requireAmount(input.amountCents);
-    const date = this.requireDate(input.date);
+    const amountCents = requirePositiveSafeIntegerCents(input.amountCents);
+    const date = requireLedgerDate(input.date, () => this.now());
     const note = typeof input.note === 'string' ? input.note : '';
     const accountId = requireNonEmptyString(input.accountId, 'accountId');
     assertAccountUsable(this.db, accountId);
@@ -251,8 +278,50 @@ export class SalaryService {
    *
    * @param input.allocations optional fine-tuned allocation; when omitted the
    *   template's ratios generate the amounts.
+   * @param input.operationId optional idempotency key. When present, a retry with the
+   *   same key returns the ORIGINAL salary instead of recording a second one.
+   * @param context.actorId who the replay record belongs to (route supplies the session user).
    */
-  create(input: CreateSalaryInput): SalaryDetailDto {
+  create(input: CreateSalaryInput, context: SalaryCreateContext = {}): SalaryDetailDto {
+    const operationId =
+      input.operationId === undefined || input.operationId === null
+        ? undefined
+        : requireFinancialOperationId(input.operationId);
+
+    // Old callers (and old clients) never send a key: keep the original behaviour exactly.
+    if (operationId === undefined) return this.createOnce(input);
+
+    // The key MUST be handled before `prepareCreate`: on a retry the template may have
+    // been edited or deleted since the first attempt, and failing here would turn
+    // "this already succeeded" into a 400 — the one path idempotency exists for.
+    const result = runFinancialOperation<SalaryDetailDto>(
+      this.db,
+      {
+        operationId,
+        actorId: context.actorId ?? this.resolveActorId(),
+        method: 'POST',
+        resource: SALARY_CREATE_RESOURCE,
+        // Only the RECOGNISED transport fields take part in the fingerprint. A client
+        // that sends its own UI state (`draftX`, `uiTab`, ...) must not turn its own
+        // retry into a 409, and an unrecognised field is by definition not part of
+        // what this endpoint stores.
+        canonicalPayload: {
+          amountCents: input.amountCents,
+          date: input.date,
+          note: input.note,
+          accountId: input.accountId,
+          templateId: input.templateId,
+          allocations: input.allocations,
+        },
+        now: this.now(),
+      },
+      () => ({ statusCode: 201, response: this.createOnce(input) }),
+    );
+    return result.response;
+  }
+
+  /** The actual write. Only ever reached when no replay was recorded for this key. */
+  private createOnce(input: CreateSalaryInput): SalaryDetailDto {
     const prepared = this.prepareCreate(input);
     const { amountCents, date, note, accountId, allocations } = prepared;
     // Required, not defaulted. Silently picking an account would put the money somewhere the
@@ -383,8 +452,8 @@ export class SalaryService {
     const amountCents =
       changes.amountCents === undefined
         ? current.amountCents
-        : this.requireAmount(changes.amountCents);
-    const date = changes.date === undefined ? current.date : this.requireDate(changes.date);
+        : requirePositiveSafeIntegerCents(changes.amountCents);
+    const date = changes.date === undefined ? current.date : requireLedgerDate(changes.date, () => this.now());
     if (changes.note !== undefined && typeof changes.note !== 'string') {
       throw new ValidationError('note must be a string.');
     }

@@ -66,9 +66,21 @@ export interface AppendMessageInput {
   readonly kind: AssistantMessageKind;
   readonly content: AssistantMessageContent;
   readonly clientRequestId?: string | undefined;
+  /**
+   * Server-internal row id. Streaming generations announce a stable provisional
+   * `messageId` to the client before the provider turn is validated; the validated row
+   * must reuse that exact id so the final `message` event replaces the provisional
+   * bubble instead of appending a second one. Never accepted from a client request body.
+   */
+  readonly id?: string | undefined;
 }
 
 export interface CreatePendingActionInput {
+  /**
+   * Server-internal row id. A runner that must commit a pending action and its card as one
+   * unit allocates the id up front so the card can reference it before either row exists.
+   */
+  readonly id?: string | undefined;
   readonly conversationId: string;
   readonly sourceMessageId: string;
   readonly toolName: AssistantToolName;
@@ -177,13 +189,54 @@ function contextMessage(message: AssistantMessageDto): AssistantContextMessage {
   return { role: message.role, kind: message.kind, text };
 }
 
+/**
+ * Re-entrant, synchronous domain lock shared by the conversation and generation
+ * services. better-sqlite3 is synchronous, so an outer `db.transaction()` cannot be
+ * interleaved by another request; what it *can* be interleaved by is a recycled
+ * connection whose transaction was already released, and by any code path that reads a
+ * generation row and then writes the conversation. Holding this lock for the whole
+ * read-modify-write makes "check the generation is still live" and "persist the
+ * validated message + terminal frame" one uninterruptible unit inside a process.
+ */
+export type ConversationWriteLock = <T>(operation: () => T) => T;
+
+/**
+ * Creates the shared synchronous write lock. Re-entrant per call stack, so a nested
+ * `persistTurn` inside `create` (or a subscriber wakeup) cannot deadlock, and never
+ * yields to the event loop while held — which is what makes the read fence and the write
+ * one unit for every other request in this process.
+ */
+export function createConversationWriteLock(): ConversationWriteLock {
+  let held = false;
+  return <T>(operation: () => T): T => {
+    if (held) return operation();
+    held = true;
+    try {
+      return operation();
+    } finally {
+      held = false;
+    }
+  };
+}
+
+export interface AssistantConversationServiceOptions {
+  readonly withConversationLock?: ConversationWriteLock | undefined;
+}
+
 export class AssistantConversationService {
   private readonly db: Db;
   private readonly now: () => number;
+  private readonly withConversationLock: ConversationWriteLock;
 
-  constructor(db: Db, now: () => number = () => Date.now()) {
+  constructor(db: Db, now: () => number = () => Date.now(), options: AssistantConversationServiceOptions = {}) {
     this.db = db;
     this.now = now;
+    this.withConversationLock = options.withConversationLock ?? ((operation) => operation());
+  }
+
+  /** Runs `operation` while nothing else may mutate a conversation or a generation. */
+  withWriteLock<T>(operation: () => T): T {
+    return this.withConversationLock(operation);
   }
 
   create(title = ''): AssistantConversationDto {
@@ -247,7 +300,9 @@ export class AssistantConversationService {
       if (existing !== undefined) return toMessage(existing);
     }
 
-    const id = randomUUID();
+    // `input.id` is server-internal (never a client field): a streamed step already told the
+    // client which bubble id its provisional text belongs to, so the validated row reuses it.
+    const id = input.id ?? randomUUID();
     const at = this.now();
     try {
       this.db
@@ -334,7 +389,7 @@ export class AssistantConversationService {
   createPendingAction(input: CreatePendingActionInput): AssistantPendingActionDto {
     this.get(input.conversationId);
     if (input.fingerprint.trim() === '') throw new AssistantValidationError('助手操作缺少指纹。');
-    const id = randomUUID();
+    const id = input.id ?? randomUUID();
     const at = this.now();
     this.db
       .prepare(
@@ -401,7 +456,7 @@ export class AssistantConversationService {
     return this.getMessage(messageId);
   }
 
-  updateProgressStatus(messageId: string, state: 'running' | 'complete'): AssistantMessageDto {
+  updateProgressStatus(messageId: string, state: 'running' | 'complete' | 'failed'): AssistantMessageDto {
     const message = this.getMessage(messageId);
     if (message.content.progress === undefined) throw new AssistantValidationError('助手消息不是进度状态。');
     const content: AssistantMessageContent = {
