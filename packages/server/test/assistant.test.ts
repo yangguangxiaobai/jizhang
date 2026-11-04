@@ -273,23 +273,29 @@ describe('assistant authenticated routes and confirmation contract', () => {
     expect(service.getByIdOrThrow(original.id)).toMatchObject({ type: 1, financialPurpose: null });
   });
 
-  it('confirms transfer, salary, and current-cycle budget-template writes through domain services', async () => {
+  it('confirms transfer writes but never recreates retired module budgets', async () => {
     const secondAccount = new MasterDataService(db, { now: () => NOW }).createAccount({ name: 'Transfer destination', type: 0 });
     const transfer = await prepareTool('transfer.create', { fromAccountId: 'builtin-default-account', toAccountId: secondAccount.id, amountCents: 4000, date: '2026-09-20', note: 'move' });
     expect((db.prepare('SELECT COUNT(*) AS count FROM transfers WHERE deleted = 0').get() as { count: number }).count).toBe(0);
     expect((await confirmTool(transfer.actionId)).statusCode).toBe(200);
     expect((db.prepare('SELECT COUNT(*) AS count FROM transfers WHERE deleted = 0').get() as { count: number }).count).toBe(1);
 
+    // P07: `salary.create` and `budget.template.apply` are removed from the allowlist.
+    // A provider call for them is the ordinary unknown-tool path and must write nothing.
     const templateId = (db.prepare('SELECT id FROM budget_templates WHERE is_default = 1').get() as { id: string }).id;
-    const salary = await prepareTool('salary.create', { amountCents: 100_000, accountId: 'builtin-default-account', date: '2026-09-20', templateId, note: 'salary' });
-    expect((db.prepare('SELECT COUNT(*) AS count FROM salary_records WHERE deleted = 0').get() as { count: number }).count).toBe(0);
-    expect((await confirmTool(salary.actionId)).statusCode).toBe(200);
-    expect((db.prepare('SELECT COUNT(*) AS count FROM salary_records WHERE deleted = 0').get() as { count: number }).count).toBe(1);
-
-    const apply = await prepareTool('budget.template.apply', { templateId });
-    expect(apply.card.values.salaryCount).toBe(1);
-    expect((await confirmTool(apply.actionId)).statusCode).toBe(200);
-    expect((db.prepare('SELECT COUNT(*) AS count FROM budget_allocations WHERE deleted = 0').get() as { count: number }).count).toBe(1);
+    for (const [name, args] of [
+      ['salary.create', { amountCents: 100_000, accountId: 'builtin-default-account', date: '2026-09-20', templateId, note: 'salary' }],
+      ['budget.template.apply', { templateId }],
+    ] as const) {
+      scenario = 'custom';
+      customCall = { name, arguments: args };
+      const conversation = (await inject('POST', '/api/v1/assistant/conversations', {})).json();
+      const response = await inject('POST', `/api/v1/assistant/conversations/${conversation.id}/messages`, { text: `prepare ${name}` });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().items.at(-1).kind).toBe('error');
+      expect((db.prepare('SELECT COUNT(*) AS count FROM salary_records WHERE deleted = 0').get() as { count: number }).count).toBe(0);
+      expect((db.prepare('SELECT COUNT(*) AS count FROM budget_allocations WHERE deleted = 0').get() as { count: number }).count).toBe(0);
+    }
   });
 
   it('confirms safe category/account create-update-delete actions only after previews', async () => {

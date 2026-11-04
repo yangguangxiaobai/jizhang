@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Fresh lint/type/test evidence."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Android source versus device evidence."}
+{"file":".trellis/tasks/10-30-core-finance-simplification-review/prd.md","reason":"Read-only review requirements and scope."}
+{"file":".trellis/tasks/10-30-core-finance-simplification-review/design.md","reason":"Review ownership and evidence methodology."}
+{"file":".trellis/tasks/10-29-core-finance-simplification/acceptance.md","reason":"Verify defects against expected outcomes."}
+{"file":".trellis/tasks/10-30-core-finance-simplification-review/review.md","reason":"Check the repair plan covers every confirmed finding without changing historical evidence."}
+{"file":".trellis/tasks/10-30-core-finance-simplification-review/repair-handoff.md","reason":"Compact index for all R01-R20; read the full plan sections explicitly before checking interfaces, ownership and verification requirements."}

@@ -1,0 +1,142 @@
+[
+  {
+    "id": "fe9511ef-6e3b-4834-bc0e-1701daec362f",
+    "title": "我昨天买服务器花了298，微信支付",
+    "created_at": 1790221923026,
+    "msg_count": 4,
+    "gen_count": 0
+  },
+  {
+    "id": "3241105b-1f13-40cd-bf3d-ab9500623b60",
+    "title": "请分析本月消费：按分类汇总、最大三项及异常波动。",
+    "created_at": 1790344567026,
+    "msg_count": 3,
+    "gen_count": 0
+  },
+  {
+    "id": "b167ff3e-ae91-4833-885d-078e3371747c",
+    "title": "帮我导入这个账单",
+    "created_at": 1791729015093,
+    "msg_count": 11,
+    "gen_count": 0
+  },
+  {
+    "id": "7e96da85-0cf6-4e0e-907e-ed68c8d4faff",
+    "title": "你是deepseek吗",
+    "created_at": 1791978214813,
+    "msg_count": 6,
+    "gen_count": 0
+  },
+  {
+    "id": "1c8dfb59-2f9e-4660-827e-9e22ba701107",
+    "title": "今天天气怎么样",
+    "created_at": 1791978276974,
+    "msg_count": 33,
+    "gen_count": 0
+  },
+  {
+    "id": "2ce3969a-f2b8-479a-87d2-64205382f2cd",
+    "title": "UI TEST: Please reply hello only. Do not create, update, delete, confirm or book anything.",
+    "created_at": 1792048174846,
+    "msg_count": 23,
+    "gen_count": 0
+  },
+  {
+    "id": "db4b1b34-47af-4f7d-ad3f-6f8cacfe163c",
+    "title": "UI TEST: please list 3 budgeting tips",
+    "created_at": 1792132664595,
+    "msg_count": 6,
+    "gen_count": 3
+  },
+  {
+    "id": "07e609d8-1854-466a-ae14-8e6ba657915c",
+    "title": "Please write a detailed 500-word essay about financial independence and budgeting principles",
+    "created_at": 1792132945689,
+    "msg_count": 5,
+    "gen_count": 3
+  },
+  {
+    "id": "df6a8ef7-07cd-4f8c-aecc-76aaf0e3808a",
+    "title": "Please explain compound interest and why starting early matters for personal finance in detail",
+    "created_at": 1792136618783,
+    "msg_count": 7,
+    "gen_count": 4
+  },
+  {
+    "id": "56853b5c-f801-4046-b821-c059f8d9ba12",
+    "title": "UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book any",
+    "created_at": 1792142338021,
+    "msg_count": 4,
+    "gen_count": 2
+  },
+  {
+    "id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+    "title": "I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options",
+    "created_at": 1792143643298,
+    "msg_count": 14,
+    "gen_count": 7
+  },
+  {
+    "id": "45efb5e7-187f-46aa-8759-5a112086f830",
+    "title": "I spent 15 dollars on coffee today. Please first ask me the category with single choice Dining or Entertainment, then af",
+    "created_at": 1792155968619,
+    "msg_count": 6,
+    "gen_count": 3
+  },
+  {
+    "id": "17624436-c25f-4968-b363-d0c9635e0c27",
+    "title": "I paid 15 dollars for coffee today. First ask me the category: Dining or Entertainment. After I choose the category, ask",
+    "created_at": 1792157145712,
+    "msg_count": 6,
+    "gen_count": 3
+  },
+  {
+    "id": "c0d9126a-6dd4-41a3-9f0c-341b652503bd",
+    "title": "UI TEST: Please provide 400 words of budget planning advice for young professionals. Reading advice only do not book any",
+    "created_at": 1792160649965,
+    "msg_count": 1,
+    "gen_count": 1
+  },
+  {
+    "id": "d13ee42b-ae56-40a1-af8b-800144ad6a02",
+    "title": "UI TEST: Please provide 200 words of practical monthly budget planning advice for young professionals. Reading advice on",
+    "created_at": 1792161227308,
+    "msg_count": 1,
+    "gen_count": 1
+  },
+  {
+    "id": "f59a2d6e-7f10-48a1-ab2b-504995a2ed37",
+    "title": "UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not boo",
+    "created_at": 1792161498772,
+    "msg_count": 2,
+    "gen_count": 1
+  },
+  {
+    "id": "5d65dbf9-6626-4b82-8d07-665761efe093",
+    "title": "",
+    "created_at": 1792162737123,
+    "msg_count": 0,
+    "gen_count": 0
+  },
+  {
+    "id": "d76d9014-a6c8-4e61-a83c-5286d30e63e1",
+    "title": "UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not boo",
+    "created_at": 1792162742136,
+    "msg_count": 1,
+    "gen_count": 1
+  },
+  {
+    "id": "06bd1235-5fd2-4e84-b504-69a3eed6afbb",
+    "title": "",
+    "created_at": 1792165718471,
+    "msg_count": 0,
+    "gen_count": 0
+  },
+  {
+    "id": "3642b8f8-674a-495f-af27-d61757a45bca",
+    "title": "UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not boo",
+    "created_at": 1792165740403,
+    "msg_count": 1,
+    "gen_count": 1
+  }
+]

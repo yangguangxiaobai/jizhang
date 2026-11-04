@@ -1,0 +1,9 @@
+# Alternative to migration.yml ONLY for an inspected existing bind mount.
+services:
+  jizhang:
+    volumes:
+      - type: bind
+        source: '${JIZHANG_DATA_BIND:?Set JIZHANG_DATA_BIND to the inspected existing absolute path}'
+        target: /data
+        bind:
+          create_host_path: false

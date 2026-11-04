@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:33\",\"name\":\"流式增量文本\",\"content\":\"收到，已梳理消费事实：\\n• 金额：35.00 元\\n• 商家：星巴克咖啡\\n• 支付：微信零钱\\n\\n正在规划分类与记账草案...\"}}],\"expiredBindings\":\"binding names [ ai_txt ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

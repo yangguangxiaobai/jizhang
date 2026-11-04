@@ -1027,4 +1027,109 @@ describe('review summary and blocked states', () => {
     expect(rows.version).toBe(1);
     expect(rows.analysisRevision).toBe(0);
   });
+
+  it('categoryCountsUseDistinctEntitiesInReviewAndConfirm: counts distinct entities when multiple rows share the same category', async () => {
+    const { batchId } = await createBatch();
+    const rows = (await allRows(batchId))
+      .filter((r) => !r.existing && !r.ignored && r.amountCents > 0 && r.conflictKind === null && r.type === 0)
+      .slice(0, 3);
+    expect(rows).toHaveLength(3);
+    const selectedIds = rows.map((r) => r.itemId);
+
+    // 1. Three rows sharing ONE approved new category. Register an official suggestion for the batch.
+    const sugId = 'sug-distinct-toy';
+    const suggestionRecord = {
+      suggestionId: sugId,
+      origin: 'server-fallback' as const,
+      name: '潮流玩具',
+      type: 0,
+      parentId: null,
+      relatedItemIds: selectedIds,
+    };
+    db.prepare('UPDATE assistant_import_batches SET suggestions_json = ? WHERE id = ?').run(
+      JSON.stringify([suggestionRecord]),
+      batchId,
+    );
+    db.prepare(
+      `INSERT OR REPLACE INTO assistant_import_batch_categories
+         (batch_id, suggestion_id, origin, name, type, parent_id, related_item_ids_json)
+       VALUES (?, ?, 'server-fallback', '潮流玩具', 0, NULL, ?)`,
+    ).run(batchId, sugId, JSON.stringify(selectedIds));
+
+    const approvedNew = [
+      {
+        suggestionId: sugId,
+        resolution: 'create' as const,
+        reuseCategoryId: null,
+        name: '潮流玩具',
+        type: 0,
+        parentId: null,
+      },
+    ];
+    const assignmentsNew: Record<string, unknown> = {};
+    for (const id of selectedIds) {
+      assignmentsNew[id] = { kind: 'suggestion', suggestionId: sugId };
+    }
+
+    const reviewRes = await review(batchId, selectedIds, {
+      assignments: assignmentsNew,
+      approvedCategories: approvedNew,
+    });
+    expect(reviewRes.statusCode).toBe(200);
+    const reviewBody = reviewRes.json() as {
+      reviewToken: string;
+      summary: {
+        categoriesToCreate: { name: string }[];
+        categoriesToReuse: unknown[];
+      };
+    };
+
+    // Review counts: 1 entity to create, 0 to reuse, 3 selected rows
+    expect(reviewBody.summary.categoriesToCreate).toHaveLength(1);
+    expect(reviewBody.summary.categoriesToCreate[0]?.name).toBe('潮流玩具');
+    expect(reviewBody.summary.categoriesToReuse).toHaveLength(0);
+
+    // Confirm execution
+    const confirmRes = await confirm(batchId, reviewBody.reviewToken, 1, [{ fileIndex: 0, bytes: wechatCsv }]);
+    expect(confirmRes.statusCode).toBe(200);
+    const confirmResult = (confirmRes.json() as { result: { categoriesCreated: number; categoriesReused: number; inserted: number } }).result;
+    expect(confirmResult.categoriesCreated).toBe(1);
+    expect(confirmResult.categoriesReused).toBe(0);
+    expect(confirmResult.inserted).toBe(3);
+
+    // Database check: exactly ONE new category entity created
+    const createdRows = db.prepare('SELECT COUNT(*) AS c FROM categories WHERE name = ? AND deleted = 0').get('潮流玩具') as { c: number };
+    expect(createdRows.c).toBe(1);
+
+    // 2. Another batch: 3 rows sharing ONE existing category
+    const { batchId: batch2 } = await createBatch();
+    const rows2 = (await allRows(batch2))
+      .filter((r) => !r.existing && !r.ignored && r.amountCents > 0 && r.conflictKind === null && r.type === 0)
+      .slice(0, 3);
+    const selectedIds2 = rows2.map((r) => r.itemId);
+    const assignmentsExisting: Record<string, unknown> = {};
+    for (const id of selectedIds2) {
+      assignmentsExisting[id] = { kind: 'existing', categoryId: 'builtin-expense-food' };
+    }
+    const reviewRes2 = await review(batch2, selectedIds2, {
+      assignments: assignmentsExisting,
+    });
+    expect(reviewRes2.statusCode).toBe(200);
+    const reviewBody2 = reviewRes2.json() as {
+      reviewToken: string;
+      summary: {
+        categoriesToCreate: unknown[];
+        categoriesToReuse: unknown[];
+      };
+    };
+    expect(reviewBody2.summary.categoriesToCreate).toHaveLength(0);
+    expect(reviewBody2.summary.categoriesToReuse).toHaveLength(1);
+
+    const confirmRes2 = await confirm(batch2, reviewBody2.reviewToken, 1, [{ fileIndex: 0, bytes: wechatCsv }]);
+    expect(confirmRes2.statusCode).toBe(200);
+    const result2 = (confirmRes2.json() as { result: { categoriesCreated: number; categoriesReused: number; inserted: number } }).result;
+    expect(result2.categoriesCreated).toBe(0);
+    expect(result2.categoriesReused).toBe(1);
+    expect(result2.inserted).toBe(3);
+  });
 });

@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Update\",\"node\":\"32:198\",\"updated\":{\"width\":230}},{\"type\":\"Update\",\"node\":\"32:199\",\"updated\":{\"width\":210}}]}}"}]},"jsonrpc":"2.0","id":1}
+

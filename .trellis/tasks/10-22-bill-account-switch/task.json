@@ -1,0 +1,29 @@
+{
+  "id": "bill-account-switch",
+  "name": "bill-account-switch",
+  "title": "账单页账户切换",
+  "description": "在 Android 账单页提供常驻账户切换，复用现有账户筛选并验证分页与历史账户",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-22",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "approval_gate": "approved_by_user",
+    "validation_status": "local_verified_device_not_verified"
+  }
+}

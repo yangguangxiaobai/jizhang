@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Update\",\"node\":\"32:216\",\"updated\":{\"width\":136}},{\"type\":\"Update\",\"node\":\"32:217\",\"updated\":{\"width\":120}},{\"type\":\"Update\",\"node\":\"32:245\",\"updated\":{\"y\":165}},{\"type\":\"Update\",\"node\":\"32:247\",\"updated\":{\"y\":242}},{\"type\":\"Update\",\"node\":\"32:249\",\"updated\":{\"y\":300}},{\"type\":\"Update\",\"node\":\"32:242\",\"updated\":{\"height\":470}}],\"potentialIssues\":[\"Node (32:247): text box extends beyond its parent Node (32:246) (overflows by 218px vertically); content may be clipped. shrink the font, or set width: (fixed number) to make it auto wrap.\",\"Node (32:249): text box extends beyond its parent Node (32:248) (overflows by 272px vertically); content may be clipped. shrink the font, or set width: (fixed number) to make it auto wrap.\"],\"notify\":\"Please check and fix all potentialIssues before you start the next task\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/native-delivery.md", "reason": "API-only hosting, auth isolation, native compatibility and current ledger rules"}
+{"file": ".trellis/tasks/10-10-android-ui-redesign/prd.md", "reason": "Requirements and planning-only scope"}
+{"file": ".trellis/tasks/10-10-android-ui-redesign/design.md", "reason": "Design entry point; read authoritative README sections assigned to this module explicitly, not via truncated injection"}
+{"file": ".trellis/tasks/10-10-android-ui-redesign/research/source-audit.md", "reason": "Source facts and stale Web spec conflicts"}
+{"file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MainShell.kt", "reason": "Existing primary navigation and source behavior"}
+{"file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MyTab.kt", "reason": "All secondary feature entry points"}
+{"file": "clients/android/app/build.gradle.kts", "reason": "Current dependency and SDK boundaries"}
+{"file": ".trellis/tasks/10-10-android-ui-redesign/function-inventory-plan.md", "reason": "Current user request: source-backed exhaustive functionality README, docs only"}

@@ -8,8 +8,8 @@
 ## Overview
 
 The backend is a single Fastify (TypeScript, ESM) package inside a pnpm workspace.
-It does two jobs: serve the `/api/v1/**` JSON API, and host the built Vue app
-(`packages/web/dist`) at `/` so the browser talks to one origin (no CORS).
+It serves the `/api/v1/**` JSON API for native clients. Web hosting and the
+`packages/web` client are retired; no Web reference host is required.
 
 Three rules shape the layout:
 
@@ -18,8 +18,8 @@ Three rules shape the layout:
    `listen`, signals and `process.exit`. Tests therefore use `app.inject()`.
 2. **Configuration is validated once, at startup, with no silent defaults.**
    Only `config.ts` reads `process.env`. Everything else receives an `AppConfig`.
-3. **`/api/**` is JSON, always.** Unmatched API routes answer
-   `{error:{code,message}}`; only non-API paths fall back to `index.html`.
+3. **`/api/**` is JSON by default.** The authenticated assistant generation events route explicitly uses bounded SSE; see [streaming](./assistant-streaming.md). Unmatched API routes answer
+   `{error:{code,message}}`; unmatched non-API paths also return JSON 404.
 
 ```
 packages/server/
@@ -52,8 +52,8 @@ packages/server/
   "Authentication is a single module" below — this is the single most expensive
   mistake made in this codebase so far.
 - **`app.ts` receives dependencies through `BuildAppOptions`** (`config`, optional
-  `webDistDir`, optional `db`/`authService`), so a test can point the static root at
-  a fixture directory and inject a fixed-clock `AuthService`. `buildApp` stays
+  `db`/`authService`), so a test can inject a fixed-clock `AuthService`. Production
+  `buildApp` is API-only and exposes no static-root option. `buildApp` stays
   synchronous: registrations are not awaited, and `app.ready()` (implicit before
   `listen`, explicit in tests) resolves them.
 - **Routes must not contain business rules.** Register thin route handlers that
@@ -68,7 +68,34 @@ packages/server/
   `code`; `app.ts`'s error handler renders `{error:{code,message}}`, passes the
   message through for 4xx, and never leaks a stack or internal message for 5xx.
 
-### Authentication is a single module (hard-won)
+### Ledger projections, types and validation
+
+`transaction-types.ts` owns transaction input/DTO types; `transaction-errors.ts` owns the
+three legacy error constructors. `transaction-service.ts` re-exports the **same** types and
+constructors for compatibility. Do not define parallel error classes with matching fields:
+constructor identity and `instanceof` must remain stable.
+
+`ledger-row-mapping.ts` converts the common transaction row (`id`, `type`, `amount_cents`,
+`category_id`, `date`, `is_refund`) to the shared `Transaction`; only integer `1` means
+refund. Callers retain their own SQL predicates and ordering. Account balances explicitly
+add `accountId` and remain unbounded by date; stats retains its requested window and order;
+budget retains its own live-row selection. Do not merge these into one broad query.
+
+`ledger-input-validation.ts` holds the identical salary/transfer positive **safe** integer
+and date validators, including lazily reading the clock only after basic date checks.
+Ordinary transaction amount validation currently uses a different integer contract and
+error vocabulary: do not silently replace it with the salary/transfer validator. The
+compatibility, mapping, boundary and atomicity regressions live in
+`ledger-row-mapping.test.ts`, `ledger-input-validation.test.ts`, `transactions.test.ts`,
+`budget.test.ts` and `transaction-financial-purpose.test.ts`.
+
+### The `import-batches` routes live inside the assistant auth plugin
+
+`routes/import-batches.ts` is registered through the assistant route module, so the existing session and mutation-CSRF hooks cover it. Keep those routes in that protected encapsulation context; a sibling plugin registration can silently bypass hooks. The feature routes specify a scoped 12 MiB limit only for batch routes carrying file/review bodies; do not raise the global JSON body limit for the legacy APIs.
+
+The full signatures, request fields, owner checks, errors, dedicated paging DTOs and batch transaction boundary are in [Merged Bill Import](./merged-bill-import.md).
+
+
 
 `plugins/auth.ts` exports `authModule`, a `fastify-plugin` that registers the
 cookie plugin, the session-resolution hook, the guard hook, **and** the auth routes.
@@ -139,9 +166,9 @@ layer (design.md §5). Notes:
   `pnpm --filter @jizhang/server run build` will require `shared/dist` to exist.
   Prefer adding TypeScript project references at that point instead of building
   shared from the server's scripts.
-- `@fastify/static` is registered with `wildcard: false`, so unmatched paths reach
-  the not-found handler. Do not flip it to `true` without re-checking the SPA
-  fallback and the JSON-404-for-`/api/**` behaviour in `test/app.test.ts`.
+- Static serving and SPA fallbacks are retired. Root and unknown non-API paths
+  return JSON 404 even if legacy Web files remain on disk. See
+  `native-delivery.md` and `test/app.test.ts`.
 
 ---
 
@@ -161,8 +188,8 @@ layer (design.md §5). Notes:
 ## Examples
 
 - Minimal correct wiring: `packages/server/src/app.ts` (error handler, health
-  route, static + SPA fallback, not-found handler).
+  route, API registration, JSON not-found handler).
 - Validation style to copy: `packages/server/src/config.ts` (`REQUIRED` + `DEFAULTS`,
   one aggregated `ConfigError`).
 - Test style to copy: `packages/server/test/app.test.ts` (`app.inject()`, no port
-  binding, fixture directory for the static root).
+  binding, legacy files must not enable static hosting).

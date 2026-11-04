@@ -14,6 +14,7 @@
  */
 import Database from 'better-sqlite3';
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
@@ -103,11 +104,14 @@ async function addTransaction(input: Record<string, unknown>): Promise<void> {
 }
 
 async function createSalary(payload: Record<string, unknown>) {
+  const config = await app.inject({ method: 'GET', url: '/api/v1/financial-funds/config', headers: authed() });
+  expect(config.statusCode, config.body).toBe(200);
+  const revision = (config.json() as { config: { revision: number } }).config.revision;
   return app.inject({
     method: 'POST',
     url: '/api/v1/salaries',
     headers: authed(),
-    payload,
+    payload: { contractVersion: 1, expectedFundConfigRevision: revision, operationId: randomUUID(), ...payload },
   });
 }
 
@@ -365,7 +369,8 @@ describe('salary account', () => {
 
   it('列出的工资记录也带 accountId', async () => {
     const bank = await createAccount('上海银行', 0);
-    await createSalary({ amountCents: 1_000_000, date: dayIn(0, 5), accountId: bank });
+    const created = await createSalary({ amountCents: 1_000_000, date: dayIn(0, 5), accountId: bank });
+    expect(created.statusCode, created.body).toBe(201);
 
     const list = await app.inject({
       method: 'GET',
@@ -384,14 +389,15 @@ describe('salary account', () => {
       date: dayIn(0, 5),
       accountId: DEFAULT_ACCOUNT,
     });
-    const id = (created.json() as { id: string }).id;
+    expect(created.statusCode, created.body).toBe(201);
+    const { id, fundGrant } = created.json() as { id: string; fundGrant: { revision: number } };
     expect(balanceOf(await balances(), DEFAULT_ACCOUNT).balanceCents).toBe(1_000_000);
 
     const patched = await app.inject({
       method: 'PATCH',
       url: `/api/v1/salaries/${id}`,
       headers: authed(),
-      payload: { accountId: bank },
+      payload: { contractVersion: 1, expectedGrantRevision: fundGrant.revision, operationId: randomUUID(), accountId: bank },
     });
     expect(patched.statusCode, patched.body).toBe(200);
     expect((patched.json() as { accountId: string }).accountId).toBe(bank);
@@ -409,13 +415,14 @@ describe('salary account', () => {
       date: dayIn(0, 5),
       accountId: DEFAULT_ACCOUNT,
     });
-    const id = (created.json() as { id: string }).id;
+    expect(created.statusCode, created.body).toBe(201);
+    const { id, fundGrant } = created.json() as { id: string; fundGrant: { revision: number } };
 
     const patched = await app.inject({
       method: 'PATCH',
       url: `/api/v1/salaries/${id}`,
       headers: authed(),
-      payload: { accountId: 'no-such-account' },
+      payload: { contractVersion: 1, expectedGrantRevision: fundGrant.revision, operationId: randomUUID(), accountId: 'no-such-account' },
     });
     expect(patched.statusCode).toBe(400);
     expect(balanceOf(await balances(), DEFAULT_ACCOUNT).balanceCents).toBe(1_000_000);
@@ -427,12 +434,14 @@ describe('salary account', () => {
       date: dayIn(0, 5),
       accountId: DEFAULT_ACCOUNT,
     });
-    const id = (created.json() as { id: string }).id;
+    expect(created.statusCode, created.body).toBe(201);
+    const { id, fundGrant } = created.json() as { id: string; fundGrant: { revision: number } };
 
     const removed = await app.inject({
       method: 'DELETE',
       url: `/api/v1/salaries/${id}`,
       headers: authed(),
+      payload: { contractVersion: 1, expectedGrantRevision: fundGrant.revision, operationId: randomUUID() },
     });
     expect(removed.statusCode).toBe(204);
 
@@ -449,7 +458,8 @@ describe('salary account', () => {
 describe('余额与既有口径一致', () => {
   it('工资同时出现在账户余额和本月收入里，数字相同', async () => {
     const bank = await createAccount('上海银行', 0);
-    await createSalary({ amountCents: 1_000_000, date: dayIn(0, 5), accountId: bank });
+    const created = await createSalary({ amountCents: 1_000_000, date: dayIn(0, 5), accountId: bank });
+    expect(created.statusCode, created.body).toBe(201);
     await addTransaction({
       type: 1,
       amountCents: 20_000,

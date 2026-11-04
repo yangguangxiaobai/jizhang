@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/index.md","reason":"Existing package/layer contract applicable to this child."}
+{"file":".trellis/spec/backend/native-delivery.md","reason":"Existing package/layer contract applicable to this child."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Existing package/layer contract applicable to this child."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Existing package/layer contract applicable to this child."}
+{"file":".trellis/tasks/10-29-core-simplify-statistics/prd.md","reason":"Owned requirements and acceptance targets."}
+{"file":".trellis/tasks/10-29-core-simplify-statistics/design.md","reason":"Exact interfaces, boundaries and ownership."}
+{"file":".trellis/tasks/10-29-core-finance-simplification/design.md","reason":"Cross-child accounting, source and integration contracts."}

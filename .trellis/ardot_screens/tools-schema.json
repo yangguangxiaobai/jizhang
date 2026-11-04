@@ -1,0 +1,1049 @@
+{
+  "result": {
+    "tools": [
+      {
+        "name": "batch_edit",
+        "title": "Batch Edit",
+        "description": "Execute multiple insert/copy/update/move/delete/image operations in a single call.\r\n\r\n## Usage\r\n\r\n- Keep each batch_edit call to **maximum 25 operations** for optimal performance.\r\n- For larger designs, split work into multiple batch_edit calls by logical sections (e.g., screen structure first, then sidebar content, then main content).\r\n- Avoid creating large operation objects like an insert with multiple descendants. Prefer breaking it down into many separate operations instead.\r\n- If one of the operations fails, all previously executed operations in that block will be rolled back.\r\n- Important: always create new binding names for every operation list, DO NOT reuse binding names across operation lists.\r\n- A list of potential issues will be returned in the response message. Try to fix them in the next batch_edit call.\r\n\r\n### Key Points\r\n\r\n- Every Insert (I), Copy (C) operation MUST have a binding name. To reference a parent node in later operations, use the binding name from an earlier Insert, Copy operation in the same operation list.\r\n- Not all bindings need to be used as parents later - it's okay to have \"unused\" bindings. The requirement exists to enforce deliberate structure.\r\n- Bindings only work within the same batch_edit call for parent references\r\n- Operations execute sequentially; on error, all operations in the list will be rolled back.\r\n\r\n### Operation list format\r\n\r\nYou can create a list of operations in the following syntax:\r\n\r\n- Every single operation must follow the Javascript syntax described below.\r\n- ONLY these operation functions are supported.\r\n- Every single operation line must be a single operation call with a possible binding assignment and nothing else.\r\n- For node data, always follow the .ardot schema.\r\n- This parent node will be used for the operations inserted/copied/moved. For these operations defining a parent is REQUIRED.\r\n- The Page Node does not have a binding name, always use the page node's ID as the parent to Insert in page.\r\n\r\n### Working with Existing Frames\r\n\r\n- Use the frame's ID directly as the parent: `existingFrameId`\r\n- If you update a frame's layout properties, insert children INTO that same frame using its ID\r\n\r\n### Using bindings for paths and node ids\r\n\r\n- You can use a binding variable name instead of an inline string an operation call\r\n- If you want to combine it with some other binding or a string use the \"+\" operator\r\n- IMPORTANT: DO NOT try to Update (U) a node's descendant that you just copied (C), since copying will recreate the descendant nodes and it will assign new IDs to those children nodes.\r\n\r\nFor example:\r\n\r\n``` javascript\r\nfoo=I(\"pageId\", { type: \"ref\", ref: \"caSd2fv\" })\r\nU(foo+\"Csawf3\", {content: \"+240%\"})\r\nD(foo)\r\n```\r\n\r\nExample - Adding content to existing frame \"MmNEt\":\r\n\r\n``` javascript\r\nU(\"MmNEt\", {layout: \"horizontal\", gap: 16})\r\nsidebar=I(\"MmNEt\", {type: \"ref\", ref: \"JRlf7\", width: 240})\r\ncontent=I(\"MmNEt\", {type: \"frame\", layout: \"vertical\"})\r\nheader=C(\"A2sa3f\", content, {width: \"fill_container\", height: \"fill_container\"})\r\n```\r\n\r\n### Response\r\n\r\nA list of created or updated nodes and their updated properties.\r\n\r\n### Insert (I)\r\n\r\nDefinition: insertedNodeId=I(parent: string, nodeData: Schema.Child)\r\n\r\n- Important: \"id\"s are always created automatically for nodes, never create \"id\" properties in new node data.\r\n- To insert an SVG node, use `type: \"frame\"` with a `svg` property containing the SVG string. The SVG will be parsed and converted into a FrameNode with vector children. You can set additional properties like `name`, `x`, `y`, `width`, `height` alongside `svg`.\r\n- An insert can only be a single node, if you want to add children to it, use bindings and do it in a new Inert (I) operation.\r\n- When working with components (reusable: true), insert their instances as refs with their properties overridden. If you want to override properties of subcomponents use subsequent Update (U) operations.\r\n- Returns the inserted node ID as string\r\n- **IMPORTANT:** Every created node must be actively assigned a meaningful `name`.\r\n- **IMPORTANT:** Never insert nodes into an instance node or any instance node children, because they are virtual nodes and cannot be add new nodes.\r\n\r\n### Copy (C)\r\n\r\nDefinition: copiedNodeId=C(path: string, parent: string, copyNodeData: Schema.Child & { positionPadding?: number; positionDirection?: string })\r\n\r\n- When copying a node and modifying its descendants, you MUST use the \"descendants\" property in the Copy operation itself. DO NOT use separate Update operations for descendants of copied nodes, as this will fail due to ID mismatches. The copied node and its descendants receive new IDs, so Update operations referencing the original descendant IDs will fail.\r\n- \"path\": The ID of the existing node to copy. If you want to customize some properties of the copied node, just add them next to the 'path' property. If you want to customize nested nodes _under_ the copied one, use the same kind of 'descendants' map that 'ref' nodes use!\r\n- \"descendants\": Optional, used for components. An object which keys are node IDs or paths to descendant objects inside the component used to customize the properties of descendant objects.\r\n- Example of correct usage: 'label1=C(\"NKYzH\", container, {\"descendants\": {\"ZopUS;jEYMs\": { \"content\": \"First Name\" }}})'\r\n- \"positionPadding\": The minimum padding distance from other element when positioning if needed.\r\n- \"positionDirection\": The direction to search for empty space relative to the node, to position the copied node if needed. Possible values are: \"top\", \"right\", \"bottom\", \"left\"\r\n- Copying a reusable node creates another reusable node, not a connected instance. Connected instances are created by Insert (I) operation.\r\n- Returns the copied node ID as string\r\n\r\n### Update (U)\r\n\r\nDefinition: U(path: string, updateData: Schema.Child)\r\n\r\n- Update the properties of existing nodes, without listing their children.\r\n- Use this operation to create small incremental updates to the properties of existing nodes.\r\n- This operation CANNOT change the 'id', 'type' or 'ref' properties of any node!\r\n- \"path\": The valid ID of the existing node to update (DO NOT use bindings in \"path\"), or if you want to update a nested node inside a instance, use the ID of the nested node must be prefixed with the ID of the instance and a (;). E.g. consider this component:\r\n{\r\n\t\"id\": \"button\",\r\n\t\"type\": \"frame\",\r\n\t\"reusable\": true,\r\n\t\"children\": [{ \"id\": \"container\", \"type\": \"frame\", \"children\": [{\"id\": \"label\", \"type\": \"text\", \"content\": \"Button text\"}] }]\r\n}\r\nAnd then an instance of this component like this: {\"id\": \"submit-button\", \"type\": \"ref\", \"ref\": \"button\"}\r\nThe label text of 'submit-button' can be changed by passing the following as the \"nodes\" parameter:\r\n\r\n``` javascript\r\nU(\"submit-button;label\", {content: \"Submit\"})\r\n```\r\n\r\nThis slash-separated instance ID scheme works for any number of nesting levels, not just two.\r\n\r\n- \"updateData\": The node data to update\r\n\r\n### Move (M)\r\n\r\nDefinition: M(nodeId: string, parent: string | undefined, index?: number)\r\n\r\n- Move a nodes to a different location in the node tree in a .ardot file.\r\n- \"path\": The id of the moved node. ALWAYS use a valid node id, NOT a path or binding.\r\n- \"parent\": Optional parent node Id or binding\r\n- \"index\": Optional new position of the moved node among its siblings. If omitted, the node is placed at the end.\r\n\r\n### Delete (D)\r\n\r\nDefinition: D(nodeId: string)\r\n\r\n- Delete a node from a .ardot file.\r\n- \"nodeId\": The ID of the node to delete. ALWAYS use a valid node id, NOT a path or binding.\r\n\r\n### Placeholder Image (G)\r\n\r\nDefinition: G(nodeId: string, type: \"placeholder\", prompt: string)\r\n\r\n- IMPORTANT: There is NO \"image\" node type! Images are applied as FILLS to frame/rectangle nodes.\r\n- **`G()` is placeholder-only.** `\"type\"` must be `\"placeholder\"`. \r\n- Do not invent random URLs or `IMAGE` fills.\r\n- To show a labeled gray box: first Insert a frame or rectangle, then `G` to apply the placeholder fill.\r\n- \"nodeId\": The ID of the frame/rectangle node to apply the fill to. Can be a valid node ID or a binding name (e.g., \"myFrame\") created earlier in this operation list.\r\n- \"type\": `\"placeholder\"` only — a gray box with the label from `prompt` centered on it. No real image asset, no image-generation budget. Use for drafts / wireframes, or when ImageGen is unavailable / undesired.\r\n- \"prompt\": a **short label** (≤ 20 chars, ~2–4 words) shown on the placeholder, e.g. `\"Hero image\"`, `\"User avatar\"`. NOT a full AI prompt — long text overflows and looks broken. The label MUST be written in the same language as the user, e.g. Chinese labels like `\"封面图\"`, `\"用户头像\"` when the user speaks Chinese.\r\n\r\nExample — placeholder (drafts/wireframes; SHORT label ≤ 20 chars):\r\n\r\n``` javascript\r\navatar=I(\"parentId\", {type: \"frame\", name: \"Avatar\", width: 120, height: 120})\r\nG(avatar, \"placeholder\", \"User avatar\")\r\n```\r\n\r\n### Examples\r\n\r\n**Example: Dashboard layout structure (8 ops)**\r\n\r\nAdd Sidebar and main content structure to a dashboard frame. Prefer adding components directly into an existing frame.\r\n\r\n``` javascript\r\nsidebar=I(\"29c0s\", {type: \"ref\", ref: \"JRlf7\", x: 0, y: 0, width: 240, height: \"fill_container\"})\r\nmainContent=I(\"29c0s\", {type: \"frame\", layout: \"vertical\", gap: 24, padding: 32})\r\nstats=I(mainContent, {type: \"frame\", layout: \"vertical\", gap: 16})\r\ncard1=I(stats, {type: \"ref\", ref: \"QMBKc\", width: \"fill_container\", height: \"hug_contents\"})\r\ncard2=I(stats, {type: \"ref\", ref: \"QMBKc\", width: \"fill_container\", height: \"hug_contents\"})\r\ncard3=I(stats, {type: \"ref\", ref: \"QMBKc\", width: \"fill_container\", height: \"hug_contents\"})\r\nU(\"FVge3x;vdS2egl\", {width: \"fill_container\", height: \"fill_container\"})\r\nU(\"FVge3x;gDsgE6S\", {content: \"Submit\"})\r\n```\r\n\r\n**Example: Form inputs section (8 ops)**\r\n\r\nAdd form inputs with labels to an existing content area.\r\n\r\n``` javascript\r\nlabel1=I(\"mainContent\", {type: \"ref\", ref: \"NKYzH\"})\r\nU(label1+\"ZopUS;jEYMs\", {content: \"First Name\"})\r\ninput1=I(\"mainContent\", {type: \"ref\", ref: \"FmgD2\", width: \"fill_container\"})\r\nU(input1+\"CvD2R\", {content: \"First Name\"})\r\ninput2=I(\"mainContent\", {type: \"ref\", ref: \"FmgD2\", width: \"fill_container\"})\r\nU(input2+\"CvD2R\", {content: \"Last Name\"})\r\nU(contact+\"oknii\", {content: \"Full Name\"})\r\n```\r\n\r\nThis example inserts a component directly into an existing frame.\r\n\r\n``` javascript\r\nsidebar=I(\"d3902\", {type: \"ref\", ref: \"JRlf7\", x: 0, y: 0, width: 240, height: \"fill_container\"})\r\n```\r\n\r\nCopying a non-reusable frame (e.g., duplicating a screen). This copies the dashboard created above and tweaks it as another variation:\r\n\r\n``` javascript\r\ndashboardV2=C(\"Xk9f2\", \"pageId\", {name: \"Dashboard V2\", positionDirection: \"right\", positionPadding: 100})\r\nD(dashboardV2+\"sidebarId\")\r\nU(dashboardV2+\"statsId;card1Id\", {fill: \"#E8F5E9\"})\r\nU(dashboardV2+\"statsId;card2Id\", {fill: \"#FFF3E0\"})\r\n```\r\n\r\n**Important:** When creating icons, prefer SVG node over icon fonts.\r\n\r\n**Important:** Inserting an SVG node. Use `type: \"frame\"` with a `svg` property containing the full SVG markup:\r\n\r\n``` javascript\r\ntriangle=I(\"parentId\", {type: \"frame\", svg: \"<svg width=\\\"261\\\" height=\\\"109\\\" viewBox=\\\"0 0 261 109\\\" fill=\\\"none\\\" xmlns=\\\"http://www.w3.org/2000/svg\\\"><path d=\\\"M1 108L84 1L259 97L1 108Z\\\" stroke=\\\"black\\\"/></svg>\", name: \"Triangle Shape\", x: 100, y: 50})\r\n```\r\n\r\nWhen setting fill colors, keep color values to 2 decimal places to avoid excessively long floating-point numbers.\r\n\r\n``` javascript\r\nU(\"nodeId\", {fills: [{type: \"SOLID\", color: {r: 0.25, g: 0.48, b: 0.88}, opacity: 0.85, visible: true, blendMode: \"NORMAL\"}]})\r\n```\r\n\r\nApplying a gradient fill to an existing node. Use `fills` with `type: \"GRADIENT_LINEAR\"`, `gradientStops` (array of color stops), and `gradientTransform` (2x3 matrix), note that `gradientStops` array should have at least two elements:\r\n\r\n| gradientTransform Direction | Matrix |\r\n|-----------------------------|--------|\r\n| left → right | [[1, 0, 0], [0, 1, 0]] |\r\n| right → left | [[-1, 0, 1], [0, -1, 1]] |\r\n| top → bottom | [[0, 1, 0], [-1, 0, 1]] |\r\n| bottom → top | [[0, -1, 1], [1, 0, 0]] |\r\n| 45° (ur → ll) | [[1, 1, 0], [-1, 1, 0.5]] |\r\n\r\n``` javascript\r\nU(\"nodeId\", {fills: [{type: \"GRADIENT_LINEAR\", gradientStops: [{color: {r: 0.2, g: 0.4, b: 1.0, a: 1}, position: 0}, {color: {r: 0.8, g: 0.2, b: 0.8, a: 1}, position: 0.5}, {color: {r: 1.0, g: 0.4, b: 0.3, a: 1}, position: 1}], gradientTransform: [[1, 0, 0], [0, 1, 0]], opacity: 1, visible: true, blendMode: \"NORMAL\"}]})\r\n```\r\n\r\nSupported gradient types: `GRADIENT_LINEAR`, `GRADIENT_RADIAL`, `GRADIENT_ANGULAR`, `GRADIENT_DIAMOND`.\r\n\r\n**Example: Fixing layout alignment issues (3 ops)**\r\n\r\nFix a search bar where children are top-aligned instead of vertically centered, and distribute children to opposite ends (text on the left, button on the right). Use `counterAxisAlignItems: \"CENTER\"` for cross-axis centering, `primaryAxisAlignItems: \"SPACE_BETWEEN\"` for distributing children to both ends, and `layoutGrow: 1` to make a child fill the remaining space along the primary axis.\r\n\r\n``` javascript\r\nU(\"searchBar\", {counterAxisAlignItems: \"CENTER\", primaryAxisAlignItems: \"SPACE_BETWEEN\"})\r\nU(\"searchText\", {layoutGrow: 1})\r\nU(\"searchButton\", {primaryAxisAlignItems: \"CENTER\", counterAxisAlignItems: \"CENTER\"})\r\n```\r\n\r\n**Example: Fixing text style inside a button (1 op)**\r\n\r\nFix button text color and size to ensure readability against the button background. Use `fills` to set text color and `fontSize` to adjust size.\r\n\r\n``` javascript\r\nU(\"buttonLabel\", {fills: [{type: \"SOLID\", color: {r: 1, g: 1, b: 1}, opacity: 1, visible: true, blendMode: \"NORMAL\"}], fontSize: 14, fontName: {family: \"Sarasa Gothic SC\", style: \"Bold\"}})\r\n```\r\n\r\n## Common Property Mistakes — DO NOT USE These Invalid Properties\r\n\r\nThe following properties are **NOT supported** and will cause errors or be silently ignored. Always use the correct property name listed below.\r\n\r\n| ❌ WRONG (Do NOT use) | ✅ CORRECT (Use this instead) | Notes |\r\n|---|---|---|\r\n| `textColor: \"#FFF\"` | `fill: \"#FFFFFF\"` | Text color is set via `fill` (a hex string), which maps to `fills` internally |\r\n| `verticalAlign: \"center\"` | `counterAxisAlignItems: \"CENTER\"` | Use uppercase enum values for alignment |\r\n| `alignItems: \"center\"` | `counterAxisAlignItems: \"CENTER\"` | `alignItems` is NOT a valid property |\r\n| `justifyContent: \"center\"` | `primaryAxisAlignItems: \"CENTER\"` | `justifyContent` is NOT a valid property |\r\n| `fontWeight: \"bold\"` | `fontWeight: \"700\"` | Use numeric strings: `\"100\"` to `\"900\"` |\r\n| `fontWeight: \"semibold\"` | `fontWeight: \"600\"` | Maps to `\"Semi Bold\"` font style |\r\n| `fontWeight: \"medium\"` | `fontWeight: \"500\"` | Maps to `\"Medium\"` font style |\r\n| `fillColor: \"#FFF\"` | `fill: \"#FFFFFF\"` | Use `fill` for both text and shape colors |\r\n| `backgroundColor: \"#FFF\"` | `fill: \"#FFFFFF\"` | Background color is just `fill` on a frame |\r\n| `borderRadius: 8` | `cornerRadius: 8` | Use `cornerRadius`; see [Corner radius](#corner-radius) for per-corner values |\r\n| `color: \"#FFF\"` | `fill: \"#FFFFFF\"` | Always use `fill` for colors |\r\n\r\n### Font weight reference\r\n\r\nUse **numeric strings** for `fontWeight`:\r\n\r\n| Value | Font Style |\r\n|---|---|\r\n| `\"100\"` | Thin |\r\n| `\"200\"` | Extra Light |\r\n| `\"300\"` | Light |\r\n| `\"400\"` | Regular |\r\n| `\"500\"` | Medium |\r\n| `\"600\"` | Semi Bold |\r\n| `\"700\"` | Bold |\r\n| `\"800\"` | Extra Bold |\r\n| `\"900\"` | Black |\r\n\r\nDefault use `fontWeight: \"400\"`\r\n\r\n### Font family reference\r\n\r\nWhen creating a text node, you must specify the `fontName`, such as:\r\n\r\n``` javascript\r\ntxt=I(\"nodeId\", {type: \"text\", content: \"...\", fontSize: 16, fill: \"#18191C\", fontName: {family: \"Inter\", style: \"Regular\"}})\r\n```\r\n\r\nIn general, you should use the font family and style that match your design system.\r\nBut if you want to use a specific font, you can specify it in the `fontName` property.\r\nWhen not specified, use `Inter`.\r\n\r\n**Important:** After creating text nodes, the system validates whether the fonts used are available. If a font is not available, you will see it in `potentialIssues`. To fix it:\r\n1. Call `get_available_fonts` with the font family names to find their exact available styles\r\n2. Pick an exact family + style match from the result\r\n3. Use U() to update the text node's fontName with the correct font\r\n\r\nDo NOT guess font style names — always use the exact strings from `get_available_fonts`.\r\n\r\n### Alignment property reference\r\n\r\nFor frames with `layout: \"horizontal\"`, `layout: \"vertical\"` or `layout: \"wrap\"`:\r\n\r\n> `primaryAxisAlignItems`, `counterAxisAlignItems` and `counterAxisAlignContent` will only work when the node has layout not `\"NONE\"`\r\n\r\n| Purpose | Property | Valid Values |\r\n|---|---|---|\r\n| Main axis alignment | `primaryAxisAlignItems` | `\"MIN\"`, `\"CENTER\"`, `\"MAX\"`, `\"SPACE_BETWEEN\"`, `\"SPACE_EVENLY\"` |\r\n| Cross axis alignment | `counterAxisAlignItems` | `\"MIN\"`, `\"CENTER\"`, `\"MAX\"`, `\"BASELINE\"` |\r\n| Cross axis content (wrap) | `counterAxisAlignContent` | `\"AUTO\"`, `\"SPACE_BETWEEN\"` |\r\n\r\n### Size property values\r\n\r\n- **Numeric values**: `width: 400`, `height: 300` — sets exact pixel size\r\n- **`\"fill_container\"`**: makes the node stretch to fill the parent's available space along that axis (requires parent to have layout)\r\n- **`\"fill_container(200)\"`**: same as above, but with a minimum size of 200px\r\n- **`\"hug_contents\"`**: makes the node shrink-wrap to fit its children\r\n\r\n### Corner radius\r\n\r\n`cornerRadius` has two self-describing shapes, and `batch_read` returns the same two shapes:\r\n\r\n- **Uniform**: `cornerRadius: 8` — all four corners share one value\r\n- **Per-corner**: `cornerRadius: {topLeft: 16, topRight: 16, bottomRight: 16, bottomLeft: 0}`\r\n\r\nWrites additionally accept the CSS `border-radius` array shorthand (1–4 values, clockwise from top-left):\r\n\r\n``` javascript\r\nU(\"card\", {cornerRadius: 12})                                              // all four corners\r\nU(\"card\", {cornerRadius: {topLeft: 16, topRight: 16, bottomRight: 16, bottomLeft: 0}})\r\nU(\"card\", {cornerRadius: {bottomLeft: 0}})                                 // only the corners you pass are changed\r\n```\r\n\r\n### Text color\r\n\r\nText nodes have **no visible color by default**. You MUST set the `fill` property:\r\n\r\n``` javascript\r\ntitle=I(parent, {type: \"text\", content: \"Hello\", fontSize: 16, fill: \"#18191C\"})\r\n```\r\n",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "operations": {
+              "type": "string",
+              "description": "List of insert/copy/update/replace/move/delete/image operations to execute based on the format in the tool description. Aim for 5–25 operations per call."
+            }
+          },
+          "required": [
+            "operations"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "locate_available_space",
+        "title": "Locate Available Space",
+        "description": "Find Available space in a .ardot file for a given direction and desired size.\n\n- IMPORTANT: Always need call this tool before try to insert a node on root page.\nIf nodeId is provided, finds space around that specific node.\nIf nodeId is omitted, finds space around the entire canvas content.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "nodeId": {
+              "description": "Optional starting point node ID to find space around",
+              "type": "string"
+            },
+            "width": {
+              "type": "number",
+              "description": "The width of the required empty space"
+            },
+            "height": {
+              "type": "number",
+              "description": "The height of the required empty space"
+            },
+            "padding": {
+              "default": 100,
+              "description": "Minimum padding distance",
+              "type": "number"
+            },
+            "direction": {
+              "default": "right",
+              "description": "Direction to search for empty space",
+              "type": "string",
+              "enum": [
+                "top",
+                "right",
+                "bottom",
+                "left"
+              ]
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "fetch_editor_state",
+        "title": "Fetch Editor State",
+        "description": "Get the currently active canvas editor, the current user selection and other essential design information to get started on a design task.\n\n  - IMPORTANT: If you already loaded the 'ardot-design-assistant' skill, always set 'includeSchema' and 'includeGeneralEditInstructions' to false to avoid loading again.\n  ",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "includeSchema": {
+              "default": false,
+              "description": "Whether to include the Ardot schema in the response. Set to false only if the schema has already been loaded in this conversation.",
+              "type": "boolean"
+            },
+            "includeGeneralEditInstructions": {
+              "default": false,
+              "description": "Whether to include general edit instructions in the response. Set to false if these instructions have already been loaded in this conversation (e.g., the ardot-design-assistant skill is loaded).",
+              "type": "boolean"
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "fetch_file_info",
+        "title": "Fetch File Info",
+        "description": "Get basic information about the currently active design file.\n\n- Returns the file name, file URL, file ID and the user's permission on the file.\n- Use this tool when you need to know which file is currently being edited or to check whether the user has write access before performing edits.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "apply_variables",
+        "title": "Apply Variables",
+        "description": "Create or update variable sets and variables in this design file.\n\n# Usage\n- By default (merge mode), only the specified variable sets and variables are created or updated; existing ones not mentioned are left untouched.\n- When `replace` is true, variable sets and variables NOT present in the input will be **deleted**. Use with caution.\n\n## Input Format\n`variables` is a map of **variable set name** → **definition**:\n> **Naming restriction**: Variable set names and variable names must NOT contain `$` or `:` characters, as these are reserved for the variable reference syntax `$:<SetName>:<VariableName>` used in `batch_edit`.\n\n```json\n{\n  \"<SetName>\": {\n    \"modes\": [\"<Mode1>\", \"<Mode2>\"],\n    \"variables\": {\n      \"<varName>\": {\n        \"type\": \"FLOAT\" | \"BOOLEAN\" | \"STRING\" | \"COLOR\",\n        \"valuesByMode\": { \"<Mode1>\": <value>, \"<Mode2>\": <value> },\n        \"scopes\": [\"ALL_FILLS\"]\n      }\n    }\n  }\n}\n```\n**Fields**:\n- **SetName**: Variable set name. Must NOT contain `$` or `:` characters.\n- **varName**: Variable name within the set. Must NOT contain `$` or `:` characters.\n- **modes**: Optional string array. If omitted, keeps default \"Mode 1\". If specified, \"Mode 1\" is renamed to the first mode.\n- **type**: `\"BOOLEAN\"`, `\"FLOAT\"`, `\"STRING\"`, or `\"COLOR\"`.\n- **valuesByMode**: Values keyed by mode name. Or use `\"value\"` to set the same value for all modes.\n- **scopes** (optional): `\"ALL_SCOPES\"`, `\"TEXT_CONTENT\"`, `\"CORNER_RADIUS\"`, `\"WIDTH_HEIGHT\"`, `\"GAP\"`, `\"ALL_FILLS\"`, `\"FRAME_FILL\"`, `\"SHAPE_FILL\"`, `\"TEXT_FILL\"`, `\"STROKE\"`, `\"STROKE_FLOAT\"`, `\"EFFECT_FLOAT\"`, `\"EFFECT_COLOR\"`, `\"OPACITY\"`, `\"FONT_STYLE\"`, `\"FONT_FAMILY\"`, `\"FONT_SIZE\"`, `\"LINE_HEIGHT\"`, `\"LETTER_SPACING\"`, `\"PARAGRAPH_SPACING\"`, `\"PARAGRAPH_INDENT\"`, `\"FONT_VARIATIONS\"`\n**Value formats**: BOOLEAN → `true/false`, FLOAT → number, STRING → string, COLOR → `{\"r\": 0~1, \"g\": 0~1, \"b\": 0~1, \"a\": 0~1}` (NOT hex strings).\n\n## Example\n```json\n{\n  \"Design Tokens\": {\n    \"modes\": [\"Light\", \"Dark\"],\n    \"variables\": {\n      \"bgColor\": {\n        \"type\": \"COLOR\",\n        \"valuesByMode\": {\n          \"Light\": {\"r\": 1, \"g\": 1, \"b\": 1, \"a\": 1},\n          \"Dark\": {\"r\": 0.1, \"g\": 0.1, \"b\": 0.1, \"a\": 1}\n        },\n        \"scopes\": [\"ALL_FILLS\"]\n      },\n      \"borderRadius\": { \"type\": \"FLOAT\", \"value\": 8 }\n    }\n  }\n}\n```",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "variables": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {},
+              "description": "Variable sets to create or update, keyed by variable set name."
+            },
+            "replace": {
+              "description": "If true, completely replace existing variable definitions instead of merging",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "variables"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "fetch_styles",
+        "title": "Fetch Styles",
+        "description": "Fetch the full definition of local shared styles: FILL paints, TEXT font (fontFamily, fontSize, lineHeight, letterSpacing) and EFFECT paints.\n\nTwo modes:\n- By id (preferred after search_styles): pass `styleIds` to load full detail only for the few styles you actually reuse. Up to 50 ids per call; unknown ids are skipped.\n- List all: omit `styleIds` to enumerate every local shared style in the file, e.g. to build a style panel or audit the file's styles. Narrow with `styleTypes` to a single kind when you only care about colors, text or effects.\n\nOnly the current file's local styles are returned; use search_styles with `enabledLibraryKey` for team libraries.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "styleIds": {
+              "description": "Style ids (from search_styles) to fetch full details for. Omit to list all local shared styles.",
+              "minItems": 1,
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "styleTypes": {
+              "description": "List mode only: style kinds to return. Omit to return FILL, TEXT and EFFECT.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "FILL",
+                  "TEXT",
+                  "EFFECT"
+                ]
+              }
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "export_variables",
+        "title": "Export Variables",
+        "description": "Export the design file's local variables as ready-to-consume code tokens.\n\n# Output Formats\n- `w3c-json`: W3C Design Tokens Community Group JSON. Nested groups from variable path; `$type` / `$value` / `$description`; multi-mode written to `$extensions.modes`.\n- `css`: CSS custom properties (`--name: value;`). Multi-mode split by `:root` + `[data-theme=\"<mode>\"]` blocks.\n- `scss`: SCSS variables (`$name: value;`). Multi-mode produces one file per mode.\n\n# Parameters\n- `format`: `w3c-json` | `css` | `scss`. Required.\n- `scope`: `'all'` (default) or an array of variable ids to include.\n- `mode`: `'all'` (default) or a mode name to filter by. When `'all'`, `splitByMode` decides single-file vs per-mode files.\n- `splitByMode`: when true and `mode = 'all'`, emit one file per mode (for zip packaging).\n- `colorFormat`: `hex6` | `hex8` | `rgba` | `hsl`. Default `hex8`. `hex6` drops alpha; keep the default (or use `rgba` / `hsl`) to preserve transparency.\n- `pathSeparator`: `-` (default) or `_`. Only affects CSS/SCSS variable naming.\n- `numberUnit`: `px` (default) | `rem` | `none` for CSS/SCSS number values. Use `none` for unitless variables (opacity, line-height, z-index, font-weight).\n\n# Behavior\n- Aliases are preserved as references (`{path.to.var}` in JSON, `var(--...)` / `$name` in CSS/SCSS); cross-collection aliases include the collection name.\n- Referenced-but-deleted variables inline the resolved terminal value with a `$extensions.warning`; absent targets yield `null` + a missing warning.\n- Circular alias chains cause the export to fail with the list of variable paths involved.\n- Response is `{ files: [{ name, content }], estimatedTokens }`. Write each file by `name`; use `estimatedTokens` (chars/4) to decide whether to re-call with a narrower `scope` when the payload is large.\n- Output content is byte-identical to what the manual download in the design file's variable panel produces for the same options.\n- Read-only: never mutates the file.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "w3c-json",
+                "css",
+                "scss"
+              ],
+              "description": "Output format: W3C DTCG JSON, CSS custom properties, or SCSS variables."
+            },
+            "scope": {
+              "description": "`all` (default) or an array of variable ids to include.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "all"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "mode": {
+              "description": "`all` (default) or a mode name to filter by.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "all"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "splitByMode": {
+              "description": "When true and mode is `all`, emit one file per mode.",
+              "type": "boolean"
+            },
+            "colorFormat": {
+              "description": "Color value format. Default `hex8`; `hex6` drops alpha, keep the default (or use `rgba`/`hsl`) to preserve transparency.",
+              "type": "string",
+              "enum": [
+                "hex6",
+                "hex8",
+                "rgba",
+                "hsl"
+              ]
+            },
+            "pathSeparator": {
+              "description": "Separator for CSS/SCSS variable path joining. Default `-`.",
+              "type": "string",
+              "enum": [
+                "-",
+                "_"
+              ]
+            },
+            "numberUnit": {
+              "description": "Unit for CSS/SCSS number values. Default `px`; use `none` for unitless variables (opacity, line-height, z-index).",
+              "type": "string",
+              "enum": [
+                "px",
+                "rem",
+                "none"
+              ]
+            }
+          },
+          "required": [
+            "format"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "scan_exportable_resources",
+        "title": "Scan Exportable Resources",
+        "description": "Scan a node tree and return all exportable resource nodes, categorized by type.\n\n- Accepts a root node ID and recursively scans its descendants.\n- Returns a map with two lists: \"image\" (nodes with image fills, should be exported as PNG/JPEG/WEBP) and \"svg\" (nodes with only vector/shape elements, can be exported as SVG).\n- Use this tool BEFORE export_nodes to determine which nodes to export and in what format.\n- If nodeId is omitted, scans the current page.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "nodeId": {
+              "description": "Root node ID to scan. If omitted, scans the current page.",
+              "type": "string"
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "get_available_fonts",
+        "title": "Get Available Fonts",
+        "description": "Search available fonts by keywords. Returns matching font families with their available styles.\n\nResponse format: { fonts: [{ family: \"Inter\", styles: [\"Regular\", \"Bold\", \"Semi Bold\", ...] }, ...], totalFamilies: 5, truncated: false }\n\nUsage:\n- Use the `keywords` parameter to search for fonts by family name. Pass one or more terms in a single call (e.g. keywords: [\"Inter\"], keywords: [\"Noto Sans\", \"Sarasa\", \"Roboto\"]).\n- If no keywords are provided, returns a default set of commonly used fonts.\n- If the result is truncated, narrow your search with more specific keywords.\n- You MUST use the exact family and style strings from this list in fontName properties.\n- Example: if the response contains {family: \"Inter\", styles: [\"Regular\", \"Semi Bold\"]}, use exactly fontName: {family: \"Inter\", style: \"Semi Bold\"}.\n- DO NOT guess or invent font style names — a mismatch like \"semibold\" vs \"Semi Bold\" will cause a missing font error.\n- If your desired font is not in the list, try searching with different keywords.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "keywords": {
+              "description": "Search keywords to filter fonts by family name (case-insensitive, partial match; match ANY). Max 20. E.g. [\"Inter\", \"Noto\", \"Sarasa\"]",
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "create_new_page",
+        "title": "Create New Page",
+        "description": "Create a new empty page (CANVAS) in a .ardot file.\n\nIMPORTANT: Do NOT call this tool casually. Only use it when the user explicitly asks to create a new page, or when starting a brand-new design task that must be isolated from the current page.\nIMPORTANT: When generating multiple Slide pages, do NOT treat each Slide as a new page — do NOT call this tool for them. Lay out the slides within the same page instead.\n\n- Adds a fresh blank page to the current document.\n- If `leftPageId` is provided, the new page is inserted **immediately after** that page;\n  otherwise it is appended next to the current active page (host default).\n- If `name` is provided, the page is renamed to that value after creation.\n- By default the editor switches focus to the newly created page (`select: true`).\n\nReturns the newly created `pageId` (use it as `parentId` when later inserting top-level\nframes via `batch_edit`).",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Optional name for the new page. If omitted, the host editor assigns a default name like \"Page N\".",
+              "type": "string"
+            },
+            "leftPageId": {
+              "description": "Optional sibling page ID. The new page will be inserted immediately after this page in the page list.",
+              "type": "string"
+            },
+            "select": {
+              "default": true,
+              "description": "Whether to switch the editor to the newly created page after creation. Defaults to true.",
+              "type": "boolean"
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "search_style_guide",
+        "title": "Search Style Guide",
+        "description": "Search the curated design catalog for candidates across 6 domains: style, color, typography, layout, scene, composition.\r\n\r\nWhen to use: Visual design tasks needing creative direction (landing pages, dashboards, app screens, brand work). Call before `build_style_guide` whenever the user asks for a specific aesthetic, style, or mood, or when designing from scratch.\r\n\r\nInput: `styleKeywords` is required; the other five `*Keywords` are optional. **All keywords MUST be English** — the catalog is English-only and non-ASCII input is rejected.\r\n\r\nOutput: Per-domain candidate lists, each entry `{ index, score, name, summary, bestFor }`. Pick by `summary` + `bestFor` against user intent — NOT by raw `score`.\r\n\r\nThen call `build_style_guide` with the chosen `name` (or `index`) per domain to materialize concrete design tokens.\r\n\r\nCall this ONCE per design task — do not re-search to retry or broaden. If no candidate fits a domain, pick the closest one and adjust on the build result instead.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "domain": {
+              "description": "Limit search to one domain (reduces response size). Omit to search all 6 domains.",
+              "type": "string",
+              "enum": [
+                "style",
+                "color",
+                "typography",
+                "layout",
+                "scene",
+                "composition"
+              ]
+            },
+            "styleParent": {
+              "description": "Soft pre-weight styles by parent gene family (e.g., \"bento\", \"kinetic\", \"soft\"). Pass when scene candidate suggests a `default_gene_parent`, or user intent strongly points to one aesthetic. Other families remain in the pool.",
+              "type": "string",
+              "enum": [
+                "bento",
+                "editorial",
+                "soft",
+                "dark",
+                "glass",
+                "kinetic",
+                "brutalism",
+                "y2k"
+              ]
+            },
+            "styleKeywords": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "boolean",
+                  "const": true
+                }
+              ],
+              "description": "Required. Drives style domain. Product type + industry + visual style names + impressions. Example: \"SaaS dashboard glassmorphism modern\". Pass `true` for full catalog."
+            },
+            "colorKeywords": {
+              "description": "Drives color domain. Color moods/families/characteristics. Example: \"warm earthy muted sage\". Omit to fall back to styleKeywords.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "boolean",
+                  "const": true
+                }
+              ]
+            },
+            "typographyKeywords": {
+              "description": "Drives typography domain. Mood + audience + font preference. Example: \"elegant serif editorial\". Omit to fall back to styleKeywords.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "boolean",
+                  "const": true
+                }
+              ]
+            },
+            "layoutKeywords": {
+              "description": "Drives layout domain. Page type / functional intent. Example: \"pricing comparison\". Omit to fall back to styleKeywords.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "boolean",
+                  "const": true
+                }
+              ]
+            },
+            "sceneKeywords": {
+              "description": "Drives scene domain (platform + product type design norms). Example: \"mobile music streaming\". The scene candidate often carries `default_gene_parent` to feed back as `styleParent`. Omit to fall back to styleKeywords.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "boolean",
+                  "const": true
+                }
+              ]
+            },
+            "compositionKeywords": {
+              "description": "Drives composition domain (spatial techniques, hero templates, hooks). Example: \"hero floating screenshot depth shadow\". Omit to fall back to styleKeywords.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "boolean",
+                  "const": true
+                }
+              ]
+            },
+            "topK": {
+              "description": "Candidates per domain. Pass 3. Larger pools cost more tokens without improving the single-pass pick.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "styleKeywords"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "build_style_guide",
+        "title": "Build Style Guide",
+        "description": "Materialize selected candidates from `search_style_guide` into a concrete design system JSON.\n\nWhen to use: After picking candidates from `search_style_guide`. Always call this before drawing.\n\nInput: For each domain (style / color / typography / layout / scene / composition) pass either the `index` (number) or the `name` (string) returned by `search_style_guide` as a top-level parameter. A domain may be omitted if no candidate fits.\n\nOutput: `{ design_system: { style: {...}, color: {...}, ... } }` with concrete tokens (hex, spacing, font family, shadow, radius). Field names match CSV columns (e.g., `background_primary`, `radius_card`). Read values directly via path access — do NOT scan text for tokens.\n\nThe returned design system is AUTHORITATIVE: use exact values as-is. If a domain conflicts with user intent (e.g., user wants dark, palette is light), do NOT re-search — adjust the minimum set of token values within that same domain (preserving structural relationships: Background/Foreground/Card contrast, Heading/Body font roles, radius hierarchy). Domains you explicitly omitted may use your own design knowledge freely.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "style": {
+              "description": "Selected style: index (number) or style_id (string, e.g. \"kinetic-vercel\")",
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "color": {
+              "description": "Selected color palette: index (number) or palette_id (string)",
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "typography": {
+              "description": "Selected typography: index (number) or typo_id (string)",
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "layout": {
+              "description": "Selected layout pattern: index (number) or layout_id (string)",
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "scene": {
+              "description": "Selected scene spec: index (number) or scene_id (string)",
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "composition": {
+              "description": "Selected composition technique: index (number) or composition_id (string)",
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "register_assets",
+        "title": "Register Assets",
+        "description": "Request a temporary upload URL and a paired download URL for an asset.\n\n- Use this tool to obtain a place to upload a local/generated asset binary before using it in other tools.\n- Upload the asset to the returned uploadUrl (HTTP PUT), then pass the returned downloadUrl to any MCP tool that needs a resource URL.\n- Example upload:\n  `curl -X PUT '<uploadUrl>' -H 'Content-Type: image/png' --data-binary '@/path/to/image.png'`\n  Replace `Content-Type` with the same MIME type you passed as `contentType` (image/png, image/jpeg, image/webp, or text/html).\n- The URLs are temporary and may expire; request new ones if an upload fails after expiry.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "contentType": {
+              "type": "string",
+              "enum": [
+                "image/png",
+                "image/jpeg",
+                "image/webp",
+                "text/html"
+              ],
+              "description": "Asset MIME type; one of image/png, image/jpeg, image/webp, text/html"
+            }
+          },
+          "required": [
+            "contentType"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "html_to_ardot",
+        "title": "HTML to Ardot",
+        "description": "Convert a remote HTML page into editable layers on the current Ardot design page.\n\n- The HTML must already be uploaded to a temporary download URL (use register_assets first).\n- Pass the download URL as htmlUrl.\n- isSlide (boolean, default false): when true, import the root node as a Slide. For PPT / presentation scenarios, always set isSlide to true.\n- Success: { success: true, fileId?, sessionId?, createdNodeIds?, batchEditOperations? }.\n- If batchEditOperations is present, immediately call batch_edit with operations set to that string (prebuilt G image-gen ops). Split into chunks of ≤25 ops if needed.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "htmlUrl": {
+              "type": "string",
+              "description": "Download URL of the HTML file (obtained from register_assets)"
+            },
+            "pageId": {
+              "type": "string",
+              "description": "Target page ID where the design will be placed"
+            },
+            "isSlide": {
+              "default": false,
+              "description": "Whether to import the root node as a Slide type. Default false. For PPT / presentation scenarios, set to true.",
+              "type": "boolean"
+            },
+            "viewport": {
+              "default": 1920,
+              "description": "Rendering viewport width in pixels (default 1920)",
+              "type": "number"
+            },
+            "theme": {
+              "description": "Rendering theme mode",
+              "type": "string",
+              "enum": [
+                "light",
+                "dark"
+              ]
+            },
+            "isMobile": {
+              "description": "Whether to render in mobile viewport",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "htmlUrl",
+            "pageId"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "fetch_component_lib",
+        "title": "Fetch Component Library",
+        "description": "Get the components and component sets from a component library.\n\n- When `libraryKey` is omitted or set to `'local'`, returns the **local** component library of the currently active file (i.e. components/component sets defined in this document).\n- When `libraryKey` is a remote team library key, returns components published in that remote library.\n- Use this tool to discover reusable components before creating instances via `batch_edit`.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "libraryKey": {
+              "description": "Component library key. Omit or pass \"local\" for the current file's local component library; pass a remote library key to fetch a published team library.",
+              "type": "string"
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "batch_read",
+        "title": "Batch Read",
+        "description": "Retrieve nodes by searching for matching patterns and by node ids in batches.\n\n- IMPORTANT: Combine multiple search patterns and node ID searches into one call.\n- IMPORTANT: If you need to read some specific properties, specify them in the properties array.\n- If neither patterns nor nodeIds is specified, returns the top-level children of the current page.\n- Use searchDepth to define how many levels to search in.\n- Each call has an overall node budget. Once a read exceeds it, the affected child nodes are compressed down to ID, name, type and a compressed version of their children, and their parent ids are listed in `omitted` — read those ids again individually if you need the details.\n- When using design system components, AVOID reading each component one-by-one. Instead list all of the available components in a single tool call.\n- Response size is driven by readDepth x resolveInstances, not by properties: default to readDepth 2 and enable resolveInstances only for the subtree you must inspect. Go deeper when the task genuinely needs it (e.g. nested instance slots).\n\nTraversing large documents:\n1. Start by reading top-level nodes, or nodes you already know the IDs of to understand overall structure\n2. Decide if the nodes you have already read are sufficient for your task\n3. If you need more data and you see \"...\" for children, make new read calls with those specific child IDs\n\n- Large results are written to a JSONL file (one node per line) and the response returns a summary plus that file path; Grep the file by node id to get a single node's full data.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "nodeIds": {
+              "description": "Array of node IDs to read. e.g. nodeIds: ['nodeId1', 'nodeId2', ...]",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "patterns": {
+              "description": "Array of pattern objects to search for matching nodes",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "description": "Regex pattern to match node names",
+                    "type": "string"
+                  },
+                  "reusable": {
+                    "description": "Filter by reusable property",
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "description": "Filter by node type",
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "parentId": {
+              "description": "Parent node ID to search within patterns, if not specified, patterns will be ignored",
+              "type": "string"
+            },
+            "readDepth": {
+              "description": "How many levels of children to include in the response (default: 2, -1 for unlimited). Keep it as small as the task allows; deep reads combined with resolveInstances may exceed the node budget and get compressed into `omitted`",
+              "type": "number"
+            },
+            "searchDepth": {
+              "description": "How many levels deep to search for patterns",
+              "type": "number"
+            },
+            "properties": {
+              "description": "Array of specific properties to include in the response. When specified, only these properties will be included in the response. eg. [\"fills\", \"strokes\", \"effects\", \"constraints\"]",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "resolveInstances": {
+              "description": "Resolve instance mainComponent node data, get whole instance source structure. when you want get children of instance, set this to true.",
+              "type": "boolean"
+            },
+            "resolveVariables": {
+              "description": "Resolve variable / shared style references to computed values",
+              "type": "boolean"
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "capture_layout",
+        "title": "Capture Layout",
+        "description": "Check the current layout structure of an design file.\r\n\r\n- Be careful with omitting the maxDepth parameter, as large maxDepth values can result in a lot of data.\r\n- If you're only interested in layout problems like text lineHeight, overlapping elements, clipped elements, or large unused container regions, then use the problemsOnly parameter.\r\n- maxDepth=1 means only the top level nodes layout in th parentId container will be returned.\r\n- Large results are written to a JSONL file (one node per line) and the response returns a summary plus that file path; Grep the file by node id to get a single node's full data including its problems.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "parentId": {
+              "type": "string",
+              "description": "Parent node ID to limit scope"
+            },
+            "maxDepth": {
+              "description": "Maximum depth to return layout rectangles",
+              "type": "number"
+            },
+            "problemsOnly": {
+              "default": true,
+              "description": "Only return nodes that have layout problems",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "parentId"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "capture_screenshot",
+        "title": "Capture Screenshot",
+        "description": "This tool returns screenshot images of one or more nodes in a design file.\r\n\r\nThis is a scarce visual-verification resource, not a routine check. Each call is expensive. Treat it as a last-resort audit after a completed batch of edits — never as a progress monitor.\r\n\r\nHARD RULES:\r\n- QUOTA: For one repair batch (all related edits for the current task or section), you may call this tool at most twice — typically once. The first call is allowed only after ALL planned fixes in the batch are applied. A second call is allowed only after you extracted EVERY issue from the first screenshot and applied those fixes together.\r\n- NO INCREMENTAL LOOPS: Never screenshot → fix one small issue → screenshot again. Never screenshot after each batch_edit. Never screenshot to \"see if it looks better\" after a tiny tweak.\r\n- PREFER capture_layout(problemsOnly: true) for spacing, overlap, clip, overflow, and hierarchy issues.\r\n\r\nUsage:\r\n- Pass ALL node IDs to verify in a single call via the 'nodeIds' array (less than 10). Never split one verification into repeated calls.\r\n- After a screenshot returns, you MUST read and analyze every image before editing further. Extract ALL visible issues at once.\r\n- Avoid nodes whose width or height exceeds 2000; screenshot each section instead.\r\n- The saved screenshot location is returned for each node.\r\n\r\nYou MUST also provide 'screenShotDir' — an existing local directory where each screenshot image will be written. The absolute local file path is returned in the result.\r\n",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "screenShotDir": {
+              "type": "string",
+              "description": "Absolute directory on the local filesystem where the screenshot image will be saved."
+            },
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "nodeIds": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of node IDs to screenshot. Pass all nodes you need to verify in a single call. e.g. nodeIds: ['nodeId1', 'nodeId2', ...]"
+            }
+          },
+          "required": [
+            "screenShotDir",
+            "nodeIds"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "download_source_media",
+        "title": "Download Source Media",
+        "description": "This tool downloads the original source media from a node's fill (not a rendered screenshot).\n\nUsage:\n- Pass a single node ID via 'nodeId'. The node must have a downloadable fill media. The topmost / last visible IMAGE fill with a non-null imageHash is used.\n- Unlike capture_screenshot / export_nodes, this returns the source asset as stored (ignores crop / scaleMode / node size). Use it when you need the original fill media for editing, analysis, or re-upload.\n- The saved file location is returned.\n\nYou MUST also provide 'outputDir' — an existing local directory where the source media will be written. The absolute local file path is returned in the result.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "nodeId": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Node ID whose fill source media should be downloaded. e.g. '1:23'"
+            },
+            "outputDir": {
+              "type": "string",
+              "description": "Absolute directory on the local filesystem where the source media will be saved."
+            }
+          },
+          "required": [
+            "nodeId",
+            "outputDir"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "export_nodes",
+        "title": "Export Nodes",
+        "description": "Export nodes to image or document files in PNG/JPEG/WEBP/SVG/PDF/PPTX/HTML formats.\n\n- Takes an array of node IDs and exports each one as a separate image file.\n- For SVG format there is no limit on the number of nodes per call. For image formats (PNG/JPEG/WEBP), it is recommended to export no more than 5 nodes per batch.\n- For PDF format, all Frame nodes in `nodeIds` are merged into a single PDF file (one file is written regardless of how many node IDs are provided). If no Frame node is included in `nodeIds`, falls back to exporting all frames on the current page. Frames are ordered top-to-bottom, then left-to-right (not by the order in `nodeIds`).\n- For HTML format, all Frame nodes in `nodeIds` are merged into a single ZIP archive containing the entry HTML and related resources. It uses the same fallback and ordering behavior as PDF.\n- For PPTX format, all Slide nodes in `nodeIds` are merged into a single presentation (one slide per node). If no Slide node is included in `nodeIds`, falls back to exporting all slides on the current page. Slides follow the layer panel order from top to bottom (not the order in `nodeIds`).\n- Supports PNG, JPEG, WEBP, SVG, PDF, PPTX and HTML formats.\n- File naming: each exported file uses an auto-generated name based on its node ID (a timestamp is appended to avoid overwrites).\n- Returns a map keyed by node ID to the exported file's location. For PDF, PPTX and HTML, the map contains a single entry.\n\nYou MUST also provide `outputDir` — the directory to write exported files to. The absolute local file path is returned for each node.\n- Uses 2x scale and high-quality settings by default.\n- SVG export always uses 1x scale regardless of the scale parameter.\n- PDF, PPTX and HTML export ignore the `scale` parameter.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "nodeIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of node IDs to export. PDF/HTML only use Frame nodes and PPTX only uses Slide nodes; see the tool description for fallback behavior."
+            },
+            "outputDir": {
+              "type": "string",
+              "description": "Directory to write exported files to"
+            },
+            "format": {
+              "description": "Export format (default: png). Use `pdf`/`html` to merge frames or `pptx` to merge slides into one document. HTML returns a ZIP archive.",
+              "type": "string",
+              "enum": [
+                "png",
+                "jpeg",
+                "webp",
+                "svg",
+                "pdf",
+                "pptx",
+                "html"
+              ]
+            },
+            "scale": {
+              "description": "Export scale factor (default: 2). Not applicable to SVG/PDF/PPTX/HTML.",
+              "type": "number"
+            },
+            "quality": {
+              "description": "Export quality for JPEG and WEBP (1-100). Defaults to 95 for JPEG, 100 (lossless) for WEBP.",
+              "type": "number"
+            }
+          },
+          "required": [
+            "nodeIds",
+            "outputDir"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "fetch_variables",
+        "title": "Fetch Variables",
+        "description": "Get the variables defined in this design file, or the variable modes supported by a specified node.\n\n- Use the result of this tool to create global CSS rules to use in a codebase.\n- When generating code from a design, use this tool to get the global styling rules.\n- To fetch a team variable library, pass `enabledLibraryKey` with that library's key, omit it to return only the current file's local variables.\n- Team-library variable sets are returned with their `libraryKey`. Use the `$lib:<libraryKey>:<variableSetId>:<variableId>` syntax in `batch_edit` to bind the library variable.\n- A design file or team library can hold thousands of variables. Pass `type` and/or `scope` (e.g. `type: 'COLOR'`) when you only need a subset. Large results are written to a JSONL file (one variable per line) and the response returns a summary plus that file path; Grep the file by variable name to get a single variable's full data.\n\n- IMPORTANT: To get the variable modes switchable on a node, pass `nodeId`. In that mode other parameters are ignored;",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "enabledLibraryKey": {
+              "description": "A single team variable library key to fetch. Omit to return only the current file's local variables.",
+              "type": "string"
+            },
+            "type": {
+              "description": "Filter by resolved variable type.",
+              "type": "string",
+              "enum": [
+                "COLOR",
+                "FLOAT",
+                "STRING",
+                "BOOLEAN"
+              ]
+            },
+            "scope": {
+              "description": "Keep only variables whose scopes include this scope.",
+              "type": "string"
+            },
+            "nodeId": {
+              "description": "Get the variableModes supported by the specified node, if specified, the previous parameters will be ignored.",
+              "type": "string"
+            }
+          }
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "fetch_guidelines",
+        "title": "Fetch Guidelines",
+        "description": "This tool returns the design guidelines and rules for working with .ardot files.\nUsage:\n- IMPORTANT: Follow the guidelines and design rules to solve your design tasks.\n- Call this tool multiple times with different topics to retrieve the relevant guidelines based on what you will work on next.\n- This tool provides essential information about the ardot file schema, components, layout, positioning, typography, and other design rules.\n\nAvailable topics:\n- table: Guidelines to work with tables in Ardot. Use this when asked to insert, update or move tables or dashboards.\n- landing-page: Guidelines for designing high-conversion landing page websites from scratch. Use this when asked to design landing pages, websites, or promotional web pages.\n- web-app: Guidelines for designing web apps from scratch. Use this when asked to design web apps or web websites.\n- mobile-app: Guidelines for designing mobile apps from scratch. Use this when asked to design mobile apps or mobile websites.\n- slides: Guidelines for designing slides for presentations. Use this when asked to design slides for presentations.\n- posters: Guidelines for designing posters. Use this when asked to design posters.\n- code: Coding guidelines to generate code from Arodt design files. Use this tool when your task involves generating code or implementations from ardot design files.\n- tailwind: Tailwind v4 specific implementation guidelines. Use when implementing designs with Tailwind CSS.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string",
+              "enum": [
+                "table",
+                "landing-page",
+                "web-app",
+                "mobile-app",
+                "slides",
+                "posters",
+                "code",
+                "tailwind"
+              ],
+              "description": "The topic of guidelines to retrieve"
+            }
+          },
+          "required": [
+            "topic"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      },
+      {
+        "name": "upload_images",
+        "title": "Upload Images",
+        "description": "Upload local image files and apply them as fills to specified nodes. Supports batch operations.\n\n- Can use this tool to quickly apply images to multiple nodes, when your Agent could generate images and provide file paths.\n- Each item maps a local image file path to a target node ID.\n- The image will be set as the node's IMAGE fill, replacing any existing fills.\n- Supported image formats: PNG, JPEG, WEBP.\n- The node must support fills (e.g., frame, rectangle, ellipse, etc.).\n- Maximum 10 items per call for optimal performance.",
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "fileUrl": {
+              "description": "Target file URL. If multiple files are open and this is not specified, the tool will return available files to choose from. Format: {host}/file/{numericFileId}[?node_id={nodeId}] (e.g. https://ardot.tencent.com/file/693499159567438?node_id=366%3A1). The full URL is forwarded to the handler unchanged; host is arbitrary.",
+              "type": "string"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "nodeId": {
+                    "type": "string",
+                    "description": "Target node ID to apply the image fill to"
+                  },
+                  "filePath": {
+                    "type": "string",
+                    "description": "Absolute path to the local image file"
+                  }
+                },
+                "required": [
+                  "nodeId",
+                  "filePath"
+                ]
+              },
+              "description": "Array of node-image pairs. Each item maps a local image file to a target node."
+            }
+          },
+          "required": [
+            "items"
+          ]
+        },
+        "execution": {
+          "taskSupport": "forbidden"
+        }
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

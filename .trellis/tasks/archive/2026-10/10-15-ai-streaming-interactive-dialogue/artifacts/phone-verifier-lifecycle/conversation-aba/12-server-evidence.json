@@ -1,0 +1,127 @@
+{
+  "genA": [
+    {
+      "id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "conversation_id": "d76d9014-a6c8-4e61-a83c-5286d30e63e1",
+      "status": "failed",
+      "outcome": null,
+      "delivery": "stream",
+      "last_seq": 13,
+      "created_at": 1792162844615,
+      "updated_at": 1792162850959,
+      "error_code": "ASSISTANT_STREAM_BOUNDS",
+      "error_message": "AI \u8fd4\u56de\u5185\u5bb9\u65e0\u6cd5\u8bc6\u522b\uff0c\u672c\u6b21\u751f\u6210\u672a\u4ea7\u751f\u7ed3\u679c\u3002"
+    }
+  ],
+  "eventsCountA": 13,
+  "eventsA": [
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 1,
+      "type": "state",
+      "created_at": 1792162844615,
+      "len": 110
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 2,
+      "type": "state",
+      "created_at": 1792162844615,
+      "len": 109
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 3,
+      "type": "text-delta",
+      "created_at": 1792162850277,
+      "len": 187
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 4,
+      "type": "text-delta",
+      "created_at": 1792162850363,
+      "len": 203
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 5,
+      "type": "text-delta",
+      "created_at": 1792162850424,
+      "len": 195
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 6,
+      "type": "text-delta",
+      "created_at": 1792162850496,
+      "len": 196
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 7,
+      "type": "text-delta",
+      "created_at": 1792162850556,
+      "len": 191
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 8,
+      "type": "text-delta",
+      "created_at": 1792162850634,
+      "len": 212
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 9,
+      "type": "text-delta",
+      "created_at": 1792162850724,
+      "len": 195
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 10,
+      "type": "text-delta",
+      "created_at": 1792162850795,
+      "len": 213
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 11,
+      "type": "text-delta",
+      "created_at": 1792162850894,
+      "len": 209
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 12,
+      "type": "text-delta",
+      "created_at": 1792162850945,
+      "len": 194
+    },
+    {
+      "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+      "seq": 13,
+      "type": "terminal",
+      "created_at": 1792162850959,
+      "len": 221
+    }
+  ],
+  "msgsA": [
+    {
+      "id": "c8f7d087-90e7-4c8b-a5c6-9a66b2bae2bc",
+      "conversation_id": "d76d9014-a6c8-4e61-a83c-5286d30e63e1",
+      "role": "user",
+      "created_at": 1792162844614,
+      "len": 158
+    }
+  ],
+  "genB": [],
+  "msgsB": [],
+  "totalGen": 29,
+  "ledger": {
+    "transactions": 59,
+    "transfers": 2,
+    "assistant_pending_actions": 11
+  }
+}

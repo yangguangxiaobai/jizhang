@@ -1,0 +1,48 @@
+{
+  "id": "four-purpose-only-finance",
+  "name": "four-purpose-only-finance",
+  "title": "Audit and simplify finance to four purposes",
+  "description": "Planning handoff: replace module budgets/accounting cycles with continuous four-purpose salary funding and cumulative balances; preserve historical evidence.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-11-02",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "docs/superpowers/plans/2026-10-30-core-finance-simplification-repair.md",
+    ".trellis/tasks/11-02-four-purpose-only-finance/review.md",
+    "docs/superpowers/plans/2026-11-03-four-purpose-fund-budget-simplification.md",
+    ".trellis/tasks/11-02-four-purpose-only-finance/prd.md",
+    ".trellis/tasks/11-02-four-purpose-only-finance/design.md",
+    ".trellis/tasks/11-02-four-purpose-only-finance/implement.md",
+    ".trellis/tasks/11-02-four-purpose-only-finance/research/fund-budget-contract.md"
+  ],
+  "notes": "2026-11-03: User requested plan only; complete handoff artifacts prepared. No task start, product source edits, database migration, commit or deployment.",
+  "meta": {
+    "planning_reconfirmed_at": "2026-11-03",
+    "planning_stage": "audit-integration-and-product-decision",
+    "implementation_approved": false,
+    "review_date": "2026-11-03",
+    "fresh_checks": "research/evidence-2026-11-03/check-results.md",
+    "blocking_product_decision": "retained role of four-purpose income allocation and remaining amounts",
+    "planningDelivery": {
+      "date": "2026-11-03",
+      "scope": "plan_only",
+      "planFile": "docs/superpowers/plans/2026-11-03-four-purpose-fund-budget-simplification.md",
+      "productDecision": "salary_ratio_allocation_and_continuous_four_purpose_balances",
+      "implementationStarted": false
+    }
+  }
+}

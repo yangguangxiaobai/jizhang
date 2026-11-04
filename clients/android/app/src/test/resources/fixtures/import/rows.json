@@ -1,0 +1,1676 @@
+{
+  "batchId": "91683a05-3168-4358-aae7-98cdc8616a92",
+  "version": 1,
+  "analysisRevision": 0,
+  "viewRevision": "126d2705b6c6ea0a4f48328c4f9d8a812b2fd011b5c413ddaa614db0d0dee2d1",
+  "total": 34,
+  "items": [
+    {
+      "itemId": "po:wechat:07264ee30c7414e6bb5876e8d0ecfb1f",
+      "identityKind": "platform_order",
+      "ordinal": 0,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-18",
+      "sourceTimestamp": "2026-09-18 09:48:17",
+      "type": 0,
+      "amountCents": 400,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 18,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:18",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:ff0ffb4f866ff2065b17b03df937590b",
+      "identityKind": "platform_order",
+      "ordinal": 1,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 22:23:44",
+      "type": 1,
+      "amountCents": 400,
+      "note": "罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 19,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:19",
+          "note": "罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:74e62695a356f268913bed0734a0413c",
+      "identityKind": "platform_order",
+      "ordinal": 2,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 22:02:05",
+      "type": 0,
+      "amountCents": 266,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 20,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:20",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:760d5da12dbb4a70e15cd3f429f8d658",
+      "identityKind": "platform_order",
+      "ordinal": 3,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 22:01:48",
+      "type": 0,
+      "amountCents": 250000,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 21,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:21",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:47cfd959d2f2d114fad1ffb90b3917d7",
+      "identityKind": "platform_order",
+      "ordinal": 4,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 20:17:02",
+      "type": 0,
+      "amountCents": 800,
+      "note": "新鲜果蔬菜【买单】消费8.00元 · 新鲜果蔬菜",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 22,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:22",
+          "note": "新鲜果蔬菜【买单】消费8.00元 · 新鲜果蔬菜",
+          "rawStatus": "支付成功",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:9fc30c0b66e768034e645f7fc0de55bb",
+      "identityKind": "platform_order",
+      "ordinal": 5,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 18:26:07",
+      "type": 1,
+      "amountCents": 1066,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 23,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:23",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:5462530eebd6ede95e0b08e71c148c47",
+      "identityKind": "platform_order",
+      "ordinal": 6,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 09:29:08",
+      "type": 0,
+      "amountCents": 4167,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 24,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:24",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:c920d3f8b8fa25c759af6863cd17c463",
+      "identityKind": "platform_order",
+      "ordinal": 7,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 09:28:50",
+      "type": 0,
+      "amountCents": 600,
+      "note": "罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 25,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:25",
+          "note": "罗文 (stylish)",
+          "rawStatus": "支付成功",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:511a4bb75517969809eb6903d7558f2b",
+      "identityKind": "platform_order",
+      "ordinal": 8,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 09:28:43",
+      "type": 1,
+      "amountCents": 348,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 26,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:26",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:e95392085f8d5f7e76358c6fff7df551",
+      "identityKind": "platform_order",
+      "ordinal": 9,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-17",
+      "sourceTimestamp": "2026-09-17 09:17:28",
+      "type": 1,
+      "amountCents": 3244,
+      "note": "罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 27,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:27",
+          "note": "罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:e802cdb00be2c1a439ce0c03aa2202da",
+      "identityKind": "platform_order",
+      "ordinal": 10,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-16",
+      "sourceTimestamp": "2026-09-16 18:39:58",
+      "type": 1,
+      "amountCents": 1175,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 28,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:28",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:769d41319f1b77196a21b9422d246b9c",
+      "identityKind": "platform_order",
+      "ordinal": 11,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-16",
+      "sourceTimestamp": "2026-09-16 15:12:10",
+      "type": 0,
+      "amountCents": 609,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 29,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:29",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:65becc96423d164d3d0b0e1b66dec12a",
+      "identityKind": "platform_order",
+      "ordinal": 12,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-16",
+      "sourceTimestamp": "2026-09-16 15:08:43",
+      "type": 1,
+      "amountCents": 348,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 30,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:30",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:6b11af0393a665f18caa1b472f3acbce",
+      "identityKind": "platform_order",
+      "ordinal": 13,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-15",
+      "sourceTimestamp": "2026-09-15 09:45:42",
+      "type": 1,
+      "amountCents": 261,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 31,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:31",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:16e8c8a57d076a400212f93ff3075a77",
+      "identityKind": "platform_order",
+      "ordinal": 14,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-15",
+      "sourceTimestamp": "2026-09-15 08:39:53",
+      "type": 0,
+      "amountCents": 8666,
+      "note": "转账备注:微信转账 · 大米 (胡萝卜🥕)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "对方已收钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 32,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:32",
+          "note": "转账备注:微信转账 · 大米 (胡萝卜🥕)",
+          "rawStatus": "对方已收钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:794d5deeab593841e80f97b191d435d8",
+      "identityKind": "platform_order",
+      "ordinal": 15,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-14",
+      "sourceTimestamp": "2026-09-14 21:41:53",
+      "type": 1,
+      "amountCents": 1000,
+      "note": "信实敬科技",
+      "noteAlternatives": [],
+      "isRefund": true,
+      "refundWarning": null,
+      "rawStatus": "已全额退款",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 33,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:33",
+          "note": "信实敬科技",
+          "rawStatus": "已全额退款",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:8e27def7c4b79b1baa3bf5aeb08c86b4",
+      "identityKind": "platform_order",
+      "ordinal": 16,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-14",
+      "sourceTimestamp": "2026-09-14 21:41:35",
+      "type": 0,
+      "amountCents": 1000,
+      "note": "清河庭院临时充电-充电预付 · 信实敬科技",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": "原支出保留；退款状态不代表独立退款流水，请核对实际退款记录（不自动关联或生成）。",
+      "rawStatus": "已全额退款",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 34,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:34",
+          "note": "清河庭院临时充电-充电预付 · 信实敬科技",
+          "rawStatus": "已全额退款",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:0a72745deaa07ef2f1ef5fb311377a7e",
+      "identityKind": "platform_order",
+      "ordinal": 17,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-14",
+      "sourceTimestamp": "2026-09-14 20:44:29",
+      "type": 0,
+      "amountCents": 1569,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 35,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:35",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:101613a6378e09915e381bc710f4dcaf",
+      "identityKind": "platform_order",
+      "ordinal": 18,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-14",
+      "sourceTimestamp": "2026-09-14 20:40:11",
+      "type": 1,
+      "amountCents": 1294,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 36,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:36",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:e3c5c8c36342db83b7830e77b629a1d4",
+      "identityKind": "platform_order",
+      "ordinal": 19,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-14",
+      "sourceTimestamp": "2026-09-14 18:16:00",
+      "type": 0,
+      "amountCents": 73,
+      "note": "【称重】_大米先生四川电子科大店_541344_01081915 · 大米先生",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 37,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:37",
+          "note": "【称重】_大米先生四川电子科大店_541344_01081915 · 大米先生",
+          "rawStatus": "支付成功",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:95395b62e1359e4403a99e0caaa051c8",
+      "identityKind": "platform_order",
+      "ordinal": 20,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-14",
+      "sourceTimestamp": "2026-09-14 10:02:12",
+      "type": 1,
+      "amountCents": 348,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 38,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:38",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:f729419cfb94032310036130f3300443",
+      "identityKind": "platform_order",
+      "ordinal": 21,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 19:24:37",
+      "type": 0,
+      "amountCents": 2900,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 39,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:39",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:84e99fca26571050f152563b8f3cbfb1",
+      "identityKind": "platform_order",
+      "ordinal": 22,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 18:40:03",
+      "type": 1,
+      "amountCents": 1470,
+      "note": "罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 40,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:40",
+          "note": "罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:7922cb54fee7a3e579703f3633e7e97b",
+      "identityKind": "platform_order",
+      "ordinal": 23,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 18:23:03",
+      "type": 0,
+      "amountCents": 1870,
+      "note": "满易达超市（南湖店）-美团App-26091311200700001305746700066839 · 美团 · 已优惠¥3.00",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 41,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:41",
+          "note": "满易达超市（南湖店）-美团App-26091311200700001305746700066839 · 美团 · 已优惠¥3.00",
+          "rawStatus": "支付成功",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:c28e0103079338ddad5c11b6d6d10480",
+      "identityKind": "platform_order",
+      "ordinal": 24,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 17:42:45",
+      "type": 0,
+      "amountCents": 2495,
+      "note": "罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 42,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:42",
+          "note": "罗文 (stylish)",
+          "rawStatus": "支付成功",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:c2c0e88f4216889fd6edc0697df6e455",
+      "identityKind": "platform_order",
+      "ordinal": 25,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 17:37:28",
+      "type": 0,
+      "amountCents": 770,
+      "note": "收款方备注:二维码收款 · 孤舟",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已转账",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 43,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:43",
+          "note": "收款方备注:二维码收款 · 孤舟",
+          "rawStatus": "已转账",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:eacc378718858dd77e1906db9b2332c3",
+      "identityKind": "platform_order",
+      "ordinal": 26,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 16:16:51",
+      "type": 1,
+      "amountCents": 2200,
+      "note": "转账备注:微信转账 · 🌰农历10.13 (想吃好吃滴@)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 44,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:44",
+          "note": "转账备注:微信转账 · 🌰农历10.13 (想吃好吃滴@)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:1c18e00e23d5a3a34ccd9c73c43a4130",
+      "identityKind": "platform_order",
+      "ordinal": 27,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 13:24:34",
+      "type": 0,
+      "amountCents": 4910,
+      "note": "平台支出",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": true,
+      "ignoreReason": "中性交易",
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 45,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:45",
+          "note": "平台支出",
+          "rawStatus": "支付成功",
+          "ignoreReason": "中性交易"
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:4a0c3c5b30db801f5b9761dc94ffce99",
+      "identityKind": "platform_order",
+      "ordinal": 28,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-13",
+      "sourceTimestamp": "2026-09-13 11:05:54",
+      "type": 0,
+      "amountCents": 2200,
+      "note": "转账备注:微信转账 · 🌰农历10.13 (想吃好吃滴@)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "对方已收钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 46,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:46",
+          "note": "转账备注:微信转账 · 🌰农历10.13 (想吃好吃滴@)",
+          "rawStatus": "对方已收钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:18e9360f542471b16b4346d7eabc34bd",
+      "identityKind": "platform_order",
+      "ordinal": 29,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-12",
+      "sourceTimestamp": "2026-09-12 19:01:44",
+      "type": 1,
+      "amountCents": 480,
+      "note": "罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 47,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:47",
+          "note": "罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:686cd6419715c4185d8f28824e419ccf",
+      "identityKind": "platform_order",
+      "ordinal": 30,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-11",
+      "sourceTimestamp": "2026-09-11 19:45:01",
+      "type": 0,
+      "amountCents": 960,
+      "note": "周哥农夫果园店(1923) · 周哥农夫果园店",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 48,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:48",
+          "note": "周哥农夫果园店(1923) · 周哥农夫果园店",
+          "rawStatus": "支付成功",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:6bad917a00cbfdbef1ca014083ec4652",
+      "identityKind": "platform_order",
+      "ordinal": 31,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-11",
+      "sourceTimestamp": "2026-09-11 18:21:29",
+      "type": 0,
+      "amountCents": 300,
+      "note": "拾贰生活社区折扣超市-拾贰生活批发超市-天明塘街店 · 拾贰生活社区折扣超市",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "支付成功",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 49,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:49",
+          "note": "拾贰生活社区折扣超市-拾贰生活批发超市-天明塘街店 · 拾贰生活社区折扣超市",
+          "rawStatus": "支付成功",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": null,
+        "categoryName": "其他",
+        "source": "server-fallback",
+        "newOtherSuggestionId": "nc-fallback-0-1"
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:297d675d982dc658074c1f0eeb025fa7",
+      "identityKind": "platform_order",
+      "ordinal": 32,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-11",
+      "sourceTimestamp": "2026-09-11 10:24:41",
+      "type": 1,
+      "amountCents": 696,
+      "note": "转账备注:微信转账 · 罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 50,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:50",
+          "note": "转账备注:微信转账 · 罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    },
+    {
+      "itemId": "po:wechat:7c3968b5588827812d4f0826c40113c2",
+      "identityKind": "platform_order",
+      "ordinal": 33,
+      "conflictGroup": null,
+      "conflictKind": null,
+      "dateLabel": "2026-09-11",
+      "sourceTimestamp": "2026-09-11 09:30:50",
+      "type": 1,
+      "amountCents": 4692,
+      "note": "罗文 (stylish)",
+      "noteAlternatives": [],
+      "isRefund": false,
+      "refundWarning": null,
+      "rawStatus": "已存入零钱",
+      "ignored": false,
+      "ignoreReason": null,
+      "existing": false,
+      "possibleDuplicate": false,
+      "duplicateOfNote": null,
+      "weakDuplicateGroup": null,
+      "legacyLedgerMatch": false,
+      "comparisonAccountId": null,
+      "sources": [
+        {
+          "fileName": "synthetic-wechat.csv",
+          "fileIndex": 0,
+          "sourceRow": 51,
+          "source": "wechat",
+          "origin": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b:51",
+          "note": "罗文 (stylish)",
+          "rawStatus": "已存入零钱",
+          "ignoreReason": null
+        }
+      ],
+      "fallback": {
+        "effectiveExistingId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "source": "keyword",
+        "newOtherSuggestionId": null
+      },
+      "ai": {
+        "status": "none",
+        "include": null,
+        "reason": null,
+        "categoryId": null,
+        "newSuggestionId": null
+      }
+    }
+  ],
+  "nextCursor": null
+}

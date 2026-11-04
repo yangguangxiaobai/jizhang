@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"pageId\":\"20:1\",\"name\":\"04 AI助理｜功能重设计\",\"selected\":true}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

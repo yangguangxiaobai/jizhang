@@ -1,0 +1,1 @@
+MSG=I spent 15 dollars on coffee today. Please first ask me the category with single choice Dining or Entertainment, then after I pick it ask me which account with choice options. Treat this as a draft discussion only and do not book anything.

@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:420\",\"name\":\"系统状态栏\",\"content\":\"9:41\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:421\",\"name\":\"电池轮廓\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:423\",\"name\":\"返回对话\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:425\",\"name\":\"页面标题\",\"content\":\"确认导入\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:426\",\"name\":\"系统手势条\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:427\",\"name\":\"确认摘要 Hero\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:428\",\"name\":\"待提交标题\",\"content\":\"核对后再写入\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:429\",\"name\":\"明确选择摘要\",\"content\":\"已选 2 条 / 前 12 行预览\\n支出 ¥ 30.00 · 收入 ¥ 0.00\\n疑似重复：0 条已选\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:430\",\"name\":\"分类与文件核对\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:431\",\"name\":\"核对项标题\",\"content\":\"本次确认范围\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:432\",\"name\":\"合同说明\",\"content\":\"仅提交显式选中的 ID；原件需匹配。\\n分类覆盖：餐饮、交通（本地选择值）。\\n分类可能新建或恢复；服务端预览不一定\\n显示覆盖后的分类，最终结果需核对。\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:433\",\"name\":\"确认危险范围\",\"content\":\"取消卡片不是撤销已完成的账务。\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:434\",\"name\":\"返回修改\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:435\",\"name\":\"返回修改文字\",\"content\":\"返回修改\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:436\",\"name\":\"明确确认写入\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:437\",\"name\":\"明确确认写入文字\",\"content\":\"确认导入 2 条\"}}],\"expiredBindings\":\"binding names [ n20_0, n20_1, n20_2, n20_3, n20_4, n20_5, n20_6, n20_7, n20_8, n20_9, n20_10, n20_11, n20_12, n20_13, n20_14, n20_15 ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

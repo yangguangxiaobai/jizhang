@@ -222,10 +222,20 @@ export class FinancialPlanningService {
     return this.refundsService.putRefundSplits(refundId, rawBody);
   }
 
+  /**
+   * Reads one stored operation **scoped to the caller's actor**.
+   *
+   * The lookup key is the client's `operationId`, which is not a secret: another
+   * account on the same server would otherwise be able to read this one's committed
+   * response by guessing/observing an id. `actorId` is therefore required, and the
+   * database row is matched on it — an id belonging to someone else answers exactly
+   * like an unknown id.
+   */
   operation(
     operationId: string,
+    actorId: string = this.resolveActorId(),
   ): (FinancialMeta & FinancialOperationRecord & { operation: FinancialOperationRecord }) | undefined {
-    const record = getFinancialOperation(this.db, operationId, this.resolveActorId());
+    const record = getFinancialOperation(this.db, operationId, actorId);
     if (record === undefined) return undefined;
     return {
       ...this.configService.meta(),

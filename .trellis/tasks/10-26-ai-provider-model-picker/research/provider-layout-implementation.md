@@ -1,0 +1,7 @@
+# Approved layout follow-up — 2026-10-26
+
+User explicitly selected direct refactor + APK build after frontend-subagent read-only audit. Continue existing task, Android-only. Scope: ProviderSettings visual/interaction hierarchy, small pure helpers/tests, maintained README. No backend/credentials/provider settings changes, paid calls, deployment, unrelated WIP, commits, or automatic installation.
+
+Implement status summary distinguishing saved enabled/draft/test; connection section with mode/auth next to URL/key; dedicated model card with manual field and always available picker (popular presets inside picker, clearly not fetched available models); explicit discovery remains separate; folded advanced; fixed bottom save primary/test secondary outside scroll, IME-aware constrained content. Preserve all current HTTP payload/secret/bootstrap/exclusion/cancellation semantics. Reuse existing theme and helper/DTO. Never promise metadata free/no quota universally; say no conversation request. Test result must not remain certified for changed saved config. Errors near fields; invalid advanced save should expand/bring section into view if feasible.
+
+Primary implementation delegated to frontend subagent. Parent owns README/final evidence, runs full Gradle gate and scoped independent review. New pure helpers require production use and tests, no artificial abstractions. Device verification only if explicitly performed; APK build alone not evidence.

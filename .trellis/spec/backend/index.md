@@ -1,7 +1,7 @@
 # Backend Development Guidelines
 
-> `packages/server` — a single Fastify (TypeScript, ESM) service that serves `/api/v1/**`
-> and hosts the built web app at `/`.
+> `packages/server` — a single API-only Fastify (TypeScript, ESM) service serving
+> `/api/v1/**` for native clients. Public Web hosting is retired.
 
 ---
 
@@ -26,9 +26,14 @@ Three properties shape everything below:
 | [Directory Structure](./directory-structure.md) | Module organization, and the auth-plugin encapsulation trap | Done |
 | [Database Guidelines](./database-guidelines.md) | better-sqlite3, migrations, soft delete, backup | Done |
 | [Error Handling](./error-handling.md) | One error shape, 401 vs 403 vs 404, no leaks | Done |
+| [Assistant Streaming](./assistant-streaming.md) | Generation v1 SSE, clarification, lifecycle and cancellation | Done (source/tests; runtime pending) |
 | [AI Provider Integration](./ai-provider.md) | Configurable provider HTTP, encrypted secrets, draft contract | Done |
-| [Personal Item Assets](./item-assets.md) | Item lifecycle API, isolated ledger links, bounded photo BLOBs, and private cutout jobs | Done |
+| [Merged Bill Import](./merged-bill-import.md) | Dedicated bounded multi-file batch routes, review, live-view and atomic confirmation | Source-backed; real export benchmark not established || [Personal Item Assets](./item-assets.md) | Item lifecycle API, isolated ledger links, bounded photo BLOBs, and private cutout jobs | Done |
+| [Independent Financial Plan](./financial-plan.md) | Four-purpose planning, manual reserve, exact-cents forecast and no-ledger-write boundary | Source/local automated verification complete; device/deployment pending |
+| [Financial Execution System](./financial-execution.md) | Salary cycles, frozen windows, category rules, refund splits, and net execution | Done (source/local checks; device/deployment pending) |
+| [Statistics windows](./statistics-window.md) | Server-owned windows, gross totals and exact complete drilldown | Source/local checks; device pending |
 | [Quality Guidelines](./quality-guidelines.md) | Gate commands, Docker field notes, verification rules | Done |
+| [Native Client Delivery](./native-delivery.md) | API-only hosting, native bill-account query ownership, inventory maintenance and deployment acceptance | Done (source/local checks; device acceptance tracked separately) |
 | [Logging Guidelines](./logging-guidelines.md) | pino levels, what may never be logged | Done |
 
 ---
@@ -38,6 +43,7 @@ Three properties shape everything below:
 | If you are… | Read |
 |---|---|
 | adding an endpoint | `directory-structure.md` (routes → services → shared), then `error-handling.md` |
+| changing merged bill import | `merged-bill-import.md` (dedicated bounded routes, review/live-view, atomic final transaction) |
 | touching the schema | `database-guidelines.md` |
 | wiring a new cross-cutting concern (auth, rate limiting) | `directory-structure.md` § "Authentication is a single module" — this is the mistake that cost the most time |
 | about to report a task as verified | `quality-guidelines.md` — the field notes at the bottom are all real incidents |
@@ -98,10 +104,11 @@ Four properties are load-bearing, and each has been got wrong somewhere before:
 1. **It is derived, never stored.** There is no `balance_cents` column and there must not be one
    — the same rule as the envelope engine (`database-guidelines.md`: "No materialised balances,
    ever"). `db.test.ts` asserts the absence of such columns.
-2. **A refund RAISES the balance while still not counting as income.** Both halves come from
-   `expenseContribution` / `incomeContribution`. Because `expenseCents` is a *net* figure,
-   `− expenseCents` already adds a refund back; writing a local `isRefund` test here is how this
-   file and `stats-service.ts` would start disagreeing.
+2. **A refund is income and RAISES the balance without reducing spending.** The current
+   `expenseContribution` / `incomeContribution` contract in `shared/src/types.ts` uses
+   income transactions (`type=1`) with `isRefund=true`; `refund_links` records the original
+   expenses. Do not revive the older net-expense model or duplicate this arithmetic in
+   native clients.
 3. **No date filter.** Every live row counts, whatever its date. The bill list does not hide a
    future-dated row either, so filtering here would make the home total disagree with what the
    user can add up on screen. There is also nothing to filter by: a recurring bill is not money

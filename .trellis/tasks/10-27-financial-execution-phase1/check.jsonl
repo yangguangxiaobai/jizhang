@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Actual verification commands and evidence quality"}
+{"file":".trellis/tasks/10-27-four-purpose-execution-system/acceptance.md","reason":"Phase1 A01-A18 and quality/device gates"}
+{"file":".trellis/tasks/10-27-financial-execution-phase1/design.md","reason":"Implementation ownership and compatibility contracts"}
+{"file":"clients/android/README.md","reason":"Source versus device evidence and stable inventory"}

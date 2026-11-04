@@ -16,6 +16,7 @@ import { loadConfig } from '../src/config.js';
 import { closeDatabase, initializeDatabase, type Db } from '../src/db/index.js';
 import { SESSION_COOKIE } from '../src/plugins/auth.js';
 import { AuthService } from '../src/services/auth-service.js';
+import { seedHistoricalSalary } from './support/historical-salary-fixture.js';
 
 const USERNAME = 'quiz';
 const PASSWORD = 'correct horse battery staple';
@@ -414,21 +415,17 @@ describe('转账不影响任何会计数字（AC4）', () => {
     bank = await createAccount('上海银行', 564_285);
 
     // 数据必须是非空的，否则「前后相等」是句空话。
-    const salary = await app.inject({
-      method: 'POST',
-      url: '/api/v1/salaries',
-      headers: authed(),
-      payload: {
-        accountId: DEFAULT_ACCOUNT,
-        amountCents: 1_000_000,
-        date: dayIn(0, 2),
-        allocations: [
-          { categoryId: FOOD, amountCents: 600_000 },
-          { categoryId: 'builtin-expense-transport', amountCents: 400_000 },
-        ],
-      },
+    // 历史模块快照直接播种：新的模块分配工资写入已退役，而本用例的主题是
+    // 「转账不动任何会计口径」，与工资如何创建无关。
+    seedHistoricalSalary(db, {
+      amountCents: 1_000_000,
+      date: dayIn(0, 2),
+      accountId: DEFAULT_ACCOUNT,
+      allocations: [
+        { categoryId: FOOD, amountCents: 600_000 },
+        { categoryId: 'builtin-expense-transport', amountCents: 400_000 },
+      ],
     });
-    expect(salary.statusCode, salary.body).toBe(201);
 
     for (const [amountCents, day, isRefund] of [
       [150_000, 4, false],

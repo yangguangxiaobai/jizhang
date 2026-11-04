@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:123\",\"name\":\"AI16 待确认财务卡(明确未入账) · 390×844\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:124\",\"name\":\"标题\",\"content\":\"AI 助理\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:125\",\"name\":\"状态指示胶囊\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:126\",\"name\":\"状态文本\",\"content\":\"● 待确认记账草案\"}}],\"expiredBindings\":\"binding names [ s3, hdr, tag, tag_txt ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

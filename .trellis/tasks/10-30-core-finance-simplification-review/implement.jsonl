@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend gates and evidence contract."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Android gates and retained state contract."}
+{"file":"docs/superpowers/plans/2026-10-29-core-finance-simplification.md","reason":"User-specified review baseline."}
+{"file":".trellis/tasks/10-29-core-finance-simplification/acceptance.md","reason":"C1-C5 and G01-G06 observable behavior."}
+{"file":".trellis/tasks/10-30-core-finance-simplification-review/review.md","reason":"Confirmed R01-R20 findings and evidence for repair planning."}
+{"file":".trellis/tasks/10-30-core-finance-simplification-review/repair-handoff.md","reason":"Compact repair index; load the full plan Global Constraints, current T01-T14 task and verification sections explicitly to avoid 32 KiB injection truncation."}

@@ -25,6 +25,7 @@
   - `PUT /api/v1/ai/config` → configuration input; `secret` is write-only and `clearSecret`
     explicitly removes it.
   - `POST /api/v1/ai/test` → tests the last saved provider configuration.
+  - `POST /api/v1/ai/models` (bodyless) → `{items:[{id:string}]}`; explicit metadata discovery against the saved connection only (disabled config allowed for initial setup). Never accepts a destination or secret in its body, changes config, or performs inference.
   - `POST /api/v1/ai/transaction-draft` with `{ input: string }` → normalized draft only.
 - Draft response fields: `type`, `amountCents`, `categoryId`, `accountId`, `date`, `note`,
   `tags`, `confidence`, `reason`, and `missing`.
@@ -61,6 +62,15 @@
 Outbound requests validate `http(s)` URLs, reject redirects, clamp timeout/body sizes, and
 do not accept a destination URL from the draft request itself. Production provider URLs use
 HTTPS; local HTTP is for non-production development.
+
+### Model discovery (2026-10-26)
+
+- Explicit authenticated CSRF-protected POST; no scheduled fetch or inference. Disabled saved configs may list models so initial setup can save URL/secret without a model. Existing inference still requires enabled config.
+- Revalidate disabled saved destinations: production HTTPS, no userinfo/fragments/templates or encoded/noncanonical paths. Only mode-matching terminal `/chat/completions` or `/responses` maps to same-prefix `/models`, preserving origin/query. Custom or unknown routes reject `AI_CONFIG_INVALID`; do not guess unrelated endpoints.
+- Reuse saved auth/decrypted credential server-side. GET without body, no redirects/retries, configured deadline including body reads, 2 MiB cap. OpenAI `{data:[{id}]}` only, at most 2000 raw rows. IDs trimmed/nonempty/max 200 UTF-16 units/control-free; deduplicate in source order. Invalid/over-cap lists reject, not truncate; empty list succeeds. Return IDs only.
+- Fixed safe errors; never echo upstream error bodies/metadata or transport exceptions. Unified 5xx handler preserves code with generic message; Android maps codes to model-specific guidance.
+- Android fetch/save/test are mutually exclusive. Connection/secret changes must be saved before discovery; model-only edit may still list. In-memory list invalidates on connection edits; service/session guards reject late results. Selecting never saves/tests automatically; failure preserves current model. Manual input remains.
+- Mocked service/route/transport tests and Android DTO/search/bootstrap/state tests are separate from device/live-provider acceptance. A listed model is not proof of inference compatibility.
 
 ### 5. Good / Base / Bad Cases
 
@@ -279,3 +289,139 @@ organizationService.apply({ previewHash, actionIds });
 
 The preview hash and append-only audit make a broad cleanup inspectable, atomic, and
 conditionally reversible instead of an opaque AI batch edit.
+
+## Scenario: Date-range AI spending organization
+
+- The Android A105/A106 workspace uses dedicated routes, not the generic assistant card
+  confirmation workflow:
+  `POST /api/v1/ai/organization-runs`, `GET /api/v1/ai/organization-runs/:id`,
+  `GET /api/v1/ai/organization-runs/:id/card`,
+  `POST /api/v1/ai/organization-runs/:id/apply`, and
+  `POST /api/v1/ai/organization-operations/:id/undo`.
+- The server owns the inclusive server-local `startDate`/`endDate` interpretation, eligible
+  row snapshot, category/tag validation, review fingerprint, apply revalidation and undo
+  comparison. Android submits only the reviewed action ids and never replays a transaction
+  editor payload.
+- Analysis is capped at 500 eligible live rows; new runs freeze 10-row sequential provider
+  batches (legacy runs retain their stored size). An over-cap request is rejected before
+  provider work. Any failure publishes no actionable partial card. Provider deadlines remain
+  the user's configured per-call limit; do not silently increase configuration to mask slow calls.
+- Migration018 stores normalized completed results/cursor privately, frozen numeric boundaries,
+  source/catalog digest, batch size and attempt. No original note/prompt/raw output is retained.
+  Public results and note-suggestion rows are published only after all batches succeed.
+- Timeout-only `POST /api/v1/ai/organization-runs/:id/resume` requires explicit user action and
+  a distinct clientRequestId for each attempt. Exact replay returns the existing attempt even
+  after failure; GET/start replay/boot never repeats AI work. Max3 attempts/run, 24h non-sliding
+  resume-admission lifetime and 10min monotonic budget per attempt. Source/catalog changes
+  reject before paid resume and within final publication transaction. Expired failed checkpoints
+  are purged at startup/resume admission, not during GET. Successful committed batches are not
+  requested again; a timed-out upstream call may still have billed. Resume uses current saved
+  Provider settings but never changes them.
+- `SpendingSuggestion` carries display-only transaction date/amount/type and category
+  before/after names; these fields do not expand the apply scope. Apply still revalidates
+  every selected transaction against the run snapshot.
+- Note suggestions are stored/displayed separately and are never applied. New-category
+  suggestions are advice-only in the Android workspace. Template proposals may exist on the
+  card, but the Android workspace does not apply them; future-only template semantics remain
+  server-owned.
+- Apply accepts at most 100 distinct action ids and records one operation projection in a
+  single SQLite transaction. Replaying the same run/action ids returns the existing operation.
+  Undo is conditional: if any operation-owned after-state changed, it returns
+  `AI_ORGANIZATION_CONFLICT` with no partial restoration.
+- Android uses asynchronous background start and bounded GET observation (15min), rendering
+  persisted stages/batches/events, not invented percentages or model thoughts. Explicit
+  cost-disclosed resume retains the same run and immutable resume UUID on uncertainty;
+  failed-to-running/new-attempt transitions require that explicit authorization. Transport
+  timeout diagnosis omits structural-field wording when field is null. Scope/lifecycle guards
+  cover reads/writes; uncertain apply/undo stays locked for the same-request replay.
+- Tests cover inclusive date boundaries, over-cap rejection before provider calls, whole-run
+  failure with no card, note separation, card display facts, idempotent apply, conditional
+  undo, and Android DTO/state/cap/error parsing. Device, live Provider, deployment and
+  independent review remain separate acceptance gates.
+
+## Scenario: Human-reviewed assistant bill import
+
+- Attachment analysis is advisory-only and reuses saved encrypted provider configuration and bounded HTTP handling. Deterministic shared parsing owns amount/date/order/status/refund facts.
+- At most 200 preview rows are analysed in sequential batches of 25. Each response must contain exactly one `id/include/reason/categoryId` decision per known batch row. Unknown/duplicate/omitted IDs, extra financial fields, wrong-type/nonbookable category IDs and reasons longer than 300 characters invalidate the analysis. Partial batch failure discards recommendations and exposes `analysis.status=failed`, not rule-only AI success.
+- File strings are untrusted data, not instructions. The bill-import feature prompt has no tools. Only validated recommendations are stored in pending/message JSON, never raw provider output, prompts, credentials or attachment bytes.
+- `POST /assistant/actions/:id/analyse` requires original bytes with matching size/SHA-256 and a pending import action. Explicit retry produces a replacement card and closes the old one; human edits are reset, as disclosed in Android.
+- Confirm requires explicit 1–100 selected IDs from the displayed preview; categoryOverrides values are existing active same-type bookable IDs for assistant import only. `noteOverrides` preserves exact strings including `""` (clear); absence preserves the full generated source note. Legacy data-management category-name imports retain their independent contract.
+- Confirmation never reruns AI. Fingerprints cover digest, deterministic source/ledger preview, current category projection, selection and reviewed overrides. Reparse/revalidation and inserts run under existing pending-action transaction/idempotence guards. Provider recommendations are not hash inputs.
+- Refunded originals remain gross expenses; income rows with explicit source refund trade/category evidence carry independent isRefund. Status alone neither creates income nor links purchases. Only explicit terminal refund status labels may supplement the existing success-status predicate; a substring such as `退款中`, `待退款` or `退款审核中` is not completion evidence and remains blocked. A refunded original warning asks the user to verify actual refund movements.
+- Android review drafts may cover the bounded 200-row preview, but confirmation projects category/note overrides to the explicit at-most-100 selection. Never silently discard the 101st edited category merely because an earlier edited row is now deselected. Retry completion may update only its owning workspace; failed refresh must retain uncertain-result gates.
+- Evidence: shared refund fixture, analysis normalization tests, mocked provider/assistant route tests, rollback/stale-category tests and Android pure helper tests. Live Provider/device acceptance remains separate.
+
+## Scenario: Read-only import duplicate comparison
+
+- `GET /assistant/conversations/:conversationId/actions/:id/rows/:rowId/duplicates?limit=20&cursor=<id>` lives in the authenticated API plugin. The service resolves a pending platform-import action owned by a live conversation and a row among its first 200 stored preview rows. The client never supplies matching amounts, dates or account IDs.
+- Preview facts add `comparisonAccountId` (nullable) and original `externalId`; they participate in existing deterministic row fingerprints. Legacy previews missing comparison facts return a 400 refresh/re-upload instruction; do not infer them from client inputs.
+- Only live transactions with equal captured platform account, server-local calendar day, type and integer-cent amount qualify. Refund identity is displayed, not an added matching restriction. Stable-ID hard blockers are unchanged.
+- ID keyset pagination uses default 20, strict 1–50 limit and nonempty at-most-100-character cursor. Return current total, bounded transaction detail DTOs with historical account/category labels, nextCursor, readAt and a heuristic-not-proof rationale. Deleted cursor rows do not break pagination; pages are live reads, not an immutable confirmation snapshot.
+- No provider call, ledger write, automatic merge or existing-ledger edit. Candidate responses are never embedded into pending cards or provider context. Final confirmation still uses digest/fingerprint/staleness/atomic/idempotence checks.
+- Android overlays comparison without unmounting the workspace list and gates completion by action+row+request generation. Close/disposal/terminal action invalidates responses. Only explicit include/exclude changes the source selection, respecting eligibility, busy/uncertain gates and the 100-row cap; category/note drafts remain untouched.
+- Tests cover auth, wrong conversation, absent displayed row, cancelled/replaced/archived action, old preview, query bounds, multiple/empty-note matches, day/type/amount/account/refund identity, deleted references/candidates, database byte equality and no extra AI calls. Android helper tests cover typed full notes/pagination/refunds, malformed results, late-response isolation and selection/draft independence. Device scroll/back/large-font/weak-network acceptance remains separate.
+
+## Scenario: Assistant conversation failure and presentation correctness
+
+### 1. Scope / Trigger
+Persisted assistant chat can fail independently of a successful provider connection test; progress is not evidence of ledger mutation.
+
+### 2. Signatures
+`POST /api/v1/assistant/conversations/:id/messages` continues returning `{items}`; a caught error appends `kind=error`, `content.error={code,message}`. `AssistantProgress.state` accepts `running | complete | failed` without a schema migration.
+
+### 3. Contracts
+- Failed turns set their running progress to failed, never successful completion. Legacy complete means processing ended only. No automatic financial retries or confirmation.
+- Known provider/config errors have stable codes and safe fixed guidance. Unknown error messages, raw provider bodies and credentials are not serialized.
+- Android renders one safe error block and no raw content.text when an error exists. Empty historical complete progress is omitted; displayed scroll indices must use the same filtered list.
+- Known date fields are formatted, never naked milliseconds; integer cents display explicit currency. Expanded before/after details retain public account/category reference changes while excluding credentials and fingerprints.
+
+### 4. Validation & Error Matrix
+| Condition | Message behavior |
+|---|---|
+| Provider abort at configured timeout | AI_PROVIDER_TIMEOUT, failed progress, no ledger write |
+| Provider/network/non-2xx error | AI_PROVIDER_ERROR, safe guidance (not proof of network cause) |
+| Invalid response path/turn | Stable AI/assistant error, no raw response |
+| Old complete progress | Readable, not evidence of successful booking |
+| Unknown error code | Generic safe fallback |
+
+### 5. Good / Base / Bad Cases
+Good: model prepares a pending card; human must confirm separately. Base: connection test passes but real assistant call times out; report that difference. Bad: failed request shows completed/saved or raw provider error.
+
+### 6. Tests Required
+Server assistant route/contracts test failed state, safe known/unknown errors and unchanged ledger. Android helper tests error dedup inputs, terminal filtering, malformed dates, currency, sensitive parent objects, retained public before/after references. Build/unit/mock evidence is not live acceptance.
+
+### 7. Wrong vs Correct
+Wrong: catch -> complete; render both content.text and error.message; date.toString(). Correct: catch -> failed; one code-mapped error; explicit date and cent formatting with no automatic ledger confirmation.
+
+## Scenario: Human-reviewed merged bill import
+
+- The dedicated multi-file workspace contract (routes, dedicated DTOs, migration 012, feature-scoped limits, live view/review token, idempotency, category approval and atomic confirm) is specified in [Merged Bill Import](./merged-bill-import.md). Keep the legacy single-file path separate; its 200-preview/100-confirm and the generic assistant JSON 200/100 bounds are not batch capacity.
+- The batch analysis remains advice only. GET/review/confirm do not call the provider. The final confirm retransmits source bytes and never reruns AI; original byte content is not persisted.
+- Category suggestions are not approval. Only an explicitly approved suggestion referenced by selected rows is created/reused within the final ledger transaction. The current wire encoding is `resolution:'create'` plus optional `reuseCategoryId`.
+- Analysis publication is all-or-nothing for AI-origin suggestions; failure clears partial AI output and leaves manual review available. Deterministic fallback is independent and never described as successful AI classification.
+- Numeric file/parser/inflate/time limits are source-enforced caps but remain uncalibrated until tested against representative exports. Synthetic evidence is not real-export benchmark evidence.
+
+### Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Do not widen generic assistant JSON or treat advisory classification as user approval.
+normalizeAssistantJson({ rows: merged500Rows });
+const approved = allAiSuggestions;
+```
+
+#### Correct
+
+```ts
+// Use dedicated batch contracts; explicit review approval and selected rows gate category writes.
+const review = batchService.review(conversationId, batchId, normalizedUserReview);
+const committed = batchService.confirm(conversationId, batchId, {
+  reviewToken: review.reviewToken,
+  expectedVersion: review.version,
+  files: retransmittedOriginals,
+});
+```
+
+## True assistant streaming
+The additive generation/choice protocol, parser/timeout bounds, atomic finalization and Android cancellation rules live in [Assistant streaming](./assistant-streaming.md). Preserve ordinary buffered endpoints. A successful connection test does not prove live streaming or draft-flow acceptance.

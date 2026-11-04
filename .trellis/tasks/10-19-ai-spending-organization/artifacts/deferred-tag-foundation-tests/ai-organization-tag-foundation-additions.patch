@@ -1,0 +1,63 @@
+--- baseline
++++ current
+@@ -228,6 +228,10 @@
+     ).toBe(JSON.stringify([{ categoryId: 'organization-target', ratio: 1 }]));
+     expect((db.prepare('SELECT COUNT(*) AS count FROM ai_organization_audit').get() as { count: number }).count).toBe(2);
+     expect(
++      (db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json,
++    ).toBe('["trip"]');
++    expect(db.prepare("SELECT 1 AS x FROM tags WHERE name='trip' AND deleted=0").get()).toBeDefined();
++    expect(
+       (db.prepare('SELECT before_json, after_json FROM ai_organization_audit').all() as { before_json: string; after_json: string }[]).map((row) => `${row.before_json}${row.after_json}`).join(''),
+     ).not.toContain('PRIVATE_ORG_NOTE');
+ 
+@@ -243,6 +247,10 @@
+       (db.prepare('SELECT category_id FROM recurring_occurrences WHERE id = ?').get('organization-pending') as { category_id: string }).category_id,
+     ).toBe('organization-source');
+     expect((db.prepare('SELECT COUNT(*) AS count FROM ai_organization_audit').get() as { count: number }).count).toBe(4);
++    expect(
++      (db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json,
++    ).toBe('["Trip"]');
++    expect(db.prepare("SELECT 1 AS x FROM tags WHERE name='Trip' AND deleted=0").get()).toBeDefined();
+   });
+ 
+   it('rejects a stale preview before writing', async () => {
+@@ -297,6 +305,38 @@
+     expect(JSON.stringify(providerBody)).not.toContain(API_KEY);
+   });
+ 
++  it('rolls back the entire undo when direct SQL changed an affected tag after apply', async () => {
++    seedDependencies();
++    const preview = (await post('/api/v1/ai/organization-preview')).json() as {
++      previewHash: string;
++      actions: { actionId: string; kind: string; status: string }[];
++    };
++    const tag = preview.actions.find((action) => action.kind === 'tag-merge' && action.status === 'ready');
++    const category = preview.actions.find((action) => action.kind === 'category-merge' && action.status === 'ready');
++    const applied = await post('/api/v1/ai/organization-apply', {
++      previewHash: preview.previewHash,
++      actionIds: [tag?.actionId, category?.actionId],
++    });
++    expect(applied.statusCode).toBe(200);
++    const operationId = applied.json().operationId as string;
++    const appliedTags = (db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json;
++    db.prepare("UPDATE transactions SET tags_json = '[\"external-edit\"]' WHERE id='organization-source-tx'").run();
++    const concurrentTags = (db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json;
++    const auditBefore = db.prepare('SELECT COUNT(*) AS count FROM ai_organization_audit').get() as { count: number };
++
++    const undone = await post('/api/v1/ai/organization-undo', { operationId });
++    expect(undone.statusCode).toBe(409);
++    expect(undone.json()).toMatchObject({ error: { code: 'AI_ORGANIZATION_CONFLICT' } });
++    expect((db.prepare("SELECT tags_json FROM transactions WHERE id='organization-source-tx'").get() as { tags_json: string }).tags_json).toBe(concurrentTags);
++    expect(concurrentTags).not.toBe(appliedTags);
++    expect((db.prepare('SELECT COUNT(*) AS count FROM ai_organization_audit').get() as { count: number }).count).toBe(auditBefore.count);
++    expect((db.prepare("SELECT deleted FROM categories WHERE id='organization-source'").get() as { deleted: number }).deleted).toBe(1);
++    expect((db.prepare("SELECT category_id FROM transactions WHERE id='organization-source-tx'").get() as { category_id: string }).category_id).toBe('organization-target');
++    expect((db.prepare("SELECT allocations_json FROM budget_allocations WHERE id='organization-allocation'").get() as { allocations_json: string }).allocations_json).toBe(JSON.stringify([
++      { categoryId: 'organization-target', amountCents: 1000 },
++    ]));
++  });
++
+   it('rejects undo when a user changed an affected value afterwards', async () => {
+     seedDependencies();
+     const preview = (await post('/api/v1/ai/organization-preview')).json() as {

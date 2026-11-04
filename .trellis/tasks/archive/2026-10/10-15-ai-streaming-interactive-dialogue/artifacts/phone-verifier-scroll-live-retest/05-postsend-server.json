@@ -1,0 +1,72 @@
+{
+  "timestamp": 1792172520721,
+  "ledger": {
+    "transactions": 59,
+    "transfers": 2,
+    "assistant_pending_actions": 11
+  },
+  "counts": {
+    "assistant_conversations": 21,
+    "assistant_messages": 138,
+    "assistant_generations": 32,
+    "assistant_generation_events": 1010
+  },
+  "generation": {
+    "id": "17a8ea28-85cd-4e86-89a3-66e8386c24f5",
+    "conversation_id": "091eb632-c04d-4f13-9ac3-c8c973192477",
+    "status": "completed",
+    "outcome": "answer",
+    "delivery": "stream",
+    "last_seq": 100,
+    "created_at": 1792172458771,
+    "updated_at": 1792172468746
+  },
+  "events_summary": [
+    {
+      "type": "message",
+      "count": 1,
+      "min_ts": 1792172468746,
+      "max_ts": 1792172468746,
+      "total_bytes": 2427
+    },
+    {
+      "type": "state",
+      "count": 2,
+      "min_ts": 1792172458771,
+      "max_ts": 1792172458772,
+      "total_bytes": 219
+    },
+    {
+      "type": "terminal",
+      "count": 1,
+      "min_ts": 1792172468746,
+      "max_ts": 1792172468746,
+      "total_bytes": 202
+    },
+    {
+      "type": "text-delta",
+      "count": 96,
+      "min_ts": 1792172461389,
+      "max_ts": 1792172468433,
+      "total_bytes": 19294
+    }
+  ],
+  "recent_messages": [
+    {
+      "id": "087f583e-4be7-4050-bc2a-be979dcdce36",
+      "conversation_id": "091eb632-c04d-4f13-9ac3-c8c973192477",
+      "role": "assistant",
+      "c": "{\"version\":1,\"text\":\"Start with reliable monthly take-home income. List essentia",
+      "len": 2152,
+      "created_at": 1792172468745
+    },
+    {
+      "id": "b460fb59-baaa-4407-a9d9-5f8f5c124e2e",
+      "conversation_id": "091eb632-c04d-4f13-9ac3-c8c973192477",
+      "role": "user",
+      "c": "{\"version\":1,\"text\":\"UI TEST: Please provide 300 words of comprehensive monthly ",
+      "len": 210,
+      "created_at": 1792172458771
+    }
+  ]
+}

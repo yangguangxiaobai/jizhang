@@ -1,0 +1,190 @@
+{
+  "task": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue",
+  "role": "phone verifier (sole device operator)",
+  "captured_utc": "2026-10-16T10:01:00Z",
+  "device": {
+    "id": "TNL0220A15028072",
+    "model": "JER-AN20",
+    "android": "12",
+    "sdk": 31,
+    "resolution": "1080x2340",
+    "density": 480,
+    "focus": "com.yansuu1.jizhang/.MainActivity"
+  },
+  "app": {
+    "package": "com.yansuu1.jizhang",
+    "versionName": "0.1.0",
+    "versionCode": 3,
+    "lastUpdateTime": "2026-10-16 15:36:46 (device local)",
+    "installed_base_apk_sha256": "d2a37b550fb110e9b6174ec2fe874b681f924423e08c7c5be465749e3bb56da8",
+    "local_debug_apk_sha256": "d2a37b550fb110e9b6174ec2fe874b681f924423e08c7c5be465749e3bb56da8",
+    "apk_match": true,
+    "install_performed_this_round": false
+  },
+  "server": {
+    "source": "ssh read-only (sudo -n docker inspect/exec), no credentials printed",
+    "image": "jizhang:api-chained-choice-20261016T083118Z",
+    "image_id": "sha256:31bb967e806c556c39c2b257c33c927976d9e568ce2255335b6c9bdb7e9ef11b",
+    "started_at": "2026-10-16T08:57:13.935239781Z",
+    "health": "healthy",
+    "compiled_assistant_generation_service_sha256": "60fc43e0e0dfd3b5b43edc752a463f7bd33c6e30c266ded3c812b47e74476f6c",
+    "expected_sha256": "60fc43e0e0dfd3b5b43edc752a463f7bd33c6e30c266ded3c812b47e74476f6c",
+    "match": true
+  },
+  "flows": [
+    {
+      "session": 1,
+      "conversation_id": "56853b5c-f801-4046-b821-c059f8d9ba12",
+      "prompt": "UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book anything",
+      "gen_A_id": "121e1111-c545-4712-b75c-701699bb29ee",
+      "gen_A_created_utc": "2026-10-16T09:21:24.531Z",
+      "gen_A_question": "这笔 15 元咖啡支出是从哪个账户支付的？",
+      "gen_A_options": [
+        "支付宝",
+        "微信",
+        "上海银行",
+        "工商银行"
+      ],
+      "click": "微信 (Recipient=微信)",
+      "tap_utc": "2026-10-16T09:24:44Z",
+      "gen_A_answered_at_utc": "2026-10-16T09:23:18.449Z",
+      "gen_A_answered_option_label": "微信",
+      "gen_B_id": "66297b1f-6927-4903-a8e9-e000ff0ba259",
+      "gen_B_created_utc": "2026-10-16T09:23:18.450Z",
+      "gen_B_outcome": "answer",
+      "gen_B_answered_option_id": null,
+      "gen_B_answered_at": null,
+      "border_check": "gen_B.bornAnswered=false (answered_at==created_at false)",
+      "result": "PASS",
+      "note": "Model did not emit a second clarification for the account; it concluded with outcome=answer. B was NOT validated on this session."
+    },
+    {
+      "session": 2,
+      "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+      "prompt": "I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options",
+      "gen_A_id": "58bea9ec-681f-4697-8923-38c6fdbb6cf1",
+      "gen_A_created_utc": "2026-10-16T09:41:31.939Z",
+      "gen_A_question": "Which category should I use?",
+      "gen_A_options": [
+        "Dining",
+        "Entertainment"
+      ],
+      "gen_A_assistant_prefix": "Should I categorize the $15 coffee expense as Dining or Entertainment?",
+      "click": "Dining",
+      "tap_utc": "2026-10-16T09:44:18Z",
+      "gen_A_answered_at_utc": "2026-10-16T09:44:19.274Z",
+      "gen_A_answered_option_label": "Dining",
+      "gen_B_id": "985cda96-aac9-438e-adeb-72ffbd0728c7",
+      "gen_B_created_utc": "2026-10-16T09:44:19.274Z",
+      "gen_B_question": "Which account did you use for the coffee?",
+      "gen_B_options_count": 4,
+      "gen_B_answered_option_id": null,
+      "gen_B_answered_at": null,
+      "gen_B_bornAnswered": false,
+      "gen_B_assistant_text": "Got it—I'll categorize the $15 coffee expense as Dining. Which account should it be recorded in?",
+      "border_check": "gen_B NOT born-answered; question B answered successfully at 09:46:07Z",
+      "result": "PASS",
+      "free_text_branch": {
+        "text": "UI TEST B AWAITING FREE TEXT: use WeChat for the coffee, do not book anything",
+        "send_utc": "2026-10-16T09:46:07Z",
+        "gen_id": "5a175b78-1366-4646-b1cb-6166621666ae",
+        "created_utc": "2026-10-16T09:45:53.524Z",
+        "outcome": "answer",
+        "answered_at": null,
+        "assistant_text": "Understood—I won't book anything. The coffee expense details are ready: $15, Dining, paid with WeChat.",
+        "result": "PASS",
+        "note": "Free text was sent as a fresh text generation (input_json type=text); question B's own answer columns are null (superseded). The same flow was additionally validated via a real option click in turn D."
+      },
+      "turn_C": {
+        "prompt": "UI TEST C: I need one single-select clarification question about coffee Dining or Entertainment, do not book anything",
+        "gen_id": "b25882f4-8303-47a6-bfed-0190685cac0b",
+        "created_utc": "2026-10-16T09:48:45.084Z",
+        "question": "Choose a category for the coffee:",
+        "options": [
+          "Dining",
+          "Entertainment"
+        ],
+        "answered_at_utc": "2026-10-16T09:53:11.290Z",
+        "assistant_prefix": "For the coffee expense, which category should I use?"
+      },
+      "turn_D": {
+        "prompt": "I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options",
+        "gen_id": "503fecd5-ef65-471e-b77e-0f4553ea8b40",
+        "created_utc": "2026-10-16T09:54:58.611Z",
+        "question": "Dining or Entertainment?",
+        "options": [
+          "Dining",
+          "Entertainment"
+        ],
+        "assistant_prefix": "Which category should I use for the $15 coffee expense?"
+      },
+      "turn_C_click": {
+        "option": "Dining",
+        "tap_utc": "2026-10-16T09:53:11Z",
+        "gen_C_answered_option": "Dining",
+        "gen_C_answered_at_utc": "2026-10-16T09:53:11.290Z",
+        "gen_C_answered_option_id": null,
+        "gen_C_second_question": "Which account did you use for the coffee?"
+      },
+      "turn_D_click": {
+        "option": "Dining",
+        "tap_utc": "2026-10-16T09:55:51Z",
+        "gen_D_answered_option": "Dining",
+        "gen_D_answered_at_utc": "2026-10-16T09:55:52.229Z",
+        "gen_D_second_question": "Which account did you use for the coffee?",
+        "second_answer_gen": "1b4a6eeb-f670-445f-ac92-f387e885ac16",
+        "second_answer_created_utc": "2026-10-16T09:55:59.791Z",
+        "second_answer_assistant_text": "Got it—the $15 coffee expense is categorized as Dining. I won't book anything.",
+        "result": "PASS"
+      }
+    }
+  ],
+  "ledger_invariant": {
+    "baseline": "14-ledger-baseline.txt",
+    "final": "40-ledger-final2.txt",
+    "integrity": "ok before and after",
+    "before": {
+      "transactions": 59,
+      "accounts": 4,
+      "assistant_pending_actions": 10,
+      "categories": 13,
+      "transfers": 2,
+      "refund_links": 16
+    },
+    "after": {
+      "transactions": 59,
+      "accounts": 4,
+      "assistant_pending_actions": 10,
+      "categories": 13,
+      "transfers": 2,
+      "refund_links": 16
+    },
+    "changed_business_tables": [],
+    "assistant_tables_delta": {
+      "assistant_conversations": "9->11",
+      "assistant_messages": "98->116",
+      "assistant_generations": "10->19",
+      "assistant_generation_events": "652->721"
+    },
+    "confirm_endpoint_calls": 0
+  },
+  "old_stuck_cards": {
+    "ids": [
+      "863a936c-4024-4332-892e-1728690da1a6",
+      "ccf489cb-7c17-4dbf-9832-8f79f2497722"
+    ],
+    "bornAnswered": true,
+    "clicked_this_round": false,
+    "note": "Left untouched as instructed; must still return ASSISTANT_CHOICE_STALE; not a regression."
+  },
+  "out_of_scope_not_verified": [
+    "provisional stream chunk growth / Stop button / cancel",
+    "A->B->A conversation generation isolation",
+    "replay/idempotency of identical request (not exercised via UI)"
+  ],
+  "verification_method_limits": [
+    "Each screenshot is a single adb exec-out screencap; no continuous screen recording was available, so incremental chunk growth between two frames cannot be shown from these stills.",
+    "Click status could not be confirmed via HTTP status codes (no client log access); confirmation is via server-side generation rows and UI rendering.",
+    "No client-side logcat assertions were made; DB row inspection is read-only."
+  ]
+}

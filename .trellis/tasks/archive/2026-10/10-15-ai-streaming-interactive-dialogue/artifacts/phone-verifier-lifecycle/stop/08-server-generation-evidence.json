@@ -1,0 +1,61 @@
+{
+  "gen": {
+    "id": "dc9da3e7-1676-40aa-aed1-697eb04f849d",
+    "conversation_id": "c0d9126a-6dd4-41a3-9f0c-341b652503bd",
+    "client_request_id": "d16953ed-77bd-4a7a-b614-cb57c5d8f38c",
+    "request_hash": "27ff9e4bdcba0d33351cff65788333115a5daf0832de0e6e101ef05bd33a875b",
+    "input_json": "{\"type\":\"text\",\"text\":\"UI TEST: Please provide 400 words of budget planning advice for young professionals. Reading advice only do not book any transaction.\"}",
+    "user_message_id": "6fbcdaf4-33b3-4da2-99fb-a56dbf7033a0",
+    "status": "cancelled",
+    "delivery": "stream",
+    "outcome": null,
+    "last_seq": 3,
+    "message_ids_json": "[]",
+    "partials_json": "[]",
+    "source_generation_id": null,
+    "question_id": null,
+    "question_json": null,
+    "answered_option_id": null,
+    "answered_at": null,
+    "error_code": "ASSISTANT_GENERATION_CANCELLED",
+    "error_message": "生成已被用户停止。",
+    "today": "2026-10-16",
+    "created_at": 1792160806001,
+    "updated_at": 1792160807141
+  },
+  "events": [
+    {
+      "generation_id": "dc9da3e7-1676-40aa-aed1-697eb04f849d",
+      "seq": 1,
+      "type": "state",
+      "payload_json": "{\"version\":1,\"generationId\":\"dc9da3e7-1676-40aa-aed1-697eb04f849d\",\"seq\":1,\"type\":\"state\",\"status\":\"accepted\"}",
+      "created_at": 1792160806001
+    },
+    {
+      "generation_id": "dc9da3e7-1676-40aa-aed1-697eb04f849d",
+      "seq": 2,
+      "type": "state",
+      "payload_json": "{\"version\":1,\"generationId\":\"dc9da3e7-1676-40aa-aed1-697eb04f849d\",\"seq\":2,\"type\":\"state\",\"status\":\"running\"}",
+      "created_at": 1792160806002
+    },
+    {
+      "generation_id": "dc9da3e7-1676-40aa-aed1-697eb04f849d",
+      "seq": 3,
+      "type": "terminal",
+      "payload_json": "{\"version\":1,\"generationId\":\"dc9da3e7-1676-40aa-aed1-697eb04f849d\",\"seq\":3,\"type\":\"terminal\",\"status\":\"cancelled\",\"outcome\":null,\"messageIds\":[],\"error\":{\"code\":\"ASSISTANT_GENERATION_CANCELLED\",\"message\":\"生成已被用户停止。\"}}",
+      "created_at": 1792160807141
+    }
+  ],
+  "messages": [
+    {
+      "id": "6fbcdaf4-33b3-4da2-99fb-a56dbf7033a0",
+      "conversation_id": "c0d9126a-6dd4-41a3-9f0c-341b652503bd",
+      "client_request_id": null,
+      "role": "user",
+      "kind": "text",
+      "content_json": "{\"version\":1,\"text\":\"UI TEST: Please provide 400 words of budget planning advice for young professionals. Reading advice only do not book any transaction.\"}",
+      "created_at": 1792160806001
+    }
+  ],
+  "pendings": []
+}

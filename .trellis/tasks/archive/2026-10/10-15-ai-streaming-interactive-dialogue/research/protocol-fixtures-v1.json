@@ -1,0 +1,109 @@
+{
+  "create": {
+    "version": 1,
+    "clientRequestId": "request_demo",
+    "input": {
+      "type": "text",
+      "text": "演示：这笔午饭用哪个账户？"
+    }
+  },
+  "snapshot": {
+    "version": 1,
+    "id": "gen_demo",
+    "conversationId": "conv_demo",
+    "userMessageId": "user_demo",
+    "userMessage": {
+      "id": "user_demo",
+      "conversationId": "conv_demo",
+      "role": "user",
+      "kind": "text",
+      "content": {
+        "version": 1,
+        "text": "演示：这笔午饭用哪个账户？"
+      },
+      "createdAt": 1792022400000
+    },
+    "status": "running",
+    "delivery": "stream",
+    "lastSeq": 2,
+    "createdAt": 1792022400000,
+    "updatedAt": 1792022400000,
+    "partialMessages": [
+      {
+        "messageId": "reply_demo",
+        "step": 0,
+        "text": "请选择",
+        "validated": false
+      }
+    ],
+    "messageIds": [],
+    "messages": [],
+    "outcome": null,
+    "error": null
+  },
+  "events": [
+    {
+      "version": 1,
+      "generationId": "gen_demo",
+      "seq": 1,
+      "type": "state",
+      "status": "running"
+    },
+    {
+      "version": 1,
+      "generationId": "gen_demo",
+      "seq": 2,
+      "type": "text-delta",
+      "messageId": "reply_demo",
+      "step": 0,
+      "offset": 0,
+      "text": "请选择"
+    },
+    {
+      "version": 1,
+      "generationId": "gen_demo",
+      "seq": 3,
+      "type": "message",
+      "message": {
+        "id": "reply_demo",
+        "conversationId": "conv_demo",
+        "role": "assistant",
+        "kind": "text",
+        "content": {
+          "version": 1,
+          "text": "请选择付款账户",
+          "generationId": "gen_demo",
+          "clarification": {
+            "id": "q_demo",
+            "selection": "single",
+            "question": "请选择付款账户",
+            "options": [
+              {
+                "id": "o1_demo",
+                "label": "微信"
+              },
+              {
+                "id": "o2_demo",
+                "label": "银行卡"
+              }
+            ],
+            "allowFreeText": true
+          }
+        },
+        "createdAt": 1792022400000
+      }
+    },
+    {
+      "version": 1,
+      "generationId": "gen_demo",
+      "seq": 4,
+      "type": "terminal",
+      "status": "completed",
+      "outcome": "awaiting-choice",
+      "messageIds": [
+        "reply_demo"
+      ],
+      "error": null
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.yansuu1.jizhang.ui.theme.LocalWebTokens
 
 /**
@@ -25,9 +26,9 @@ fun JzCard(
     val t = LocalWebTokens.current
     Card(
         modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = t.surface, contentColor = t.fg),
-        border = androidx.compose.foundation.BorderStroke(1.dp, t.border),
+        border = androidx.compose.foundation.BorderStroke(1.dp, t.border.copy(alpha = 0.65f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         content = { Column(Modifier.padding(18.dp), content = content) },
     )
@@ -41,7 +42,7 @@ fun HeroCard(
     val t = LocalWebTokens.current
     Card(
         modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = t.hero, contentColor = t.onHero),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         content = { Column(Modifier.padding(20.dp), content = content) },

@@ -1,0 +1,362 @@
+ M .agents/skills/trellis-before-dev/SKILL.md
+ M .agents/skills/trellis-brainstorm/SKILL.md
+ M .agents/skills/trellis-break-loop/SKILL.md
+ M .agents/skills/trellis-channel/SKILL.md
+ M .agents/skills/trellis-channel/references/command-reference.md
+ M .agents/skills/trellis-channel/references/forum.md
+ M .agents/skills/trellis-channel/references/progress-debugging.md
+ M .agents/skills/trellis-channel/references/workers.md
+ M .agents/skills/trellis-channel/references/workflows.md
+ M .agents/skills/trellis-check/SKILL.md
+ M .agents/skills/trellis-meta/SKILL.md
+ M .agents/skills/trellis-meta/references/customize-local/add-project-local-conventions.md
+ M .agents/skills/trellis-meta/references/customize-local/change-agents.md
+ M .agents/skills/trellis-meta/references/customize-local/change-context-loading.md
+ M .agents/skills/trellis-meta/references/customize-local/change-hooks.md
+ M .agents/skills/trellis-meta/references/customize-local/change-skills-or-commands.md
+ M .agents/skills/trellis-meta/references/customize-local/change-spec-structure.md
+ M .agents/skills/trellis-meta/references/customize-local/change-task-lifecycle.md
+ M .agents/skills/trellis-meta/references/customize-local/change-workflow.md
+ M .agents/skills/trellis-meta/references/customize-local/overview.md
+ M .agents/skills/trellis-meta/references/local-architecture/bundled-skills.md
+ M .agents/skills/trellis-meta/references/local-architecture/context-injection.md
+ M .agents/skills/trellis-meta/references/local-architecture/generated-files.md
+ M .agents/skills/trellis-meta/references/local-architecture/multi-agent-channel.md
+ M .agents/skills/trellis-meta/references/local-architecture/overview.md
+ M .agents/skills/trellis-meta/references/local-architecture/spec-system.md
+ M .agents/skills/trellis-meta/references/local-architecture/task-system.md
+ M .agents/skills/trellis-meta/references/local-architecture/workflow.md
+ M .agents/skills/trellis-meta/references/local-architecture/workspace-memory.md
+ M .agents/skills/trellis-meta/references/platform-files/agents.md
+ M .agents/skills/trellis-meta/references/platform-files/hooks-and-settings.md
+ M .agents/skills/trellis-meta/references/platform-files/overview.md
+ M .agents/skills/trellis-meta/references/platform-files/platform-map.md
+ M .agents/skills/trellis-meta/references/platform-files/skills-and-commands.md
+ M .agents/skills/trellis-session-insight/SKILL.md
+ M .agents/skills/trellis-session-insight/references/cli-quick-reference.md
+ M .agents/skills/trellis-session-insight/references/triggering-patterns.md
+ M .agents/skills/trellis-spec-bootstrap/SKILL.md
+ M .agents/skills/trellis-spec-bootstrap/references/mcp-setup.md
+ M .agents/skills/trellis-spec-bootstrap/references/repository-analysis.md
+ M .agents/skills/trellis-spec-bootstrap/references/spec-task-planning.md
+ M .agents/skills/trellis-spec-bootstrap/references/spec-writing.md
+ M .agents/skills/trellis-update-spec/SKILL.md
+ M .dockerignore
+ M .env.example
+ M .trellis/.template-hashes.json
+ M .trellis/spec/backend/ai-provider.md
+ M .trellis/spec/backend/directory-structure.md
+ M .trellis/spec/backend/error-handling.md
+ M .trellis/spec/backend/index.md
+ M .trellis/spec/backend/item-assets.md
+ M .trellis/spec/backend/quality-guidelines.md
+ M .trellis/spec/frontend/index.md
+ M .trellis/spec/frontend/quality-guidelines.md
+ M AGENTS.md
+ M DEPLOY.md
+ M Dockerfile
+ M README.md
+ M USAGE.md
+ M clients/README.md
+ M clients/android/app/build.gradle.kts
+ M clients/android/app/src/main/AndroidManifest.xml
+ D clients/android/app/src/main/java/com/yansuu1/jizhang/DemoActivity.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/MainActivity.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/net/ApiClient.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AuthRepository.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/repo/BudgetRepository.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/repo/ItemPhotoUploader.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/repo/ItemRepository.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/repo/LedgerRepository.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/BudgetTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/Buttons.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/Cards.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/Charts.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DashboardTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DataTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ItemsTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/LoginScreen.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MainShell.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManageTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MyTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/PendingTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/RecurringRulesTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalarySheet.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SettingsTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/StatsTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ThemePrefs.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditSheet.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionsTab.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransfersTrashTabs.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/format.kt
+ M clients/android/app/src/main/java/com/yansuu1/jizhang/ui/theme/JizhangTheme.kt
+ M clients/android/app/src/main/res/values/strings.xml
+ M clients/docs/parity-matrix.md
+ M clients/docs/release.md
+ M clients/docs/versions.md
+ M docker-compose.yml
+ M packages/server/src/app.ts
+ M packages/server/src/db/migrate.ts
+ M packages/server/src/routes/financial-planning.ts
+ M packages/server/src/routes/stats.ts
+ M packages/server/src/routes/transactions.ts
+ M packages/server/src/services/import-batch-service.ts
+ M packages/server/src/services/stats-service.ts
+ M packages/server/src/services/transaction-service.ts
+ M packages/server/test/ai-organization-progress.test.ts
+ M packages/server/test/import-batch-confirm.test.ts
+ M packages/server/test/stats.test.ts
+ M packages/server/test/transactions.test.ts
+ M packages/shared/src/index.ts
+?? .agents/skills/trellis-continue/
+?? .agents/skills/trellis-finish-work/
+?? .agents/skills/trellis-start/
+?? .codex/
+?? .gradle-home/
+?? .pi/
+?? .pnpm-store/
+?? .trellis/ardot_screens/
+?? .trellis/spec/backend/assistant-streaming.md
+?? .trellis/spec/backend/financial-execution.md
+?? .trellis/spec/backend/financial-plan.md
+?? .trellis/spec/backend/merged-bill-import.md
+?? .trellis/spec/backend/native-delivery.md
+?? .trellis/spec/backend/statistics-window.md
+?? .trellis/tasks/00-join-yansuu1/
+?? .trellis/tasks/10-09-android-production-ready/
+?? .trellis/tasks/10-09-android-server-delivery/
+?? .trellis/tasks/10-09-api-docker-caddy/check.jsonl
+?? .trellis/tasks/10-09-api-docker-caddy/deployment-evidence.md
+?? .trellis/tasks/10-09-api-docker-caddy/design.md
+?? .trellis/tasks/10-09-api-docker-caddy/implement.jsonl
+?? .trellis/tasks/10-09-api-docker-caddy/implement.md
+?? .trellis/tasks/10-09-api-docker-caddy/prd.md
+?? .trellis/tasks/10-09-api-docker-caddy/task.json
+?? .trellis/tasks/10-09-retire-web/
+?? .trellis/tasks/10-10-android-ui-redesign/
+?? .trellis/tasks/10-13-wechat-import-review/
+?? .trellis/tasks/10-14-import-duplicate-review/
+?? .trellis/tasks/10-19-ai-spending-organization/
+?? .trellis/tasks/10-22-android-bill-daily-layout/
+?? .trellis/tasks/10-22-android-brand-icons/
+?? .trellis/tasks/10-22-android-brand-recording/
+?? .trellis/tasks/10-22-android-home-balances/
+?? .trellis/tasks/10-22-android-recording-cards/
+?? .trellis/tasks/10-22-bill-account-switch/
+?? .trellis/tasks/10-26-ai-provider-model-picker/
+?? .trellis/tasks/10-26-four-purpose-financial-plan/
+?? .trellis/tasks/10-27-financial-execution-phase1/
+?? .trellis/tasks/10-27-four-purpose-execution-system/
+?? .trellis/tasks/10-29-core-finance-simplification/
+?? .trellis/tasks/10-29-core-simplify-entry-recording/
+?? .trellis/tasks/10-29-core-simplify-import-ai/
+?? .trellis/tasks/10-29-core-simplify-monthly-plan/
+?? .trellis/tasks/10-29-core-simplify-saving-investment/
+?? .trellis/tasks/10-29-core-simplify-statistics/
+?? .trellis/tasks/10-30-core-finance-simplification-review/
+?? .trellis/tasks/11-01-bill-fuzzy-search/
+?? .trellis/tasks/11-02-four-purpose-only-finance/
+?? .trellis/tasks/archive/2026-10/10-15-ai-provider-settings-mvp/
+?? .trellis/tasks/archive/2026-10/10-15-ai-streaming-interactive-dialogue/
+?? .trellis/tasks/archive/2026-10/10-17-ai-bill-import-improvements/
+?? .trellis/workspace/yansuu1/index.md
+?? .trellis/workspace/yansuu1/journal-1.md
+?? __pycache__/
+?? clients/android/README.md
+?? clients/android/app/src/debug/
+?? clients/android/app/src/main/brand/
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/launcher/
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/net/ApiRequestIdentity.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/net/ApiRequestOwner.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/net/ApiTransport.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/net/CancellableBlockingFlow.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/net/SseParser.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantStreamingModels.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/FinancialExecutionRepository.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/FinancialGoalModels.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/FinancialGoalRepository.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/FinancialPlanModels.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/FinancialPlanRepository.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/MonthlyPlanModels.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/MonthlyPlanRepository.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/OrganizationRepository.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/ProviderModels.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/repo/StatsRepository.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DashboardBalancesHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DocumentFiles.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ExistingSalaryExecutionSheet.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinanceComponents.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialCategoryMappingSheet.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialConfigSheet.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialExecutionHistorySheet.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialExecutionHistoryState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialExecutionSheetState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialExecutionWorkspace.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialHostScreen.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialPlanScreen.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialPlanState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialPlanWorkOwner.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialPrefs.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialRefundSplitDialog.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/LauncherIconPicker.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/LedgerLinkPicker.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManualGoalEntryListState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManualGoalInput.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManualGoalOperationReplay.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManualGoalProgressReadState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManualGoalProgressWorkspace.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MonthlyPlanWorkspace.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MotionTokens.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/NavigationLeaveGuard.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ProviderSettings.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ProviderSettingsHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/RecordingDefaults.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalaryFinancialPrompt.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalaryOperationReplay.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalaryTemplateState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/StatsWindow.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDetailLoadOwner.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDetailScreen.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDrilldownQuery.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDrilldownScreen.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditorHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditorStateHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionMonthLoader.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionQueryHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionRefundSeedHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionTopErrorHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchImportWorkspace.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchRecoveryState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchRecoveryStore.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantConversationHelper.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportWorkspace.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantOrganizationModels.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantOrganizationState.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantOrganizationWorkspace.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantStreamReducer.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantStreamingComponents.kt
+?? clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/imports/
+?? clients/android/app/src/main/res/drawable-hdpi/
+?? clients/android/app/src/main/res/drawable-mdpi/
+?? clients/android/app/src/main/res/drawable-nodpi/
+?? clients/android/app/src/main/res/drawable-xhdpi/
+?? clients/android/app/src/main/res/drawable-xxhdpi/
+?? clients/android/app/src/main/res/drawable-xxxhdpi/
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_1.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_2.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_3.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_4.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_5.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_6.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round_1.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round_2.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round_3.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round_4.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round_5.xml
+?? clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round_6.xml
+?? clients/android/app/src/main/res/mipmap-hdpi/
+?? clients/android/app/src/main/res/mipmap-mdpi/
+?? clients/android/app/src/main/res/mipmap-xhdpi/
+?? clients/android/app/src/main/res/mipmap-xxhdpi/
+?? clients/android/app/src/main/res/mipmap-xxxhdpi/
+?? clients/android/app/src/main/res/values/colors.xml
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/FinancialExecutionModelsTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/launcher/
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/net/ApiTransportTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/net/AssistantBatchNetworkContractTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/net/CancellableBlockingFlowTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/net/NetworkContractTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/net/SalaryCreateNetworkContractTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/net/SseParserTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/repo/
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/DashboardBalancesHelperTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ExistingSalaryExecutionTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FinancialExecutionHistoryStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FinancialExecutionSheetStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FinancialHostAndWorkOwnerTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FinancialPlanStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FinancialPlanWiringTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FinancialPlanWorkOwnerTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FinancialPrefsTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/FrozenFinancialWindowFormatTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/HomeEntryTagWiringTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/InputContractTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ManualGoalEntryListStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ManualGoalOperationReplayTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ManualGoalProgressStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ManualGoalWindowStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/NavigationLeaveGuardTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ProviderModelsTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ProviderSettingsHelperTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/RecordingDefaultsTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/SalaryFinancialProposalTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/SalaryOperationReplayTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/SalaryTemplateStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/StatsWindowTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionAccountFilterTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionAmountKeyboardWiringTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionDrilldownQueryTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionEditorHelperTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionEditorNetworkContractTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionEditorPurposeTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionEditorStateHelperTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionMonthIntegrationTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionMonthLoaderTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionRefundSeedHelperTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionSearchTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionTagSelectionTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/TransactionTopErrorTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchImportStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchRecoveryStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantConversationHelperTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantIdentityCoordinatorTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantOrganizationDetailWiringTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantOrganizationProgressTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantOrganizationResumeTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantOrganizationStateTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantStreamReducerTest.kt
+?? clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/imports/
+?? clients/android/app/src/test/resources/
+?? clients/android/ui-redesign/
+?? deploy/CUTOVER-KNOWN-SERVER.md
+?? deploy/Caddyfile.container.example
+?? deploy/Caddyfile.host.example
+?? deploy/api-production-tools/__pycache__/
+?? deploy/create-source-bundle.py
+?? deploy/cutover-known-server.sh
+?? deploy/db-manifest.mjs
+?? deploy/db-manifest.test.mjs
+?? deploy/test_cutover.py
+?? deploy/test_source_bundle.py
+?? docker-compose.bind.yml
+?? docker-compose.caddy.yml
+?? docker-compose.migration.yml
+?? docs/superpowers/plans/2026-10-29-core-finance-simplification.md
+?? docs/superpowers/plans/2026-10-30-core-finance-simplification-repair.md
+?? nul
+?? packages/server/src/db/migrations/020-manual-goal-progress.ts
+?? packages/server/src/routes/financial-goals.ts
+?? packages/server/src/services/financial-goal-store.ts
+?? packages/server/src/services/financial-goals-service.ts
+?? packages/server/src/services/monthly-plan-service.ts
+?? packages/server/test/core-finance-repair-integration.test.ts
+?? packages/server/test/financial-goals.test.ts
+?? packages/server/test/import-batch-manual-flow.test.ts
+?? packages/server/test/monthly-plan.test.ts
+?? packages/server/test/salary-operation-replay-regression.test.ts
+?? packages/shared/src/manual-goal-progress.ts
+?? packages/shared/src/monthly-plan.ts
+?? packages/shared/src/stats-window.ts
+?? packages/shared/test/manual-goal-progress.test.ts
+?? packages/shared/test/monthly-plan.test.ts
+?? packages/shared/test/stats-window.test.ts
+?? tmp_brace.py
+?? trace.py
+?? trace2.py
+?? trace3.py

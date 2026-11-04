@@ -1,0 +1,26 @@
+[
+ {
+  "id": "121e1111-c545-4712-b75c-701699bb29ee",
+  "status": "completed",
+  "outcome": "awaiting-choice",
+  "source_generation_id": null,
+  "question_id": "38f7ce7f-01dc-484b-ad15-ca2a46a178c7",
+  "question_json": "{\"version\":1,\"id\":\"38f7ce7f-01dc-484b-ad15-ca2a46a178c7\",\"clarification\":{\"id\":\"38f7ce7f-01dc-484b-ad15-ca2a46a178c7\",\"selection\":\"single\",\"question\":\"这笔 15 元咖啡支出是从哪个账户支付的？\",\"options\":[{\"id\":\"d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93\",\"label\":\"支付宝\"},{\"id\":\"6d62b966-25ae-4faf-9e04-c29db6e6b597\",\"label\":\"微信\"},{\"id\":\"52c3642d-27d9-4085-bbe4-98bbbfdf6f19\",\"label\":\"上海银行\"},{\"id\":\"9500a58d-5ae7-48a4-bcba-23d6bad592fc\",\"label\":\"工商银行\"}],\"allowFreeText\":true}}",
+  "answered_option_id": "d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93",
+  "answered_at": 1792142598449,
+  "created_at": 1792142484531,
+  "input_json": "{\"type\":\"text\",\"text\":\"UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book anything\"}"
+ },
+ {
+  "id": "66297b1f-6927-4903-a8e9-e000ff0ba259",
+  "status": "completed",
+  "outcome": "answer",
+  "source_generation_id": "121e1111-c545-4712-b75c-701699bb29ee",
+  "question_id": "38f7ce7f-01dc-484b-ad15-ca2a46a178c7",
+  "question_json": "{\"version\":1,\"id\":\"38f7ce7f-01dc-484b-ad15-ca2a46a178c7\",\"clarification\":{\"id\":\"38f7ce7f-01dc-484b-ad15-ca2a46a178c7\",\"selection\":\"single\",\"question\":\"这笔 15 元咖啡支出是从哪个账户支付的？\",\"options\":[{\"id\":\"d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93\",\"label\":\"支付宝\"},{\"id\":\"6d62b966-25ae-4faf-9e04-c29db6e6b597\",\"label\":\"微信\"},{\"id\":\"52c3642d-27d9-4085-bbe4-98bbbfdf6f19\",\"label\":\"上海银行\"},{\"id\":\"9500a58d-5ae7-48a4-bcba-23d6bad592fc\",\"label\":\"工商银行\"}],\"allowFreeText\":true}}",
+  "answered_option_id": null,
+  "answered_at": null,
+  "created_at": 1792142598450,
+  "input_json": "{\"type\":\"choice\",\"sourceGenerationId\":\"121e1111-c545-4712-b75c-701699bb29ee\",\"questionId\":\"38f7ce7f-01dc-484b-ad15-ca2a46a178c7\",\"optionId\":\"d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93\"}"
+ }
+]

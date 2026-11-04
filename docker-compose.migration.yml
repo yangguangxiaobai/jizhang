@@ -1,0 +1,6 @@
+# Use for upgrades: fail rather than silently creating an empty data volume.
+# Include with -f docker-compose.yml -f docker-compose.migration.yml.
+volumes:
+  jizhang-data:
+    external: true
+    name: '${JIZHANG_DATA_VOLUME:?Set JIZHANG_DATA_VOLUME to the inspected existing volume}'

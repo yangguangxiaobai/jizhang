@@ -9,6 +9,7 @@ import {
   sumFinancialExecutionCents,
   validateFinancialRefundSplits,
   type FinancialExecutionComputation,
+  type FundPurpose,
   type FinancialMappingSnapshot,
   type FinancialRefundSplit,
   type FinancialWindow,
@@ -27,6 +28,7 @@ import {
 import {
   runFinancialOperation,
   requireFinancialOperationId,
+  canonicalFinancialPayload,
 } from './financial-operation-store.js';
 import {
   financialCriticalFacts,
@@ -41,6 +43,7 @@ import {
   readBillPurposeFacts,
   writeBillPurposeOverride,
 } from './financial-purpose-store.js';
+import { assertFundPurposeRevision, readFundPurposeFacts, writeFundPurpose } from './financial-fund-purpose-store.js';
 import { parseAllocationsJson } from './salary-service.js';
 import {
   FINANCIAL_LIMITS,
@@ -179,15 +182,36 @@ export class FinancialPlanningRefundsService {
     attributedFor: (refundTransactionId: string) => number;
     remainingFor: (originalTransactionId: string, excludeRefundId?: string) => number;
   } {
-    const seeded = readFinancialRefundSplits(this.db, scope);
-    const originalIds = new Set<string>([
-      ...seeded.map((record) => record.originalTransactionId),
-      ...(scope.originalTransactionIds ?? []),
-    ]);
-
+    // A competing refund may have siblings on other originals. Traverse the
+    // connected graph before assessing any set or cap: examining only the row
+    // that touches the requested original can make a stale set look valid.
     const all = new Map<string, FinancialRefundSplitRecord>();
-    for (const record of seeded) all.set(record.id, record);
-    for (const record of this.readSplitsForOriginals([...originalIds])) all.set(record.id, record);
+    const seenOriginals = new Set<string>();
+    const seenRefunds = new Set<string>();
+    let originals = [...new Set(scope.originalTransactionIds ?? [])];
+    let refunds = [...new Set(scope.refundTransactionIds ?? [])];
+    while (originals.length > 0 || refunds.length > 0) {
+      const nextOriginals: string[] = [];
+      const nextRefunds: string[] = [];
+      const found: FinancialRefundSplitRecord[] = [];
+      if (originals.length > 0) {
+        for (const id of originals) seenOriginals.add(id);
+        found.push(...this.readSplitsForOriginals(originals));
+      }
+      if (refunds.length > 0) {
+        for (const id of refunds) seenRefunds.add(id);
+        for (let index = 0; index < refunds.length; index += 400) {
+          found.push(...readFinancialRefundSplits(this.db, { refundTransactionIds: refunds.slice(index, index + 400) }));
+        }
+      }
+      for (const record of found) {
+        all.set(record.id, record);
+        if (!seenOriginals.has(record.originalTransactionId)) nextOriginals.push(record.originalTransactionId);
+        if (!seenRefunds.has(record.refundTransactionId)) nextRefunds.push(record.refundTransactionId);
+      }
+      originals = [...new Set(nextOriginals)];
+      refunds = [...new Set(nextRefunds)];
+    }
 
     const rows: AssessedSplitRow[] = [...all.values()].map((record) => {
       const refundRow = this.transactionRowById(record.refundTransactionId);
@@ -220,6 +244,31 @@ export class FinancialPlanningRefundsService {
       }
     }
 
+    // A row-level match is not enough: a partial or tampered set must not
+    // contradict its latest confirmation, nor exceed the refund itself.
+    for (const set of sets.values()) {
+      if (!set.valid) continue;
+      const latest = this.db.prepare(`SELECT revision,status,splits_json,facts_json FROM financial_refund_split_sets
+        WHERE refund_tx_id=? ORDER BY revision DESC LIMIT 1`).get(set.refundTransactionId) as
+        { revision: number; status: string; splits_json: string; facts_json: string } | undefined;
+      const sorted = [...set.rows].sort((a, b) => a.record.originalTransactionId.localeCompare(b.record.originalTransactionId));
+      const snapshots = sorted.map(({ record }) => ({ originalTransactionId: record.originalTransactionId, amountCents: record.amountCents }));
+      const facts = { refund: sorted[0]?.record.refundFacts ?? null, originals: sorted.map(({ record }) => ({ transactionId: record.originalTransactionId, facts: record.originalFacts })) };
+      try {
+        const refundAmount = sorted[0]?.refundRow?.amount_cents;
+        if (latest === undefined || latest.status !== 'confirmed' ||
+            sorted.some(({ record }) => record.setRevision !== latest.revision) ||
+            canonicalFinancialPayload(JSON.parse(latest.splits_json)) !== canonicalFinancialPayload(snapshots) ||
+            canonicalFinancialPayload(JSON.parse(latest.facts_json)) !== canonicalFinancialPayload(facts) ||
+            refundAmount === undefined || sorted.reduce((sum, row) => sum + BigInt(row.record.amountCents), 0n) > BigInt(refundAmount)) {
+          throw new Error('Inconsistent refund confirmation');
+        }
+      } catch {
+        set.valid = false;
+        set.reason = 'split-invalidated';
+      }
+    }
+
     const amountOn = (originalId: string, excludeRefundId?: string): number[] =>
       [...sets.values()]
         .filter((set) => set.valid && set.refundTransactionId !== excludeRefundId)
@@ -239,15 +288,16 @@ export class FinancialPlanningRefundsService {
       const original = this.transactionRowById(override);
       if (original !== undefined) originalAmounts.set(override, original.amount_cents);
     }
+    // Compute every cap against the same initially valid sets. Invalidating as
+    // we iterate would make overlapping over-cap originals depend on row order.
+    const overCapOriginals = new Set<string>();
     for (const [originalId, amount] of originalAmounts) {
-      const total = sumFinancialExecutionCents(amountOn(originalId));
-      if (total <= amount) continue;
-      for (const set of sets.values()) {
-        if (!set.valid) continue;
-        if (!set.rows.some((row) => row.record.originalTransactionId === originalId)) continue;
-        set.valid = false;
-        set.reason = set.reason ?? 'over-refund';
-      }
+      if (sumFinancialExecutionCents(amountOn(originalId)) > amount) overCapOriginals.add(originalId);
+    }
+    for (const set of sets.values()) {
+      if (!set.valid || !set.rows.some((row) => overCapOriginals.has(row.record.originalTransactionId))) continue;
+      set.valid = false;
+      set.reason = set.reason ?? 'over-refund';
     }
 
     return {
@@ -334,6 +384,10 @@ export class FinancialPlanningRefundsService {
   }
 
   refundReview(refundId: string): FinancialRefundReview {
+    return this.db.transaction(() => this.refundReviewInSnapshot(refundId))();
+  }
+
+  private refundReviewInSnapshot(refundId: string): FinancialRefundReview {
     const row = this.transactionRowById(refundId);
     const revision = financialRefundSplitRevision(this.db, refundId);
     const legacyOriginalIds = (
@@ -524,6 +578,12 @@ export class FinancialPlanningRefundsService {
   }
 
   listRefunds(
+    query: Record<string, unknown>,
+  ): FinancialMeta & { items: FinancialRefundReview[]; total: number; limit: number; offset: number } {
+    return this.db.transaction(() => this.listRefundsInSnapshot(query))();
+  }
+
+  private listRefundsInSnapshot(
     query: Record<string, unknown>,
   ): FinancialMeta & { items: FinancialRefundReview[]; total: number; limit: number; offset: number } {
     const { limit, offset } = parseFinancialPaging(query);
@@ -746,6 +806,13 @@ export class FinancialPlanningRefundsService {
           now,
         });
 
+        // A pre-existing over-cap set is not counted by remainingFor. Reassess
+        // the complete graph after replacement so a 200 cannot commit a newly
+        // confirmed set that is already invalid. Throwing rolls back the write.
+        if (validated.splits.length > 0 && !this.assessRefundSets({ refundTransactionIds: [refundId] }).sets.get(refundId)?.valid) {
+          throw new FinancialRefundConflictError('The refund conflicts with other confirmed splits. Review them before saving.');
+        }
+
         return {
           statusCode: 200,
           response: {
@@ -759,6 +826,13 @@ export class FinancialPlanningRefundsService {
   }
 
   collectExecution(period: PeriodRow): {
+    execution: FinancialExecution;
+    facts: FinancialExecutionFactDto[];
+  } {
+    return this.db.transaction(() => this.collectExecutionInSnapshot(this.periodsService.readPeriodRow(period.id)))();
+  }
+
+  private collectExecutionInSnapshot(period: PeriodRow): {
     execution: FinancialExecution;
     facts: FinancialExecutionFactDto[];
   } {
@@ -776,7 +850,9 @@ export class FinancialPlanningRefundsService {
     const assessment = this.assessRefundSets({
       originalTransactionIds: expenses.map((row) => row.id),
     });
-    const assessed = assessment.rows.map((row) => {
+    // The graph is assessed globally, but this period's facts must only contain
+    // splits whose original expense belongs to this period.
+    const assessed = assessment.rows.filter((row) => expenseById.has(row.record.originalTransactionId)).map((row) => {
       const set = assessment.sets.get(row.record.refundTransactionId);
       return {
         ...row,
@@ -1154,12 +1230,17 @@ export class FinancialPlanningRefundsService {
     transactionToken: string;
     revision: number;
     financialPurpose: SpendingPurpose | null;
+    fundPurpose: FundPurpose | null;
+    fundPurposeRevision: number;
+    fundPurposeStatus: 'resolved' | 'unresolved';
+    fundPurposeSource: string;
     resolution: PurposeResolution;
     periodId: string | null;
   } {
     const facts = readBillPurposeFacts(this.db, transactionId);
     if (facts === undefined) throw new FinancialNotFoundError('Transaction not found.');
     const row = this.transactionRowById(transactionId)!;
+    const fundFacts = readFundPurposeFacts(this.db, transactionId);
     const periodId = this.periodIdForDate(row.date);
     const mapping = this.mappingOfPeriod(periodId) ?? this.configService.readMapping();
     return {
@@ -1176,6 +1257,10 @@ export class FinancialPlanningRefundsService {
       }),
       revision: facts.revision,
       financialPurpose: facts.financialPurpose,
+      fundPurpose: fundFacts.purpose,
+      fundPurposeRevision: fundFacts.revision,
+      fundPurposeStatus: fundFacts.status,
+      fundPurposeSource: fundFacts.source,
       resolution: this.resolveExpensePurpose(row, mapping),
       periodId,
     };
@@ -1184,7 +1269,7 @@ export class FinancialPlanningRefundsService {
   getBillPurpose(
     transactionId: string,
   ): FinancialMeta & { billPurpose: ReturnType<FinancialPlanningRefundsService['billPurposeView']> } {
-    return { ...this.meta(), billPurpose: this.billPurposeView(transactionId) };
+    return this.db.transaction(() => ({ ...this.meta(), billPurpose: this.billPurposeView(transactionId) }))();
   }
 
   putBillPurpose(
@@ -1203,21 +1288,9 @@ export class FinancialPlanningRefundsService {
     );
     const purpose = requireSpendingPurposeOrNull(body['financialPurpose'], 'financialPurpose');
 
-    const row = this.transactionRowById(transactionId);
-    if (row === undefined) throw new FinancialNotFoundError('Transaction not found.');
-    const liveToken = financialTransactionToken({
-      id: row.id,
-      type: row.type,
-      amountCents: row.amount_cents,
-      categoryId: row.category_id,
-      accountId: row.account_id,
-      date: row.date,
-      isRefund: row.is_refund,
-      deleted: row.deleted,
-    });
-    if (liveToken !== expectedTransactionToken) {
-      throw new FinancialSourceChangedError('The bill changed since it was loaded.');
-    }
+    const expectedFundPurposeRevision = body['expectedFundPurposeRevision'];
+    const actorId = this.resolveActorId();
+    const now = this.now();
 
     const result = runFinancialOperation<
       FinancialMeta & {
@@ -1228,22 +1301,29 @@ export class FinancialPlanningRefundsService {
       this.db,
       {
         operationId,
-        actorId: this.resolveActorId(),
+        actorId,
         method: 'PUT',
         resource: `${FINANCIAL_PLANNING_BASE}/bill-purposes/${transactionId}`,
-        canonicalPayload: { expectedRevision, expectedTransactionToken, financialPurpose: purpose },
-        now: this.now(),
+        canonicalPayload: { expectedRevision, expectedTransactionToken, financialPurpose: purpose, expectedFundPurposeRevision },
+        now,
       },
       () => {
+        const row = this.transactionRowById(transactionId);
+        if (row === undefined) throw new FinancialNotFoundError('Transaction not found.');
+        if (this.tokenOf(row) !== expectedTransactionToken) {
+          throw new FinancialSourceChangedError('The bill changed since it was loaded.');
+        }
+        assertFundPurposeRevision(readFundPurposeFacts(this.db, transactionId), expectedFundPurposeRevision, 'legacy');
         writeBillPurposeOverride(this.db, {
           transactionId,
           purpose,
           expectedRevision,
           reason: purpose === null ? 'cleared' : 'explicit-override',
           operationId,
-          actorId: this.resolveActorId(),
-          now: this.now(),
+          actorId,
+          now,
         });
+        writeFundPurpose(this.db, transactionId, purpose, actorId, operationId, now, false);
         const periodId = this.periodIdForDate(row.date);
         return {
           statusCode: 200,

@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:335\",\"name\":\"AI10 已确认结果 · 390×844\"}}],\"expiredBindings\":\"binding names [ root9 ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

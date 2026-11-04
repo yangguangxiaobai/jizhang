@@ -1,0 +1,2 @@
+INTEGRITY=ok
+COUNTS={"accounts":4,"transactions":59,"transfers":2,"refund_links":16,"budget_allocations":1,"budget_templates":1,"categories":13,"salary_records":1,"settings":2,"users":1,"asset_items":0,"assistant_pending_actions":10,"assistant_conversations":11,"assistant_messages":108,"assistant_generations":15,"assistant_generation_events":694}

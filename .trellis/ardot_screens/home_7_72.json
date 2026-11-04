@@ -1,0 +1,169 @@
+{
+  "success": true,
+  "data": {
+    "nodes": [
+      {
+        "id": "7:72",
+        "type": "FRAME",
+        "layout": "vertical",
+        "gap": 8,
+        "padding": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        },
+        "cornerRadius": 0,
+        "fills": [],
+        "strokes": [],
+        "width": 375,
+        "height": 837,
+        "strokeWeight": 1,
+        "children": [
+          {
+            "id": "7:73",
+            "type": "FRAME",
+            "layout": "none",
+            "cornerRadius": 0,
+            "fills": [],
+            "strokes": [],
+            "width": 371,
+            "height": 17,
+            "strokeWeight": 1,
+            "children": [
+              {
+                "id": "7:74",
+                "type": "TEXT",
+                "fontSize": 12,
+                "fontName": {
+                  "family": "Inter",
+                  "style": "Bold"
+                },
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.3333333432674408,
+                      "g": 0.3921568691730499,
+                      "b": 0.4156862795352936
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "strokes": [],
+                "width": 51,
+                "height": 15,
+                "strokeWeight": 0
+              }
+            ]
+          },
+          {
+            "id": "7:75",
+            "type": "FRAME",
+            "layout": "none",
+            "cornerRadius": 0,
+            "fills": [],
+            "strokes": [],
+            "width": 375,
+            "height": 812,
+            "strokeWeight": 1,
+            "children": [
+              {
+                "id": "7:77",
+                "type": "GROUP",
+                "padding": {},
+                "width": 375,
+                "height": 812,
+                "children": [
+                  {
+                    "id": "7:175",
+                    "type": "RECTANGLE",
+                    "cornerRadius": 28,
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "strokes": [],
+                    "width": 375,
+                    "height": 812,
+                    "strokeWeight": 0
+                  },
+                  {
+                    "id": "7:76",
+                    "type": "FRAME",
+                    "layout": "none",
+                    "cornerRadius": 28,
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.9686274528503418,
+                          "g": 0.9607843160629272,
+                          "b": 0.9411764740943909
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "strokes": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.8392156958580017,
+                          "g": 0.8274509906768799,
+                          "b": 0.7960784435272217
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "width": 375,
+                    "height": 812,
+                    "strokeWeight": 1,
+                    "children": [
+                      {
+                        "id": "7:78",
+                        "type": "FRAME",
+                        "layout": "vertical",
+                        "gap": 0,
+                        "padding": {
+                          "left": 1,
+                          "right": 1,
+                          "top": 1,
+                          "bottom": 1
+                        },
+                        "cornerRadius": 0,
+                        "fills": [],
+                        "strokes": [],
+                        "width": 375,
+                        "height": 812,
+                        "strokeWeight": 1,
+                        "children": "..."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "issues": [
+      "Some nodes do not have the specified properties will be omitted in the result"
+    ]
+  }
+}

@@ -68,3 +68,14 @@ clients/harmony/**/build/
 # Generated delivery bundles; source tooling remains under deploy/.
 /artifacts/
 deploy/__pycache__/
+
+# ── local caches and scratch ──────────────────────────────────────────────────
+.gradle-home/
+.pnpm-store/
+.codex/
+.pi/
+__pycache__/
+tmp_brace.py
+trace*.py
+nul
+

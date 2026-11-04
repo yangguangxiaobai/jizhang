@@ -1,50 +1,35 @@
-# parity-matrix.md — 三端口径对齐矩阵（P1）
+# Android parity evidence — 2026-10-09
 
-> 子任务 `10-06-native-parity-release` P1/P2。
-> 种子账本：服务端 e2e 装置 `packages/server/test/`（`budget.test.ts` / `stats.test.ts` /
-> `recurring.test.ts` / `portability.test.ts` / `transfers.test.ts` / `trash.test.ts`）。
-> 口径唯一实现：`packages/shared/src/`（原生端零口径代码，见设计 §2.3）。
+This historical round targets Android and HarmonyOS 4 via the same APK. The retired Web source has since been removed from the workspace; Android acceptance remains pending independently of its removal. HarmonyOS 5/6 source and the 2026-10-06 unsigned HAP build are historical evidence only; no new Harmony 5/6 runtime claim is made.
 
-## 状态图例
+Final production service: https://jz.yansuu1.xyz (user correction on 2026-10-09). Custom origin remains supported. Android debug builds alone allow local HTTP for integration.
 
-| 标记 | 含义 |
-|---|---|
-| ✅ 已验证 | 代码落盘 + 已有可复现证据（构建产物 / 静态点检），无需真机即可确认 |
-| 🔶 对齐 | 代码落盘完成（code-complete），待新域名 + 真机联调时做三端同屏数字截图打勾 |
-| ⬜ 待补 | 首轮未覆盖，需后续批次补 |
+## Evidence rules
 
-> **全局说明（2026-10-06）**：生产域名 `jz.yansuu1.com` 已重解析不可用，新域名待用户提供。
-> 因此所有"三端同账号同周期数字对照"只能在新域名 + 真机/模拟器联调时执行。
-> 本矩阵中凡标 🔶 的行，其"对齐"结论依据 = 原生端只呈现服务端返回值（零口径代码）+
-> 网络层 N1–N7 点检通过，而非真机截图。待联调时逐项把 🔶 翻为 ✅ 或记录差异。
+Code implementation, a successful Gradle build, API tests and device tests are separate evidence. None alone establishes complete feature acceptance. Remaining device, provider, private cutout and production checks must stay pending until actually exercised. See `.trellis/tasks/10-09-android-production-ready/notes.md` for commands and results and the parent task for emulator/integration evidence.
 
-## P1 对齐表（同一账号、同一周期）
+| Contract | Android implementation and regression evidence | Runtime acceptance |
+|---|---|---|
+| A1 Network | Origin validation/default; persistent session cookie; expiry/path/secure matching; clear on origin change/logout; CSRF; zero-byte bodiless POST without JSON content type; shared raw PUT/download; JVM network regressions | Emulator core flow being verified by parent; real domain pending deployment |
+| A2 Auth | Session restoration gate skips network when no cookie; bounded auth/me call; central 401 routes to login; login/logout/password | Parent records emulator restart/expiry evidence; Huawei device pending |
+| A3 Transactions/transfers/trash | Transaction CRUD, tags, refund links, strict dates; list search/filter/paging; transfer create/edit/delete; trash individual/bulk actions | Full mutation replay on installed APK pending |
+| A4 Budget | Current/history overview; all period choices; salary create/edit/delete/template choice/allocation snapshot editor; template CRUD/default/apply; cycle setting | Budget numbers must match server fixtures; parent core-chain evidence |
+| A5 Recurring | Rule CRUD/enable; explicit anchorDate; generate/pending/confirm/ignore | Idempotency is server-tested; full APK replay pending |
+| A6 Stats | category-share/monthly-trend/pool-trend; range; arbitrary month via server month-window; native charts | Same-seed number/chart comparison pending |
+| A7 Master data | Category/account create/edit/move/usage/delete warning; tag rename/remove | Full APK replay pending |
+| A8 Data | SAF save-to-location CSV export; CSV imports; platform bytes unchanged/base64 preview/select/category override/confirm; real displayName from SAF; bounded file reads; backups list/create; CLI-only restore | Platform xlsx/GBK file picker and CSV saved-byte comparison pending |
+| A9 AI | Conversations/send/archive; full server message list replaces old list; pending-only actions; attachment bytes retained per action or reselected after recreation; import selection/category override; provider configuration/save/test | Real provider and action confirmation pending |
+| A10 Items | CRUD/status/purchase date; sell/retire with chosen date; photo GET/PUT/DELETE; cutout create/poll/cancel/candidate preview and PNG upload | Ordinary upload and available private cutout service replay pending |
+| A11 Appearance | System/light/dark and Titanium/Forest/Mono persisted | Installed screenshot review pending |
+| A12 Navigation | Six tabs 首页/账单/预算/记一笔/统计/我的; AI/settings and other child pages in 我的; back handlers | Parent installed navigation evidence |
 
-| # | 对照项 | Web（基准） | Android（APK） | Harmony（Hap） | shared 映射行 | 状态 |
-|---|---|---|---|---|---|---|
-| 1 | 首页资产总额 `totalBalanceCents` | `stores/balances.ts` 直显服务端值 | `ApiClient` + Balances 仓直显 `balances` 端点 | `ApiClient.ets` + repo 直显同端点 | `account-balance.ts` → 原生端不实现，读 `GET /accounts/balances` | 🔶 对齐 |
-| 2 | 预算模块已用/剩余（各 module views） | `stores/budget.ts` 无算术，直显 `overview` | 直显 `budget/overview(?periodStart)` | 直显同接口（`BudgetView.ets`） | `budget-engine.ts`（groups[0]=当前；periodStart 命名周期）→ 不实现 | 🔶 对齐 |
-| 3 | 结余池 `carryoverPoolCents`（含负值语义） | 同上，直显；`poolIsNegative` 仅做 `<0` 展示判断 | 同上 | 同上 | `budget-engine.ts` `computeCarryoverPool` → 不实现；历史周期取 trend 点值 | 🔶 对齐 |
-| 4 | 统计：分类环形图 `categoryShare` | 服务端值手绘 SVG | 原生绘制（A6） | `Charts.ets` 原生绘制（H4） | 不含工资为**预期行为**（后端 spec；工资无 category）→ 不实现 | 🔶 对齐 |
-| 5 | 统计：月度柱状 `monthlyTrend` | 同上 | 原生绘制（A6） | `Charts.ets` 原生绘制（H4） | 收入=交易收入+工资（`salary_records` 独立表）→ 不实现 | 🔶 对齐 |
-| 6 | 统计：结余趋势 `poolTrend` | 同上 | 原生绘制（A6） | `Charts.ets` 原生绘制（H4） | `PoolTrendPoint.periodStart` 即周期名 → 不实现 | 🔶 对齐 |
-| 7 | 账户余额列表（各账户 `balanceCents`） | `stores/balances.ts` 直显 | 直显（A7） | 直显（`Manage.ets`） | `account-balance.ts`：派生、不过滤日期；删账户 total 即掉为**预期行为** → 不实现 | 🔶 对齐 |
-| 8 | 账单列表：退款显示 | 退款=收入勾选，毛支出不冲减（服务端算） | 同语义呈现（A3） | 同语义呈现（`TransactionsView.ets`） | `expenseContribution` / `incomeContribution`（退款只进收入）→ 不实现 | 🔶 对齐 |
-| 9 | 转账：不计入收支 | `stores/transfers.ts` 只存行，不算余额影响 | 同（A3） | 同（`TransfersTrash.ets`） | `transferFlowCents` 唯一 from/to 判定点；`from≠to` 服务端 400 → 不实现 | 🔶 对齐 |
-| 10 | 周期账单：到期→待确认→confirm/ignore | `stores/recurring.ts` 调 generate+pending+confirm | 同（A5）；confirm 幂等（`created:false`）；ignore 已确认=409 | 同（`SalaryPending.ets`） | `recurring.ts`（anchor 推进；cap 留最新 12 期）→ 不实现 | 🔶 对齐 |
-| 11 | 数据导入：微信/支付宝 dry-run 预览→勾选→覆盖分类→确认 | 服务端解析/GBK 解码/去重 | 端侧只做选文件+读字节+调 `POST /import/platform-bills`（A8） | 同（`DataView.ets` + Picker）（H3） | `platform-bills.ts` + 服务端 bill-decode/xlsx-lite → 不实现 | 🔶 对齐 |
-| 12 | CSV 导出/导入 | BOM 按字节断言；全有或全无；未知名 loud-fail | 下载走带 cookie 字节流（A8） | 同（`DataView.ets`） | `csv.ts`（BOM `EF BB BF`；按 id 去重）→ 端侧不拼 CSV | 🔶 对齐 |
-| 13 | 金额/时间表示 | 分 + epoch ms；TZ 跟随系统 | 分↔元仅格式化（A11 前） | `format.ets` 仅格式化（H2） | 全链路分/ms；服务端 TZ=Asia/Shanghai 不可改 → 端侧不转时区 | ✅ 已验证 |
-| 14 | 网络层 N1–N7（baseURL/cookie/CSRF/401/离线/无 body POST 去 Content-Type/大文件下载） | `api/client.ts` | `ApiClient.kt` 点检通过；bodiless POST（generate）形状已覆盖 | `ApiClient.ets` 点检通过；同构行为 | —（传输层，非口径） | ✅ 已验证 |
-| 15 | 外观：三态主题 + 三套主色 | token 体系（`main.css`） | 三态 system/light/dark + 钛蓝/森林绿/极简黑白（A11） | `theme.ets` 同语义（H2） | `palette.ts`（十二槽分类色顺序）→ 展示层对齐 | 🔶 对齐 |
-| 16 | AI 助理（含预览导入行）/ 物品资产（含抠图降级） | Web 全量 | A9/A10 落盘 | `AssistantView.ets` / `ItemsView.ets` 落盘；抠图走私有服务，不可用降级普通上传 | —（服务端算/私有服务推理） | 🔶 对齐 |
+## Monetary truth
 
-允许的唯一差异：小数展示舍入（分→元格式化），且需在联调截图备注中注明。
+All ledger arithmetic is server/shared owned. Current `packages/shared/src/types.ts` uses the revised refund rule: an income transaction marked as refund counts as income and does not reduce the original expense; refund links record the relationship. Earlier backend index prose describing net-expense refunds was stale. Salary income is included in monthly-trend and has no category-share slice. Transfers affect account balances without entering income/expense statistics. Item assets remain separate from ledger/account assets. Android only formats cents and renders server outputs; display ratios and graph coordinates are presentation.
 
-## P2 对齐测试方法（联调时执行，新域名就绪后）
+## External acceptance still required
 
-1. 用 `packages/server/test/` 种子账本起后端（e2e 装置即种子来源，不新增数据）。
-2. 同一账号、同一周期，在 Web / Android / Harmony 三端截图记录上表 #1–#7 数字。
-3. 逐项打勾：一致 → ✅；不一致 → 记录差异 + 定位是展示 bug 还是口径分叉（后者不允许，必须修）。
-4. 构建可重复性：APK `clean assembleRelease` 重打一致（已验证，见 `release.md`）；
-   Hap `hvigor assembleHap` 重打一致（2026-10-06 CLI 已验证，见 `release.md`）。
+- Android version coverage beyond the available Android 15 emulator and physical HarmonyOS 4 installation.
+- Real HTTPS domain deployment/login using preserved server data and signing-key continuity.
+- Full feature replay with CSV/GBK/xlsx, a configured AI provider and the optional private cutout service.
+- Web removal is not evidence of Android acceptance or production deployment; the checks above remain pending.

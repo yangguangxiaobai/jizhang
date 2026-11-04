@@ -1,0 +1,23 @@
+NODES_WITH_TEXT=22
+'返回聊天' bounds=[84,222][156,294] clickable=false enabled=true
+'会话管理' bounds=[192,230][1032,287] clickable=false enabled=true
+'新建对话' bounds=[468,378][612,426] clickable=false enabled=true
+'刷新会话列表' bounds=[84,522][300,570] clickable=false enabled=true
+'I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options' bounds=[84,702][618,750] clickable=false enabled=true
+'当前对话' bounds=[84,798][220,838] clickable=false enabled=true
+'I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options的对话菜单' bounds=[654,710][726,782] clickable=false enabled=true
+'UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book any' bounds=[84,982][618,1030] clickable=false enabled=true
+'打开对话' bounds=[84,1078][220,1118] clickable=false enabled=true
+'UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book any的对话菜单' bounds=[654,990][726,1062] clickable=false enabled=true
+'Please explain compound interest and why starting early matters for personal finance in detail' bounds=[84,1262][618,1310] clickable=false enabled=true
+'打开对话' bounds=[84,1358][220,1398] clickable=false enabled=true
+'Please explain compound interest and why starting early matters for personal finance in detail的对话菜单' bounds=[654,1270][726,1342] clickable=false enabled=true
+'Please write a detailed 500-word essay about financial independence and budgeting principles' bounds=[84,1542][618,1590] clickable=false enabled=true
+'打开对话' bounds=[84,1638][220,1678] clickable=false enabled=true
+'Please write a detailed 500-word essay about financial independence and budgeting principles的对话菜单' bounds=[654,1550][726,1622] clickable=false enabled=true
+'UI TEST: please list 3 budgeting tips' bounds=[84,1822][618,1870] clickable=false enabled=true
+'打开对话' bounds=[84,1918][220,1958] clickable=false enabled=true
+'UI TEST: please list 3 budgeting tips的对话菜单' bounds=[654,1830][726,1902] clickable=false enabled=true
+'UI TEST: Please reply hello only. Do not create, update, delete, confirm or book anything.' bounds=[84,2102][618,2150] clickable=false enabled=true
+'打开对话' bounds=[84,2198][220,2202] clickable=false enabled=true
+'UI TEST: Please reply hello only. Do not create, update, delete, confirm or book anything.的对话菜单' bounds=[654,2110][726,2182] clickable=false enabled=true

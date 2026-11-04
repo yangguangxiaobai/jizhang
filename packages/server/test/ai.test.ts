@@ -6,6 +6,8 @@ import { loadConfig } from '../src/config.js';
 import { closeDatabase, initializeDatabase, type Db } from '../src/db/index.js';
 import { SESSION_COOKIE } from '../src/plugins/auth.js';
 import { AuthService } from '../src/services/auth-service.js';
+import { seedHistoricalSalary } from './support/historical-salary-fixture.js';
+import { allocateSalaryCents } from '@jizhang/shared';
 import { AiConfigService } from '../src/services/ai-config-service.js';
 import { decryptAiSecret, encryptAiSecret } from '../src/services/ai-crypto.js';
 import { extractAiResponsePath, renderAiJsonTemplate } from '../src/services/ai-provider-service.js';
@@ -321,17 +323,21 @@ describe('AI monthly evaluation', () => {
     });
     expect(transaction.statusCode).toBe(201);
 
-    const salary = await app.inject({
-      method: 'POST',
-      url: '/api/v1/salaries',
-      headers: authed(),
-      payload: {
-        accountId: 'builtin-default-account',
-        amountCents: 100_000,
-        date: Date.UTC(2026, 8, 5),
-      },
+    // Salary row seeded directly with its frozen module snapshot: fresh legacy salary
+    // writes are retired, but the monthly evaluation still reads the historical budget.
+    const defaultTemplate = db
+      .prepare('SELECT modules_json FROM budget_templates WHERE is_default = 1 AND deleted = 0 LIMIT 1')
+      .get() as { modules_json: string } | undefined;
+    const templateModules =
+      defaultTemplate === undefined
+        ? []
+        : (JSON.parse(defaultTemplate.modules_json) as { categoryId: string; ratio: number }[]);
+    seedHistoricalSalary(db, {
+      accountId: 'builtin-default-account',
+      amountCents: 100_000,
+      date: Date.UTC(2026, 8, 5),
+      allocations: allocateSalaryCents(100_000, templateModules),
     });
-    expect(salary.statusCode).toBe(201);
 
     const before = (db.prepare('SELECT COUNT(*) AS count FROM transactions').get() as { count: number }).count;
     monthlyProvider = true;

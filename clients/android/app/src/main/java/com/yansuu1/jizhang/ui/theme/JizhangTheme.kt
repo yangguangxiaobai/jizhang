@@ -11,6 +11,12 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.yansuu1.jizhang.ui.LocalMotionTokens
+import com.yansuu1.jizhang.ui.MotionTokens
 
 /**
  * Web token parity (`packages/web/src/styles/main.css`).
@@ -92,17 +98,17 @@ private val DARK_CATS = listOf(
 )
 
 private val TITANIUM_LIGHT = tokens(
-    bg = 0xFFF7F5F0, surface = 0xFFFFFFFF, surfaceSoft = 0xFFF4F7F8,
-    border = 0xFFE2E5EA, fg = 0xFF1C1F23, muted = 0xFF5F6B7A,
-    hero = 0xFF244D60, accent = 0xFF2F6F8F, onAccent = 0xFFFFFFFF, accentSubtle = 0xFFE3EEF4,
-    ok = 0xFF14773A, warning = 0xFFB45309, danger = 0xFFC92A2A, dangerSubtle = 0xFFFBE9E9,
+    bg = 0xFFF7F5F0, surface = 0xFFFFFFFF, surfaceSoft = 0xFFFAF9F6,
+    border = 0xFFE7E4DC, fg = 0xFF1D292E, muted = 0xFF748087,
+    hero = 0xFF244D60, accent = 0xFF2F6F8F, onAccent = 0xFFFFFFFF, accentSubtle = 0xFFE7F0F4,
+    ok = 0xFF2D8B68, warning = 0xFFD97706, danger = 0xFFB94A42, dangerSubtle = 0xFFFDF0ED,
     cats = LIGHT_CATS,
 )
 private val TITANIUM_DARK = tokens(
     bg = 0xFF131C22, surface = 0xFF1E2127, surfaceSoft = 0xFF252E35,
-    border = 0xFF2F333B, fg = 0xFFE8EAED, muted = 0xFF9AA1AD,
-    hero = 0xFF234353, accent = 0xFF7FB6D3, onAccent = 0xFF10151C, accentSubtle = 0xFF1F2F3A,
-    ok = 0xFF4ADE80, warning = 0xFFFBBF24, danger = 0xFFF87171, dangerSubtle = 0xFF3B2224,
+    border = 0xFF2F333B, fg = 0xFFE8EEF7, muted = 0xFF8B97A7,
+    hero = 0xFF234353, accent = 0xFF7FB6D3, onAccent = 0xFF10151C, accentSubtle = 0xFF1D3545,
+    ok = 0xFF3F9E6A, warning = 0xFFD97706, danger = 0xFFE05252, dangerSubtle = 0xFF352224,
     cats = DARK_CATS,
 )
 private val FOREST_LIGHT = TITANIUM_LIGHT.copy(
@@ -135,9 +141,30 @@ fun webTokens(preset: AccentPreset, dark: Boolean): WebTokens = when (preset) {
 val LocalWebTokens = staticCompositionLocalOf { TITANIUM_LIGHT }
 
 val JizhangShapes = Shapes(
-    small = RoundedCornerShape(10.dp), // --radius-control ≈ 0.65rem
-    medium = RoundedCornerShape(18.dp), // --radius-card ≈ 1.15rem
-    large = RoundedCornerShape(18.dp),
+    small = RoundedCornerShape(12.dp), // controls/buttons 10–12dp (iOS style)
+    medium = RoundedCornerShape(18.dp), // cards ~1.15rem = 18dp (iPhone Web style)
+    large = RoundedCornerShape(20.dp),
+)
+
+/**
+ * 精致紧凑型字体规范（针对个人财务 App 调优，避免原生 Material 字体过大过笨拙）
+ */
+val JizhangTypography = Typography(
+    displayLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 40.sp),
+    displayMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp),
+    displaySmall = TextStyle(fontWeight = FontWeight.Bold, fontSize = 24.sp, lineHeight = 30.sp),
+    headlineLarge = TextStyle(fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp),
+    headlineMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 19.sp, lineHeight = 25.sp),
+    headlineSmall = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 23.sp),
+    titleLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp),
+    titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 20.sp),
+    titleSmall = TextStyle(fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp),
+    bodyLarge = TextStyle(fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp),
+    bodyMedium = TextStyle(fontWeight = FontWeight.Normal, fontSize = 12.5.sp, lineHeight = 17.sp),
+    bodySmall = TextStyle(fontWeight = FontWeight.Normal, fontSize = 11.5.sp, lineHeight = 15.sp),
+    labelLarge = TextStyle(fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
+    labelMedium = TextStyle(fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 15.sp),
+    labelSmall = TextStyle(fontWeight = FontWeight.Normal, fontSize = 10.sp, lineHeight = 14.sp),
 )
 
 /**
@@ -151,6 +178,7 @@ fun JizhangTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     preference: ThemePreference = ThemePreference.System,
     accent: AccentPreset = AccentPreset.Titanium,
+    reduceMotion: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val useDark = when (preference) {
@@ -159,6 +187,7 @@ fun JizhangTheme(
         ThemePreference.Dark -> true
     }
     val t = webTokens(accent, useDark)
+    val motion = if (reduceMotion) MotionTokens.Reduced else MotionTokens.Default
     val colors = if (useDark) {
         darkColorScheme(
             primary = t.accent, onPrimary = t.onAccent,
@@ -182,7 +211,15 @@ fun JizhangTheme(
             surfaceContainerHighest = t.surfaceSoft,
         )
     }
-    androidx.compose.runtime.CompositionLocalProvider(LocalWebTokens provides t) {
-        MaterialTheme(colorScheme = colors, shapes = JizhangShapes, content = content)
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalWebTokens provides t,
+        LocalMotionTokens provides motion,
+    ) {
+        MaterialTheme(
+            colorScheme = colors,
+            shapes = JizhangShapes,
+            typography = JizhangTypography,
+            content = content,
+        )
     }
 }

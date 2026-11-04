@@ -1,0 +1,16 @@
+会话管理 | [192,230][1032,287] | android.widget.TextView |  | 
+新建对话 | [468,378][612,426] | android.widget.TextView |  | 
+刷新会话列表 | [84,522][300,546] | android.widget.TextView |  | 
+打开对话 | [84,618][220,623] | android.widget.TextView |  | 
+Please write a detailed 500-word essay about financial independence and budgeting principles | [84,767][618,815] | android.widget.TextView |  | 
+打开对话 | [84,863][220,903] | android.widget.TextView |  | 
+UI TEST: please list 3 budgeting tips | [84,1047][618,1095] | android.widget.TextView |  | 
+打开对话 | [84,1143][220,1183] | android.widget.TextView |  | 
+UI TEST: Please reply hello only. Do not create, update, delete, confirm or book anything. | [84,1327][618,1375] | android.widget.TextView |  | 
+打开对话 | [84,1423][220,1463] | android.widget.TextView |  | 
+今天天气怎么样 | [84,1607][336,1655] | android.widget.TextView |  | 
+打开对话 | [84,1703][220,1743] | android.widget.TextView |  | 
+你是deepseek吗 | [84,1887][353,1935] | android.widget.TextView |  | 
+打开对话 | [84,1983][220,2023] | android.widget.TextView |  | 
+帮我导入这个账单 | [84,2167][372,2202] | android.widget.TextView |  | 
+打开对话 | [0,0][0,0] | android.widget.TextView |  | 

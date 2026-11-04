@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-03",
+  "database": ":memory:",
+  "providerCallsPermitted": false,
+  "findings": [
+    {
+      "id": "IMPORT-01",
+      "removedIndex": 0,
+      "firstStatus": 200,
+      "replayStatus": 400,
+      "replayBody": {
+        "error": {
+          "code": "ASSISTANT_INVALID",
+          "message": "不能移除最后一个文件。"
+        }
+      },
+      "versionAfter": 2
+    },
+    {
+      "id": "IMPORT-01",
+      "removedIndex": 1,
+      "firstStatus": 200,
+      "replayStatus": 400,
+      "replayBody": {
+        "error": {
+          "code": "ASSISTANT_INVALID",
+          "message": "fileIndex 不在当前文件范围内。"
+        }
+      },
+      "versionAfter": 2
+    },
+    {
+      "id": "IMPORT-02",
+      "reviewStatus": 200,
+      "reviewCategoriesToCreate": [
+        {
+          "name": "Audit Shared New Category",
+          "type": 0,
+          "selectedRows": 1
+        },
+        {
+          "name": "Audit Shared New Category",
+          "type": 0,
+          "selectedRows": 1
+        }
+      ],
+      "confirmStatus": 200,
+      "confirmation": {
+        "inserted": 2,
+        "selected": 2,
+        "excluded": 32,
+        "preexisting": 0,
+        "expenseCents": 1400,
+        "incomeCents": 0,
+        "accountsCreated": 1,
+        "categoriesCreated": 1,
+        "categoriesReused": 0,
+        "categoriesSkippedUnused": 0,
+        "warnings": []
+      },
+      "databaseCategoryCount": 1
+    }
+  ]
+}

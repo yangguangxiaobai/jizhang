@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:336\",\"name\":\"系统状态栏\",\"content\":\"9:41\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:337\",\"name\":\"电池轮廓\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:339\",\"name\":\"返回对话\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:341\",\"name\":\"页面标题\",\"content\":\"导入结果\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:342\",\"name\":\"系统手势条\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:343\",\"name\":\"结果 Hero\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:344\",\"name\":\"确认完成\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:346\",\"name\":\"终态标题\",\"content\":\"服务端已确认\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:347\",\"name\":\"合成结果\",\"content\":\"演示结果：已导入 2 条\\n支出合计 ¥ 30.00\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:348\",\"name\":\"终态约束\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:349\",\"name\":\"结果边界\",\"content\":\"结果数据以服务端返回为准。\\n已确认卡片不再提供执行或取消。\\n清理本次附件、选择和分类覆盖。\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:350\",\"name\":\"返回原会话\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:351\",\"name\":\"返回原会话文字\",\"content\":\"返回对话\"}}],\"expiredBindings\":\"binding names [ n16_0, n16_1, n16_2, n16_3, n16_4, n16_5, n16_6, n16_7, n16_8, n16_9, n16_10, n16_11, n16_12 ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

@@ -6,11 +6,14 @@ import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import com.yansuu1.jizhang.net.ApiClient
 import com.yansuu1.jizhang.net.AuthExpiredException
 import com.yansuu1.jizhang.repo.PortabilityRepository
+import com.yansuu1.jizhang.ui.feature.imports.PlatformImportEntryContext
+import com.yansuu1.jizhang.ui.feature.imports.PlatformImportHost
+import com.yansuu1.jizhang.ui.feature.imports.PlatformImportSource
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -43,11 +49,10 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-/** Web `RESTORE_COMMAND` parity: restore needs the server stopped, CLI only. */
-const val RESTORE_COMMAND =
-    "docker compose stop jizhang\n" +
-        "docker compose run --rm jizhang node /app/packages/server/dist/cli.js restore /data/backups/<文件名>\n" +
-        "docker compose start jizhang"
+/** Restore guidance stays server-specific; the client never replaces the database. */
+private const val RESTORE_GUIDANCE =
+    "请按服务器部署文档中的恢复步骤操作，并确保使用运行中服务的 Compose 项目、环境配置和原数据卷。" +
+        "恢复前先备份当前数据库并核对目标快照；恢复后检查 /api/v1/health 和账本数据。"
 
 /**
  * 数据导出与备份 (A8). Mirrors web `DataView.vue` four cards:
@@ -57,6 +62,8 @@ const val RESTORE_COMMAND =
 fun DataTab(
     api: ApiClient,
     onAuthExpired: () -> Unit,
+    onDataChanged: () -> Unit = {},
+    onRegisterNavigation: ((ActiveNavigationHandlers?) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -72,6 +79,21 @@ fun DataTab(
     var platformOpen by remember { mutableStateOf(false) }
     var lastPlatform by remember { mutableStateOf<String?>(null) }
     var exportMsg by remember { mutableStateOf<String?>(null) }
+    var exporting by remember { mutableStateOf("transactions") }
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
+        if (uri != null) scope.launch {
+            busy = true
+            try {
+                val bytes = repo.downloadExport(exporting)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                        ?: throw IllegalArgumentException("无法写入所选文件")
+                }
+                exportMsg = "CSV 已保存到所选位置"
+            } catch (e: AuthExpiredException) { onAuthExpired() }
+            catch (e: Exception) { error = e.message } finally { busy = false }
+        }
+    }
 
     suspend fun reloadBackups() {
         loadingBackups = true
@@ -98,40 +120,51 @@ fun DataTab(
         ActivityResultContracts.GetContent(),
     ) { uri: Uri? ->
         if (uri == null) {
-            chosenName = null
-            chosenText = null
             return@rememberLauncherForActivityResult
         }
-        try {
-            context.contentResolver.openInputStream(uri)?.use { ins ->
-                chosenText = ins.readBytes().toString(Charsets.UTF_8)
-            }
-            chosenName = uri.lastPathSegment ?: "import.csv"
+        scope.launch {
+            chosenName = null
+            chosenText = null
             importResult = null
-        } catch (e: Exception) {
-            error = e.message
+            try {
+                val file = readDocument(context, uri, MAX_CSV_DOCUMENT_BYTES)
+                validateCsvDocument(file)
+                chosenText = file.bytes.toString(Charsets.UTF_8)
+                chosenName = file.name
+                error = null
+            } catch (e: Exception) { error = e.message }
         }
     }
 
     if (platformOpen) {
-        PlatformImportSheet(
+        PlatformImportHost(
             api = api,
+            entryContext = PlatformImportEntryContext(source = PlatformImportSource.DATA),
             onAuthExpired = onAuthExpired,
-            onFinished = { summary ->
-                lastPlatform = summary
+            onClose = { platformOpen = false },
+            onImportFinished = { result ->
+                onDataChanged()
+                lastPlatform = "导入成功：新增 ${result.inserted} 笔账单 (共选 ${result.selected} 笔)"
                 platformOpen = false
             },
-            onClose = { platformOpen = false },
+            onRegisterNavigation = onRegisterNavigation,
         )
         return
     }
 
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("数据导出与备份", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(8.dp))
+        Text("数据导出与备份", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "导出为本应用 CSV；备份为服务端数据库快照，不提供客户端恢复或下载接口。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
 
+        JzCard(Modifier.fillMaxWidth()) {
         Text("导出", style = MaterialTheme.typography.titleSmall)
         Text("下载 CSV，可直接用 Excel 打开（中文不会乱码）。", style = MaterialTheme.typography.bodySmall)
         for ((what, label) in listOf(
@@ -142,45 +175,45 @@ fun DataTab(
         )) {
             OutlinedButton(
                 onClick = {
-                    scope.launch {
-                        try {
-                            val bytes = repo.downloadExport(what)
-                            val file = saveToDownloads(context, "$what.csv", bytes)
-                            exportMsg = "已保存：${file.absolutePath}"
-                        } catch (e: AuthExpiredException) {
-                            onAuthExpired()
-                        } catch (e: Exception) {
-                            error = e.message
-                        }
-                    }
+                    exporting = what
+                    exportPicker.launch("$what.csv")
                 },
-                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             ) { Text(label) }
         }
         if (exportMsg != null) {
             Text(exportMsg!!, style = MaterialTheme.typography.bodySmall)
         }
-        Spacer(Modifier.height(12.dp))
-
-        Text("导入数据", style = MaterialTheme.typography.titleSmall)
-        Row {
-            OutlinedButton(onClick = {
-                importMode = "transactions"
-                chosenName = null
-                chosenText = null
-                importResult = null
-            }) { Text(if (importMode == "transactions") "● 本应用账单" else "本应用账单") }
-            OutlinedButton(onClick = {
-                importMode = "transfers"
-                chosenName = null
-                chosenText = null
-                importResult = null
-            }) { Text(if (importMode == "transfers") "● 转账" else "转账") }
         }
-        Text("只支持导入本应用导出的 CSV。相同 id 会跳过。", style = MaterialTheme.typography.bodySmall)
+
+        JzCard(Modifier.fillMaxWidth()) {
+        Text("导入数据", style = MaterialTheme.typography.titleSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = {
+                    importMode = "transactions"
+                    chosenName = null
+                    chosenText = null
+                    importResult = null
+                },
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+            ) { Text(if (importMode == "transactions") "● 本应用账单" else "本应用账单") }
+            OutlinedButton(
+                onClick = {
+                    importMode = "transfers"
+                    chosenName = null
+                    chosenText = null
+                    importResult = null
+                },
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+            ) { Text(if (importMode == "transfers") "● 转账" else "转账") }
+        }
+        Text("只支持导入本应用导出的 CSV；解析失败会保留所选文件并提示错误。相同 id 会跳过。", style = MaterialTheme.typography.bodySmall)
         OutlinedButton(
-            onClick = { csvPicker.launch("text/csv") },
-            modifier = Modifier.fillMaxWidth(),
+            // Some providers classify exported CSV as text/plain or octet-stream.
+            onClick = { csvPicker.launch("*/*") },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         ) { Text("选择 CSV 文件") }
         if (chosenName != null) {
             Text("已选择 $chosenName", style = MaterialTheme.typography.bodySmall)
@@ -195,8 +228,11 @@ fun DataTab(
                             } else {
                                 repo.importTransactionsCsv(chosenText.orEmpty())
                             }
-                            importResult = "导入完成：新增 ${res.optInt("inserted")} 条，" +
-                                "跳过 ${res.optInt("skipped")} 条，共读取 ${res.optInt("total")} 条。"
+                            val inserted = res.requireImportCount("inserted")
+                            val skipped = res.requireImportCount("skipped")
+                            val total = res.requireImportCount("total")
+                            importResult = "导入完成：新增 $inserted 条，跳过 $skipped 条，共读取 $total 条。"
+                            onDataChanged()
                         } catch (e: Exception) {
                             error = e.message
                         } finally {
@@ -204,25 +240,27 @@ fun DataTab(
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).imePadding(),
             ) { Text(if (busy) "导入中…" else "确认导入") }
         }
         if (importResult != null) {
             Text(importResult!!, color = MaterialTheme.colorScheme.primary)
         }
-        Spacer(Modifier.height(12.dp))
+        }
 
+        JzCard(Modifier.fillMaxWidth()) {
         Text("微信 / 支付宝账单", style = MaterialTheme.typography.titleSmall)
-        Text("上传平台导出文件（微信 .xlsx / 支付宝 GBK CSV）。", style = MaterialTheme.typography.bodySmall)
+        Text("上传平台导出文件（微信 .xlsx / 支付宝 GBK CSV）。先预览去重与分类，再逐行选择并导入。", style = MaterialTheme.typography.bodySmall)
         Button(
             onClick = { platformOpen = true },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         ) { Text("打开导入面板") }
         if (lastPlatform != null) {
             Text(lastPlatform!!, color = MaterialTheme.colorScheme.primary)
         }
-        Spacer(Modifier.height(12.dp))
+        }
 
+        JzCard(Modifier.fillMaxWidth()) {
         Text("备份", style = MaterialTheme.typography.titleSmall)
         Text("备份是数据库快照，用于整库恢复；导出文件用于查看与迁移。", style = MaterialTheme.typography.bodySmall)
         Button(
@@ -240,7 +278,7 @@ fun DataTab(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
         ) { Text(if (busy) "处理中…" else "立即备份") }
         if (loadingBackups) {
             Text("加载中…", style = MaterialTheme.typography.bodySmall)
@@ -257,14 +295,25 @@ fun DataTab(
         Spacer(Modifier.height(8.dp))
         Text("如何恢复备份", style = MaterialTheme.typography.titleSmall)
         Text(
-            "恢复会替换数据库文件，必须在服务停止时进行，不提供页面内按钮：",
+            "数据库恢复需要在服务器上操作，本页面不会直接替换数据库：",
             style = MaterialTheme.typography.bodySmall,
         )
-        Text(RESTORE_COMMAND, style = MaterialTheme.typography.bodySmall)
+        Text(RESTORE_GUIDANCE, style = MaterialTheme.typography.bodySmall)
         if (error != null) {
             Text(error!!, color = MaterialTheme.colorScheme.error)
         }
+        }
     }
+}
+
+private fun JSONObject.requireImportCount(fieldName: String): Int {
+    val raw = opt(fieldName) as? Number
+        ?: throw IllegalStateException("服务器未返回可核对的导入结果，请刷新账本确认。")
+    val value = raw.toDouble()
+    require(value.isFinite() && value >= 0.0 && value <= Int.MAX_VALUE.toDouble() && value % 1.0 == 0.0) {
+        "服务器未返回可核对的导入结果，请刷新账本确认。"
+    }
+    return value.toInt()
 }
 
 private fun saveToDownloads(context: Context, name: String, bytes: ByteArray): File {
@@ -340,35 +389,49 @@ fun PlatformImportSheet(
         ActivityResultContracts.GetContent(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        try {
-            context.contentResolver.openInputStream(uri)?.use { ins ->
-                fileBytes = ins.readBytes()
-            }
-            fileName = uri.lastPathSegment ?: "platform-bill"
-            rows = emptyList()
-            checked = emptySet()
-            scope.launch { doPreview() }
-        } catch (e: Exception) {
-            error = e.message
+        scope.launch {
+            try {
+                val file = readDocument(context, uri)
+                fileBytes = file.bytes; fileName = file.name
+                rows = emptyList(); checked = emptySet(); overrides = emptyMap()
+                doPreview()
+            } catch (e: Exception) { error = e.message }
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("微信 / 支付宝导入", style = MaterialTheme.typography.titleLarge)
-        Row {
-            OutlinedButton(onClick = { picker.launch("*/*") }) { Text("选择文件") }
-            OutlinedButton(onClick = onClose) { Text("关闭") }
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("微信 / 支付宝导入", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "服务端解码后先预览，再逐行勾选与修改分类；确认后才真正入账。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { picker.launch("*/*") },
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+            ) { Text("选择文件") }
+            OutlinedButton(
+                onClick = onClose,
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+            ) { Text("关闭") }
         }
         if (fileName != null) {
             Text("已选择 $fileName" + if (detected != null) "（识别为$detected）" else "")
         }
         if (busy) {
-            Text("处理中…")
+            Text("正在处理平台账单…", style = MaterialTheme.typography.bodyMedium)
         }
         if (error != null) {
             Text(error!!, color = MaterialTheme.colorScheme.error)
         }
-        LazyColumn(Modifier.weight(1f)) {
+        if (rows.isEmpty()) {
+            JzCard(Modifier.fillMaxWidth()) {
+                Text("尚未预览平台账单", style = MaterialTheme.typography.titleSmall)
+                Text("选择微信 .xlsx 或支付宝 GBK CSV 后会在这里列出待导入行。", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(rows, key = { it.optString("id") }) { r ->
                 val id = r.optString("id")
                 val locked = r.optBoolean("alreadyExists") || r.optBoolean("ignored")
@@ -401,7 +464,7 @@ fun PlatformImportSheet(
         if (rows.isNotEmpty()) {
             Button(
                 enabled = !busy,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 onClick = {
                     scope.launch {
                         busy = true

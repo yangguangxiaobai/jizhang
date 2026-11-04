@@ -25,6 +25,7 @@ import {
   RecurringService,
 } from '../src/services/recurring-service.js';
 import { ConflictError, NotFoundError } from '../src/services/transaction-service.js';
+import { seedHistoricalSalary } from './support/historical-salary-fixture.js';
 
 const USERNAME = 'quiz';
 const PASSWORD = 'correct horse battery staple';
@@ -379,13 +380,14 @@ describe('confirmation', () => {
 
   it('AC4 confirming changes the budget figures', async () => {
     // A salary makes a cycle, so the module has a budget to spend against.
-    const salary = await app.inject({
-      method: 'POST',
-      url: '/api/v1/salaries',
-      headers: authed(),
-      payload: { accountId: ACCOUNT, amountCents: 1_000_000, date: localDay(2026, 9, 2), templateId: undefined },
+    // Seeded as a historical module snapshot: fresh module-allocation salary writes are
+    // retired, and this case is about confirmation moving the budget figures.
+    seedHistoricalSalary(db, {
+      amountCents: 1_000_000,
+      date: localDay(2026, 9, 2),
+      accountId: ACCOUNT,
+      allocations: [{ categoryId: FOOD, amountCents: 1_000_000 }],
     });
-    expect(salary.statusCode, salary.body).toBe(201);
 
     const before = (await app.inject({ method: 'GET', url: '/api/v1/budget/overview', headers: authed() })).json();
     const foodBefore = before.modules.find((m: { categoryId: string }) => m.categoryId === FOOD);

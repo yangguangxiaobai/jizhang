@@ -1,0 +1,29 @@
+{
+  "id": "android-brand-icons",
+  "name": "android-brand-icons",
+  "title": "应用名称与六款可切换图标",
+  "description": "更名Yansuu1记账，设置提供六款桌面图标切换，第六款默认，保留应用升级身份",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-22",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-22-android-brand-recording",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "approval_gate": "approved_by_user",
+    "icon_decision": "six_selectable_default_6_confirmed_by_user"
+  }
+}

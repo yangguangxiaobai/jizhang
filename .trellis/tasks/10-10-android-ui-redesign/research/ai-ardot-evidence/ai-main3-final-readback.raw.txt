@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"Read 3 node(s) (19KB) — full data written to:\n  C:\\Users\\QUIZ\\AppData\\Local\\Temp\\.ardot\\reads\\batch_read-20_2_2-wsgk-20261013_140924493.jsonl\n\nJSONL, one JSON object per line: line 1 is metadata, then one line per requested node, then `_resolvedComponent` lines, then `_propertyMap` lines. Grep this file by node id for a single node, or read it with an offset/limit window.\n\nTop-level: 20:2 AI01 空对话 · 390×844 (FRAME) | 20:58 AI02 对话与紧凑工具卡 · 390×844 (FRAME) | 20:107 AI03 全屏导入与分类 · 390×844 (FRAME)\nIssues:\n  - Some nodes do not have the specified properties will be omitted in the result"}]},"jsonrpc":"2.0","id":1}
+

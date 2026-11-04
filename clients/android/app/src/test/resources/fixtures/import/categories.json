@@ -1,0 +1,89 @@
+{
+  "batchId": "91683a05-3168-4358-aae7-98cdc8616a92",
+  "version": 1,
+  "analysisRevision": 0,
+  "viewRevision": "126d2705b6c6ea0a4f48328c4f9d8a812b2fd011b5c413ddaa614db0d0dee2d1",
+  "categories": [
+    {
+      "id": "builtin-expense-food",
+      "name": "餐饮",
+      "type": 0,
+      "parentId": null
+    },
+    {
+      "id": "builtin-expense-transport",
+      "name": "交通",
+      "type": 0,
+      "parentId": null
+    },
+    {
+      "id": "builtin-expense-housing",
+      "name": "住房",
+      "type": 0,
+      "parentId": null
+    },
+    {
+      "id": "builtin-expense-shopping",
+      "name": "购物",
+      "type": 0,
+      "parentId": null
+    },
+    {
+      "id": "builtin-expense-entertainment",
+      "name": "娱乐",
+      "type": 0,
+      "parentId": null
+    },
+    {
+      "id": "builtin-income-salary",
+      "name": "工资",
+      "type": 1,
+      "parentId": null
+    },
+    {
+      "id": "builtin-income-other",
+      "name": "其他收入",
+      "type": 1,
+      "parentId": null
+    },
+    {
+      "id": "builtin-income-refund",
+      "name": "退款",
+      "type": 1,
+      "parentId": null
+    }
+  ],
+  "items": [
+    {
+      "suggestionId": "nc-fallback-0-1",
+      "origin": "server-fallback",
+      "name": "其他",
+      "type": 0,
+      "parentId": null,
+      "relatedItemCount": 19,
+      "relatedItemIds": [
+        "po:wechat:07264ee30c7414e6bb5876e8d0ecfb1f",
+        "po:wechat:74e62695a356f268913bed0734a0413c",
+        "po:wechat:760d5da12dbb4a70e15cd3f429f8d658",
+        "po:wechat:47cfd959d2f2d114fad1ffb90b3917d7",
+        "po:wechat:5462530eebd6ede95e0b08e71c148c47",
+        "po:wechat:c920d3f8b8fa25c759af6863cd17c463",
+        "po:wechat:769d41319f1b77196a21b9422d246b9c",
+        "po:wechat:16e8c8a57d076a400212f93ff3075a77",
+        "po:wechat:8e27def7c4b79b1baa3bf5aeb08c86b4",
+        "po:wechat:0a72745deaa07ef2f1ef5fb311377a7e",
+        "po:wechat:e3c5c8c36342db83b7830e77b629a1d4",
+        "po:wechat:f729419cfb94032310036130f3300443",
+        "po:wechat:7922cb54fee7a3e579703f3633e7e97b",
+        "po:wechat:c28e0103079338ddad5c11b6d6d10480",
+        "po:wechat:c2c0e88f4216889fd6edc0697df6e455",
+        "po:wechat:1c18e00e23d5a3a34ccd9c73c43a4130",
+        "po:wechat:4a0c3c5b30db801f5b9761dc94ffce99",
+        "po:wechat:686cd6419715c4185d8f28824e419ccf",
+        "po:wechat:6bad917a00cbfdbef1ca014083ec4652"
+      ],
+      "candidates": []
+    }
+  ],
+  "notice": null
+}

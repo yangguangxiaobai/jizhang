@@ -22,10 +22,11 @@ import {
   incomeContribution,
   TYPE_EXPENSE,
   TYPE_INCOME,
+  type FundPurpose,
   type SpendingPurpose,
   type Transaction,
 } from '@jizhang/shared';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import { normaliseTags, parseTagsJson, serialiseTags } from './tags.js';
 import { TagCatalogService } from './tag-catalog-service.js';
@@ -42,6 +43,7 @@ import {
   writeBillPurposeOverride,
 } from './financial-purpose-store.js';
 import { invalidateFinancialRefundSources } from './financial-source-lifecycle.js';
+import { assertFundPurposeRevision, writeFundPurpose } from './financial-fund-purpose-store.js';
 import { ConflictError, NotFoundError, ValidationError } from './transaction-errors.js';
 import type {
   CreateTransactionInput,
@@ -76,6 +78,9 @@ interface TransactionRow {
   readonly deleted: number;
   readonly financial_purpose: string | null;
   readonly financial_purpose_revision: number;
+  readonly fund_purpose?: FundPurpose | null;
+  readonly fund_purpose_revision?: number | null;
+  readonly fund_purpose_source?: string | null;
   readonly updated_at: number;
 }
 
@@ -97,11 +102,38 @@ function toDto(
     isRefund: row.is_refund === 1,
     financialPurpose: row.financial_purpose as SpendingPurpose | null,
     financialPurposeRevision: row.financial_purpose_revision,
+    fundPurpose: row.fund_purpose ?? null,
+    fundPurposeRevision: row.fund_purpose_revision ?? 0,
+    fundPurposeStatus: row.fund_purpose == null ? 'unresolved' : 'resolved',
+    fundPurposeSource: row.fund_purpose_source ?? 'unresolved',
     refundLinkedTxIds,
     refundSummary,
     refundDetails,
     updatedAt: row.updated_at,
   };
+}
+
+// Scalar subqueries keep the ledger scope and row cardinality unchanged.
+const FUND_COLUMNS = `(SELECT purpose FROM financial_fund_purposes WHERE transaction_id=transactions.id) AS fund_purpose,
+  (SELECT revision FROM financial_fund_purposes WHERE transaction_id=transactions.id) AS fund_purpose_revision,
+  (SELECT source FROM financial_fund_purposes WHERE transaction_id=transactions.id) AS fund_purpose_source`;
+
+function hasFundPurpose(input: UpdateTransactionInput): boolean {
+  return Object.prototype.hasOwnProperty.call(input, 'fundPurpose') && input.fundPurpose !== undefined;
+}
+
+function parseFundPurpose(value: unknown): FundPurpose | null {
+  if (value === null || value === 'growth' || value === 'reserve' || value === 'essentials' || value === 'joy') return value;
+  throw new FinancialInvalidError("fundPurpose must be null, 'growth', 'reserve', 'essentials' or 'joy'.");
+}
+
+function requestedFundPurpose(input: CreateTransactionInput): FundPurpose | null | undefined {
+  const canonical = hasFundPurpose(input) ? parseFundPurpose(input.fundPurpose) : undefined;
+  const legacy = hasFinancialPurpose(input) ? parseFinancialPurpose(input.financialPurpose) : undefined;
+  if (canonical !== undefined && legacy !== undefined && canonical !== legacy) {
+    throw new FinancialInvalidError('fundPurpose and financialPurpose conflict.');
+  }
+  return canonical !== undefined ? canonical : legacy;
 }
 
 /** Earliest plausible transaction date: 2000-01-01. Guards absurd input. */
@@ -217,9 +249,13 @@ export interface ListTransactionsQuery {
   readonly tag?: string | undefined;
   readonly tagId?: string | undefined;
   readonly q?: string | undefined;
+  readonly search?: string | undefined;
   readonly includeDeleted?: boolean | undefined;
   readonly limit?: number | undefined;
   readonly offset?: number | undefined;
+  /** Optional gross expense guard for a complete category-statistics drilldown scope. */
+  readonly expectedExpenseCents?: number | undefined;
+  readonly expectedExpenseCount?: number | undefined;
 }
 
 export interface ListTransactionsResult {
@@ -227,6 +263,8 @@ export interface ListTransactionsResult {
   readonly total: number;
   readonly limit: number;
   readonly offset: number;
+  readonly searchVersion?: 1;
+  readonly searchRevision?: string;
 }
 
 export interface DailySummaryQuery extends ListTransactionsQuery {
@@ -242,6 +280,9 @@ export interface DailySummaryItem {
 
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 500;
+/** Bounds the synchronous full-result revision computed for each search page. */
+export const MAX_SEARCH_ROWS = 10_000;
+export const MAX_SEARCH_TEXT_BYTES = 16 * 1024 * 1024;
 
 export interface TransactionServiceOptions {
   /** Injectable clock, so date validation is deterministic in tests. */
@@ -433,7 +474,7 @@ export class TransactionService {
 
   getById(id: string, includeDeleted = false): TransactionDto | undefined {
     const row = this.db
-      .prepare(`SELECT * FROM transactions WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`)
+      .prepare(`SELECT transactions.*, ${FUND_COLUMNS} FROM transactions WHERE id = ?${includeDeleted ? '' : ' AND deleted = 0'}`)
       .get(id) as TransactionRow | undefined;
     if (row === undefined) return undefined;
     if (row.is_refund === 1) {
@@ -498,10 +539,14 @@ export class TransactionService {
 
     // `undefined` means the old writer omitted the field; `null` means an
     // explicit "no override". Neither may carry a non-null value on income.
-    const financialPurpose =
-      input.financialPurpose === undefined
-        ? null
-        : parseFinancialPurpose(input.financialPurpose);
+    const fundPurpose = requestedFundPurpose(input) ?? null;
+    if (isRefund && hasFundPurpose(input) && fundPurpose !== null) {
+      throw new FinancialInvalidError('Refund purpose comes from confirmed original transactions.');
+    }
+    const financialPurpose = input.financialPurpose !== undefined
+      ? parseFinancialPurpose(input.financialPurpose)
+      : type === TYPE_EXPENSE && (fundPurpose === 'essentials' || fundPurpose === 'joy')
+        ? fundPurpose : null;
     if (financialPurpose !== null && type !== TYPE_EXPENSE) {
       throw new FinancialInvalidError(
         'A financial purpose can only be set on an expense.',
@@ -528,14 +573,15 @@ export class TransactionService {
       isRefund,
       refundLinkedTxIds,
       financialPurpose,
+      fundPurpose,
     };
   }
 
   create(input: CreateTransactionInput, id?: string): TransactionDto {
-    const purposeProvided = hasFinancialPurpose(input);
+    const purposeProvided = hasFinancialPurpose(input) || hasFundPurpose(input);
     if (input.operationId !== undefined && !purposeProvided) {
       throw new FinancialInvalidError(
-        'operationId is only supported on a create that carries financialPurpose.',
+        'operationId is only supported on a create that carries financialPurpose or fundPurpose.',
       );
     }
 
@@ -618,6 +664,10 @@ export class TransactionService {
       });
     }
 
+    if (hasFundPurpose(input) || hasFinancialPurpose(input)) {
+      writeFundPurpose(this.db, rowId, prepared.fundPurpose, actorId ?? this.resolveActorId(), operationId, nowMs, hasFundPurpose(input));
+    }
+
     return this.getByIdOrThrow(rowId);
   }
 
@@ -638,6 +688,7 @@ export class TransactionService {
       isRefund: input.isRefund,
       refundLinkedTxIds: input.refundLinkedTxIds,
       financialPurpose: input.financialPurpose,
+      fundPurpose: input.fundPurpose,
     };
   }
 
@@ -663,15 +714,16 @@ export class TransactionService {
    * type change clears it with an audit event.
    */
   update(id: string, input: UpdateTransactionInput): TransactionDto {
-    const purposeProvided = hasFinancialPurpose(input);
+    const purposeProvided = hasFinancialPurpose(input) || hasFundPurpose(input);
     if (
       !purposeProvided &&
       (input.operationId !== undefined ||
         input.expectedFinancialPurposeRevision !== undefined ||
+        input.expectedFundPurposeRevision !== undefined ||
         input.expectedTransactionToken !== undefined)
     ) {
       throw new FinancialInvalidError(
-        'operationId, expectedFinancialPurposeRevision and expectedTransactionToken require an explicit financialPurpose.',
+        'Purpose guards and operationId require an explicit financialPurpose or fundPurpose.',
       );
     }
 
@@ -721,6 +773,8 @@ export class TransactionService {
       isRefund: input.isRefund,
       refundLinkedTxIds: input.refundLinkedTxIds,
       financialPurpose: input.financialPurpose,
+      fundPurpose: input.fundPurpose,
+      expectedFundPurposeRevision: input.expectedFundPurposeRevision,
       expectedFinancialPurposeRevision: input.expectedFinancialPurposeRevision,
       expectedTransactionToken: input.expectedTransactionToken,
     };
@@ -765,10 +819,16 @@ export class TransactionService {
 
     // An omitted purpose preserves the current override, except that an
     // expense→income transition must clear it. An explicit null also clears.
-    const purposeProvided = hasFinancialPurpose(input);
+    const requested = requestedFundPurpose(input);
+    const nextFundPurpose = requested === undefined ? current.fundPurpose : requested;
+    if (nextIsRefund && hasFundPurpose(input) && requested !== null && requested !== undefined) {
+      throw new FinancialInvalidError('Refund purpose comes from confirmed original transactions.');
+    }
     let nextPurpose = current.financialPurpose;
-    if (purposeProvided) {
+    if (hasFinancialPurpose(input)) {
       nextPurpose = parseFinancialPurpose(input.financialPurpose);
+    } else if (hasFundPurpose(input)) {
+      nextPurpose = nextType === TYPE_EXPENSE && (nextFundPurpose === 'essentials' || nextFundPurpose === 'joy') ? nextFundPurpose : null;
     } else if (nextType !== TYPE_EXPENSE) {
       nextPurpose = null;
     }
@@ -808,6 +868,7 @@ export class TransactionService {
         isRefund: nextIsRefund,
         refundLinkedTxIds: nextLinkedIds,
         financialPurpose: nextPurpose,
+        fundPurpose: nextFundPurpose,
       },
     };
   }
@@ -824,15 +885,18 @@ export class TransactionService {
     const { current, next } = this.computeUpdate(id, input, nowMs);
 
     if (explicitPurpose) {
-      const expectedRevision = requireExpectedPurposeRevision(
-        input.expectedFinancialPurposeRevision,
+      if (hasFinancialPurpose(input)) {
+        const expectedRevision = requireExpectedPurposeRevision(input.expectedFinancialPurposeRevision);
+        if (current.financialPurposeRevision !== expectedRevision) {
+          throw new FinancialRevisionConflictError('The financial purpose revision is stale. Reload the bill and retry.');
+        }
+      }
+      assertFundPurposeRevision(
+        { revision: current.fundPurposeRevision, source: current.fundPurposeSource },
+        input.expectedFundPurposeRevision,
+        hasFundPurpose(input) ? 'canonical' : 'legacy',
       );
       const expectedToken = requireExpectedTransactionToken(input.expectedTransactionToken);
-      if (current.financialPurposeRevision !== expectedRevision) {
-        throw new FinancialRevisionConflictError(
-          'The financial purpose revision is stale. Reload the bill and retry.',
-        );
-      }
       if (financialTokenFor(current) !== expectedToken) {
         throw new FinancialSourceChangedError(
           'The bill changed since the purpose editor loaded it. Reload and retry.',
@@ -913,6 +977,10 @@ export class TransactionService {
         actorId: auditActorId,
         now: nowMs,
       });
+    }
+
+    if (explicitPurpose) {
+      writeFundPurpose(this.db, id, next.fundPurpose, auditActorId, operationId, nowMs, hasFundPurpose(input));
     }
 
     return this.getByIdOrThrow(id);
@@ -1082,7 +1150,7 @@ export class TransactionService {
     const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_PAGE_SIZE);
     const rows = this.db
       .prepare(
-        `SELECT * FROM transactions
+        `SELECT transactions.*, ${FUND_COLUMNS} FROM transactions
           WHERE deleted = 1
           ORDER BY updated_at DESC, id
          LIMIT ?`,
@@ -1168,11 +1236,52 @@ export class TransactionService {
       params.push(`%${escapeLikePattern(query.q.trim())}%`);
     }
 
+    if (query.search !== undefined && query.search.trim() !== '') {
+      // SQLite lower folds ASCII only. instr is literal and preserves embedded NULs,
+      // unlike LIKE, which treats NUL as the end of either string.
+      // Decode array elements, not the JSON serialization (which escapes quotes and slashes).
+      // Malformed/non-array legacy JSON contributes no tags, just like parseTagsJson.
+      const term = query.search.trim();
+      where.push(`(instr(lower(note), lower(?)) > 0
+        OR EXISTS (SELECT 1 FROM categories c WHERE c.id = transactions.category_id AND instr(lower(c.name), lower(?)) > 0)
+        OR EXISTS (SELECT 1 FROM accounts a WHERE a.id = transactions.account_id AND instr(lower(a.name), lower(?)) > 0)
+        OR EXISTS (SELECT 1 FROM json_each(CASE
+          WHEN json_valid(tags_json) THEN CASE WHEN json_type(tags_json) = 'array' THEN tags_json ELSE '[]' END
+          ELSE '[]' END) tag WHERE tag.type = 'text' AND instr(lower(tag.value), lower(?)) > 0)
+        OR instr(printf('%d.%02d', amount_cents / 100, amount_cents % 100), lower(?)) > 0)`);
+      params.push(term, term, term, term, term);
+    }
+
     return { whereSql: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '', params };
   }
 
+  /** Check the exact matching scope before hashing or materialising any result rows. */
+  private preflightSearch(whereSql: string, params: (string | number)[]): number {
+    // CAST to BLOB counts UTF-8 bytes, including embedded NULs. Keep these fields
+    // aligned with the variable-length TEXT columns in transactions / snapshot rows.
+    const scope = this.db.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(
+      length(CAST(id AS BLOB)) + length(CAST(category_id AS BLOB)) +
+      length(CAST(account_id AS BLOB)) + length(CAST(note AS BLOB)) +
+      length(CAST(tags_json AS BLOB)) + COALESCE(length(CAST(financial_purpose AS BLOB)), 0)
+    ), 0) AS text_bytes FROM transactions ${whereSql}`).get(...params) as { count: number; text_bytes: number };
+    if (scope.count > MAX_SEARCH_ROWS || scope.text_bytes > MAX_SEARCH_TEXT_BYTES) {
+      throw new ValidationError('搜索结果过多或文本过大，请缩小月份、账户或关键词范围后重试。');
+    }
+    return scope.count;
+  }
+
+  /** Stream a deterministic snapshot including the refund summary exposed in list DTOs. */
+  private searchSnapshotRows(whereSql: string, params: (string | number)[]): IterableIterator<unknown> {
+    return this.db.prepare(`SELECT transactions.*, ${FUND_COLUMNS},
+      (SELECT json_array(COUNT(*), COALESCE(SUM(refund.amount_cents), 0))
+         FROM refund_links link JOIN transactions refund ON refund.id = link.refund_tx_id AND refund.deleted = 0
+        WHERE link.original_tx_id = transactions.id) AS search_refund_summary
+      FROM transactions ${whereSql}
+      ORDER BY date DESC, updated_at DESC, transactions.id ASC`).iterate(...params);
+  }
+
   /** Complete live ordinary-transaction totals; salaries and transfers are separate tables. */
-  dailySummary(query: DailySummaryQuery): { items: DailySummaryItem[] } {
+  dailySummary(query: DailySummaryQuery): { items: DailySummaryItem[]; searchVersion?: 1; searchRevision?: string } {
     const { from, to, timeZone } = query;
     if (
       from === undefined || to === undefined ||
@@ -1195,55 +1304,121 @@ export class TransactionService {
       throw new ValidationError('请提供有效的 IANA timeZone 时区名称。');
     }
 
-    const { whereSql, params } = this.listPredicates({ ...query, includeDeleted: false });
-    const rows = this.db.prepare(`SELECT * FROM transactions ${whereSql}`).iterate(...params);
-    const days = new Map<string, DailySummaryItem>();
-    for (const raw of rows) {
-      const row = raw as TransactionRow;
-      const parts = formatter.formatToParts(row.date);
-      const part = (type: Intl.DateTimeFormatPartTypes): string =>
-        parts.find((value) => value.type === type)!.value;
-      const day = `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
-      const item = days.get(day) ?? { day, expenseCents: 0, incomeCents: 0, count: 0 };
-      const transaction = toDto(row);
-      item.expenseCents += expenseContribution(transaction);
-      item.incomeCents += incomeContribution(transaction);
-      if (!Number.isSafeInteger(item.expenseCents) || !Number.isSafeInteger(item.incomeCents)) {
-        throw new ValidationError('当日汇总金额超出安全整数范围，无法准确计算。');
+    const readSummary = (): { items: DailySummaryItem[]; searchVersion?: 1; searchRevision?: string } => {
+      const { whereSql, params } = this.listPredicates({ ...query, includeDeleted: false });
+      const searching = Boolean(query.search?.trim());
+      if (searching) this.preflightSearch(whereSql, params);
+      const hash = searching ? createHash('sha256') : undefined;
+      const rows = searching
+        ? this.searchSnapshotRows(whereSql, params)
+        : this.db.prepare(`SELECT * FROM transactions ${whereSql}`).iterate(...params);
+      const days = new Map<string, DailySummaryItem>();
+      for (const raw of rows) {
+        hash?.update(`${JSON.stringify(raw)}\n`);
+        const row = raw as TransactionRow;
+        const parts = formatter.formatToParts(row.date);
+        const part = (type: Intl.DateTimeFormatPartTypes): string =>
+          parts.find((value) => value.type === type)!.value;
+        const day = `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
+        const item = days.get(day) ?? { day, expenseCents: 0, incomeCents: 0, count: 0 };
+        const transaction = toDto(row);
+        item.expenseCents += expenseContribution(transaction);
+        item.incomeCents += incomeContribution(transaction);
+        if (!Number.isSafeInteger(item.expenseCents) || !Number.isSafeInteger(item.incomeCents)) {
+          throw new ValidationError('当日汇总金额超出安全整数范围，无法准确计算。');
+        }
+        item.count++;
+        days.set(day, item);
       }
-      item.count++;
-      days.set(day, item);
-    }
-    return { items: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
+      return {
+        items: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)),
+        ...(hash ? { searchVersion: 1 as const, searchRevision: hash.digest('hex') } : {}),
+      };
+    };
+    return query.search?.trim() ? this.db.transaction(readSummary)() : readSummary();
   }
 
   /** Filtered, paginated list. Newest first; newest-edited first within a day. */
   list(query: ListTransactionsQuery = {}): ListTransactionsResult {
-    const { whereSql, params } = this.listPredicates(query);
+    const hasExpectedCents = query.expectedExpenseCents !== undefined;
+    const hasExpectedCount = query.expectedExpenseCount !== undefined;
+    if (hasExpectedCents !== hasExpectedCount) {
+      throw new ValidationError('expectedExpenseCents and expectedExpenseCount must be supplied together.');
+    }
+    if (hasExpectedCents) {
+      if (
+        !Number.isSafeInteger(query.expectedExpenseCents) || query.expectedExpenseCents! < 0 ||
+        !Number.isSafeInteger(query.expectedExpenseCount) || query.expectedExpenseCount! < 0 ||
+        query.type !== TYPE_EXPENSE || query.categoryId === undefined || query.includeDeleted === true ||
+        query.from === undefined || query.to === undefined || !Number.isSafeInteger(query.from) ||
+        !Number.isSafeInteger(query.to) || query.from >= query.to ||
+        query.tag !== undefined || query.tagId !== undefined || query.q !== undefined || query.search !== undefined
+      ) {
+        throw new ValidationError('Expense total guards require exact non-negative totals and an exact live expense category/date scope.');
+      }
+    }
     const limit = Math.min(
       Math.max(Math.trunc(query.limit ?? DEFAULT_PAGE_SIZE), 1),
       MAX_PAGE_SIZE,
     );
     const offset = Math.max(Math.trunc(query.offset ?? 0), 0);
 
-    const totalRow = this.db
-      .prepare(`SELECT COUNT(*) AS c FROM transactions ${whereSql}`)
-      .get(...params) as { c: number };
+    const readPage = (): ListTransactionsResult => {
+      const { whereSql, params } = this.listPredicates(query);
+      const searching = Boolean(query.search?.trim());
+      let searchRevision: string | undefined;
+      let total: number;
+      if (searching) {
+        total = this.preflightSearch(whereSql, params);
+        const hash = createHash('sha256');
+        for (const row of this.searchSnapshotRows(whereSql, params)) hash.update(`${JSON.stringify(row)}\n`);
+        searchRevision = hash.digest('hex');
+      } else if (query.expectedExpenseCents !== undefined && query.expectedExpenseCount !== undefined) {
+        // C3 drilldown sends the summary produced just before it starts paging. Check
+        // both row count and gross cents inside the same SQLite read transaction as
+        // the page, so an edit between the summary and a page never pairs old money
+        // with new rows. Android deliberately does not sum page amounts itself.
+        const scope = this.db
+          .prepare(
+            `SELECT COUNT(*) AS count, COALESCE(SUM(amount_cents), 0) AS expense_cents
+               FROM transactions ${whereSql}`,
+          )
+          .get(...params) as { count: number; expense_cents: number };
+        if (
+          scope.count !== query.expectedExpenseCount ||
+          scope.expense_cents !== query.expectedExpenseCents
+        ) {
+          throw new ConflictError('统计后支出账单已变化，明细读取已中止，请返回统计刷新后重试。');
+        }
+        total = scope.count;
+      } else {
+        const totalRow = this.db
+          .prepare(`SELECT COUNT(*) AS c FROM transactions ${whereSql}`)
+          .get(...params) as { c: number };
+        total = totalRow.c;
+      }
 
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM transactions ${whereSql}
-          ORDER BY date DESC, updated_at DESC
-          LIMIT ? OFFSET ?`,
-      )
-      .all(...params, limit, offset) as TransactionRow[];
+      const rows = this.db
+        .prepare(
+          `SELECT transactions.*, ${FUND_COLUMNS} FROM transactions ${whereSql}
+            ORDER BY date DESC, updated_at DESC${searching ? ', id ASC' : ''}
+            LIMIT ? OFFSET ?`,
+        )
+        .all(...params, limit, offset) as TransactionRow[];
 
-    return {
-      items: this.withRefundSummaries(rows),
-      total: totalRow.c,
-      limit,
-      offset,
+      return {
+        items: this.withRefundSummaries(rows),
+        total,
+        limit,
+        offset,
+        ...(searchRevision !== undefined ? { searchVersion: 1 as const, searchRevision } : {}),
+      };
     };
+
+    if (query.search?.trim() || (query.expectedExpenseCents !== undefined && query.expectedExpenseCount !== undefined)) {
+      return this.db.transaction(readPage)();
+    }
+    return readPage();
   }
 
   /**

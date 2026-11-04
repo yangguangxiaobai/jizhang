@@ -1,570 +1,259 @@
-# 部署手册 · jizhang（记账 Web PWA）
+# API deployment and migration
 
-面向：**已经在这台 VPS 上跑着别的站点、并且用 Nginx 或 Caddy 占着 80/443** 的场景。
+Target: Android / HarmonyOS 4 APK -> `https://jz.yansuu1.xyz/api/v1/**` -> existing Caddy -> Fastify -> existing `/data`.
+The supplied inventory shows `caddy` (`caddy:2`) uses **host networking**. Use `127.0.0.1:8081` and the host Caddy site example; do not apply the shared-network Caddy overlay to this server. Inspect the actual config mount/path before editing or reloading.
+The image contains no Web UI. `/`, old page routes and static assets return JSON 404. Existing Caddy keeps ports 80/443 and TLS.
 
-这份文档的每一处「不要做」都来自实际踩过的坑，不是泛泛的安全建议。
+These Linux commands are a runbook, not evidence of deployment. Local Docker/Caddy and server access were unavailable during preparation. Image runtime, live data, DNS, HTTPS and APK checks remain required.
 
----
+## No SSH: upload the API source bundle
 
-## 0. 部署模型（先理解这个，后面才不会踩雷）
+Operational update: the operator has now built and trial-verified the new image and has SCP access as `ubuntu@jz.yansuu1.xyz`. The original source-upload procedure below remains for reproducibility. For the inspected final cutover use [CUTOVER-KNOWN-SERVER.md](./deploy/CUTOVER-KNOWN-SERVER.md) and its separately uploaded guarded helper; no image rebuild is needed for that helper.
 
-```
-iPhone Safari ──HTTPS──▶ 你已有的 Nginx/Caddy（占 80/443，管证书）
-                              │ proxy_pass → 127.0.0.1:8081
-                              ▼
-                    jizhang 容器（只有一个）
-                    ├── Fastify：/api/** + 托管前端产物
-                    └── /data/jizhang.db（Docker 命名卷）
-```
+The prepared package is `artifacts/jizhang-api-source-2026-10-09.tar.gz`, with a matching `.tar.gz.sha256` file. It includes server/shared source, build manifests, Docker/Compose files, `.env.example`, deployment tools and optional cutout source. It excludes Web/native clients, node_modules, dist, real environments, databases, backups, signing keys and repository/task data. It is a **source package**, not a prebuilt Docker image.
 
-两个关键设计：
-
-- **只监听 `127.0.0.1:8081`**。应用永远不会去抢 80/443，所以启停它不会影响你其它站点。
-- **单容器**。1 核 1G 的机器上少一个容器就少一份 Node 运行时；前端是静态产物，由同一个 Fastify 同源托管，因此没有 CORS，反代也只需转发一个上游。
-
----
-
-## 1. 部署前必须向用户确认的信息
-
-**在这些都确认之前，不要动线上环境。**
-
-| 需要知道 | 为什么 |
-|---|---|
-| SSH 主机 / 用户 / 认证方式 | 才能登录 |
-| 域名，以及是否已解析到这台 VPS | 证书签发需要解析已生效 |
-| 反代是 **Nginx 还是 Caddy**，配置文件在哪 | 两者的配置语法与 reload 方式完全不同 |
-| 是否已装 Docker 与 compose 插件 | 没有就得先装 |
-| **现有站点清单** | 改完之后要逐条确认它们仍然正常 |
-| 磁盘余量 | 镜像 + 数据库 + 备份要留空间 |
-
----
-
-## 2. 构建镜像（在**本地**，不要在 VPS 上构建）
-
-1 核 1G 的机器上跑 `docker build` 会 OOM。本地构建好再传上去。
+Recreate after source changes using Python 3.10+ (no Docker required):
 
 ```bash
-# 仓库根目录
-docker compose build
-
-# 打一个带日期的 tag，回滚时靠它
-docker tag jizhang:latest jizhang:2026-09-11
+python deploy/create-source-bundle.py --include-cutout --output artifacts/jizhang-api-source-2026-10-09.tar.gz
+python deploy/create-source-bundle.py --verify artifacts/jizhang-api-source-2026-10-09.tar.gz
 ```
 
-分发方式二选一：
+Upload **both files** through the server control panel/file manager into `/opt/jizhang-upload`. Use its Ubuntu terminal, not SSH. Unpack into a **new directory**, leaving the original Compose/environment files untouched:
 
 ```bash
-# A. 走镜像仓库（推荐，最省事）
-docker tag jizhang:2026-09-11 <registry>/jizhang:2026-09-11
-docker push <registry>/jizhang:2026-09-11
-# 服务器上：docker pull <registry>/jizhang:2026-09-11
-
-# B. 离线传输（没有仓库时）
-docker save jizhang:2026-09-11 | gzip > jizhang-2026-09-11.tar.gz
-scp jizhang-2026-09-11.tar.gz user@host:/opt/jizhang/
-# 服务器上：gunzip -c jizhang-2026-09-11.tar.gz | docker load
+cd /opt/jizhang-upload
+sha256sum -c jizhang-api-source-2026-10-09.tar.gz.sha256
+mkdir /opt/jizhang-api-2026-10-09
+tar -xzf jizhang-api-source-2026-10-09.tar.gz -C /opt/jizhang-api-2026-10-09
+cd /opt/jizhang-api-2026-10-09/jizhang-api-source
+sha256sum -c SHA256SUMS
+python3 deploy/create-source-bundle.py --verify /opt/jizhang-upload/jizhang-api-source-2026-10-09.tar.gz
+docker version
+docker compose version
+docker compose config --quiet
+JIZHANG_IMAGE=jizhang:api-2026-10-09 docker compose build jizhang
 ```
 
----
+Stop on checksum, extraction, dependency, or build failure. This build creates the exact API tag without starting a new service or creating a production data volume. Use a host with sufficient memory/disk; if the server is too small, build on another machine and upload the image archive below. Optional cutout source does not build/start unless requested.
 
-## 3. 首次部署
+After building, follow **all** existing-installation, backup/restore and migration steps below before `up`. Copy the original protected environment into the new directory only after inspection; do not initialize the old ledger from example credentials. Use the exact external-volume/bind overlay. This server's host-network Caddy needs no shared-network overlay. Current packaging/config validation does not establish engine-tested build or server acceptance.
+
+## Prepare an image on another machine
+
+Use Docker with Compose **2.24+** (`env_file.required` requires 2.24). Build on a machine with enough memory and matching the server architecture; a 1 GB VPS is unsuitable for native dependency/image builds. From the repository root:
 
 ```bash
-# 服务器上
-sudo mkdir -p /opt/jizhang && cd /opt/jizhang
-
-# docker-compose.yml 从仓库拷过来，并把 image 改成带 tag 的那个
-#   image: jizhang:2026-09-11
+docker version
+docker compose version
+docker compose config --quiet
+JIZHANG_IMAGE=jizhang:api-2026-10-09 docker compose build jizhang
+docker save -o jizhang-api-2026-10-09.tar jizhang:api-2026-10-09
+# Transfer the tar file through the available server panel/file upload.
+# No SSH access is currently available; use the server's Ubuntu terminal.
+# On the server:
+docker load -i /opt/jizhang/jizhang-api-2026-10-09.tar
 ```
 
-创建 `.env`：
+Registry push/pull is an alternative. Set `JIZHANG_IMAGE` to the tested tag; retain the old image separately. Transfer `.env.example`, all `docker-compose*.yml` and `deploy/` too. Server startup uses `--no-build`.
+
+## Inspect the existing installation
+
+Find the application container and actual Caddy topology. Inspect specific fields only: full container inspection or `compose config` without `--quiet` can disclose secrets.
 
 ```bash
-cp .env.example .env
-chmod 600 .env          # 收紧权限
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
+OLD_CONTAINER=jizhang # change to the actual old application container
+# Record mount type, Name/Source and Destination; identify the real database mount.
+docker inspect --format '{{range .Mounts}}{{printf "%s %s %s -> %s\n" .Type .Name .Source .Destination}}{{end}}' "$OLD_CONTAINER"
+docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$OLD_CONTAINER"
+docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$OLD_CONTAINER"
+docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$OLD_CONTAINER"
+docker inspect --format '{{.Config.User}}' "$OLD_CONTAINER"
+df -h
 ```
 
-**`.env` 里不要放明文密码。** 需要这几项：
+Record the original Compose project/files, service, mount and Caddy config path. Obtain the old `.env` securely, without printing it. Preserve original username, authentication configuration, session TTL, `TZ` and **the exact `JIZHANG_AI_ENCRYPTION_KEY`**. That key is outside SQLite; replacing it makes saved provider secrets unreadable. Keep protected original environment/config copies for rollback. Do not replace old credentials with the example defaults.
 
+Set the new `.env`, preserving all original runtime settings:
+
+```dotenv
+JIZHANG_IMAGE=jizhang:api-2026-10-09
+# Named-volume case: exact Name of the inspected old /data mount.
+JIZHANG_DATA_VOLUME=actual-existing-volume-name
+# Bridge-network Caddy only, not the current host-network Caddy:
+# JIZHANG_CADDY_NETWORK=actual-existing-caddy-network
 ```
-JIZHANG_USERNAME=admin
-JIZHANG_PASSWORD_HASH=placeholder-required-to-boot-but-never-read
-SESSION_TTL_DAYS=30
-LOG_LEVEL=info
-TRUST_PROXY=true
-TZ=Asia/Shanghai
-# Optional: 64 hex chars (32 bytes) to encrypt the AI provider key saved in Settings.
-JIZHANG_AI_ENCRYPTION_KEY=
-```
 
-⚠️ **`TZ` 必须是用户日历时区**（中国用 `Asia/Shanghai`）。容器默认 UTC 时，北京时间 9/10 00:00 会被算成 9/9，工资被划进上一预算周期，当期「已用」会一直是 0。生产 compose 的 `environment` 里也应有 `TZ: Asia/Shanghai`。
+Named-volume upgrades always include `docker-compose.migration.yml`. Its external lookup fails if the exact volume is missing, regardless of project name. Verify with `docker volume inspect actual-existing-volume-name`. Do not guess `jizhang-data`: Compose normally prefixes it.
 
-⚠️ **`JIZHANG_PASSWORD_HASH` 必须存在，否则容器起不来**——它在 `config.ts` 的 `REQUIRED`
-列表里，缺失时服务打印配置错误并退出 1，容器会一直在 `Restarting`。但它的**值不参与任何逻辑**
-（`config.passwordHash` 被读进配置后无人使用），所以随便填一个占位串即可。
+If mount Type is **bind**, use `docker-compose.bind.yml` **instead of** the migration overlay and set `JIZHANG_DATA_BIND` to the exact absolute Source. It refuses to create a missing directory. Preserve existing ownership; runtime `node` is UID/GID 1000. Never recursively chown an uninspected path. If old DATA_DIR is not `/data`, resolve its actual database and mount before adapting these commands.
 
-AI provider 的 API key 通过应用内「我的 → AI 助手」配置，但只有设置了
-`JIZHANG_AI_ENCRYPTION_KEY` 才能保存或使用密钥。该密钥不写入 SQLite 备份；如果更换或丢失，
-数据库里的旧 provider 密文将无法解密，需要重新输入 API key。生成命令：
+## Backup and isolated restore drill
+
+Stop writes for a short maintenance window. These examples assume the inspected named-volume `/data`; for bind use the exact absolute host path as `DATA_MOUNT_SOURCE` and verify that directory instead of `docker volume inspect`.
 
 ```bash
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+DATA_MOUNT_SOURCE=actual-existing-volume-name
+# Confirm first: docker run -v would create a missing named volume.
+docker volume inspect "$DATA_MOUNT_SOURCE" >/dev/null
+MIGRATION_DIR="/opt/jizhang/migration-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$MIGRATION_DIR/data"
+chmod 700 "$MIGRATION_DIR"
+cp .env "$MIGRATION_DIR/original.env" # the securely preserved OLD env
+chmod 600 "$MIGRATION_DIR/original.env"
+# Copy original Compose files and Caddy config here too; do not publish them.
+OLD_IMAGE="jizhang:rollback-$(date +%Y%m%d-%H%M%S)"
+OLD_IMAGE_ID=$(docker inspect --format '{{.Image}}' "$OLD_CONTAINER")
+docker tag "$OLD_IMAGE_ID" "$OLD_IMAGE"
+printf '%s\n' "$OLD_IMAGE" > "$MIGRATION_DIR/old-image.txt"
+docker stop "$OLD_CONTAINER"
+# Stop any other writers sharing this database before continuing.
+docker run --rm --env-file "$MIGRATION_DIR/original.env" \
+  -e NODE_ENV=production -e DATA_DIR=/data \
+  -v "$DATA_MOUNT_SOURCE:/data" "$OLD_IMAGE" \
+  node packages/server/dist/cli.js backup /data/backups/pre-api 0
+# CLI uses VACUUM INTO: includes WAL commits, self-verifies, no pruning.
+# With ALL writers stopped, archive the whole /data including old backups.
+docker cp "$OLD_CONTAINER:/data/." "$MIGRATION_DIR/data/"
 ```
 
-> 真正用于登录的凭据在数据库的 `users` 表里，只有下面这条命令会写它：
->
-> ```bash
-> docker compose exec -it jizhang node packages/server/dist/cli.js set-password
-> ```
->
-> 注意两点，都会直接导致「密码设了但登不进去」：
-> 1. **必须带 `-it`**。它关掉回显读密码，没有 TTY 就报错退出；`docker compose exec` 不加 `-t`
->    同样不行。
-> 2. **路径是 `packages/server/dist/cli.js`**（镜像里只有编译产物，没有 `src/`）。
-
-启动：
+Choose `BACKUP_FILE` from the successful output (basename only), not a guessed older snapshot. Photographs are SQLite BLOBs and included in the snapshot. The full archive protects old backups and any additional files. Copy the protected migration directory off-server too.
 
 ```bash
-docker compose up -d
-docker compose ps            # 应为 healthy
-docker compose logs -f       # 看到 "sqlite ready" 与 migrationsApplied
+BACKUP_FILE=jizhang-YYYY-MM-DDTHH-MM-SS-mmm.db
+RESTORE_VOLUME="jizhang-restore-drill-$(date +%Y%m%d-%H%M%S)"
+docker volume create "$RESTORE_VOLUME"
+docker run --rm --env-file "$MIGRATION_DIR/original.env" \
+  -e NODE_ENV=production -e DATA_DIR=/data \
+  -v "$RESTORE_VOLUME:/data" -v "$MIGRATION_DIR:/migration:ro" "$OLD_IMAGE" \
+  node packages/server/dist/cli.js restore "/migration/data/backups/pre-api/$BACKUP_FILE"
+docker run --rm -v "$RESTORE_VOLUME:/data:ro" -v "$PWD/deploy:/tools:ro" "$OLD_IMAGE" \
+  node /tools/db-manifest.mjs /data/jizhang.db > "$MIGRATION_DIR/restored-manifest.json"
+docker run --rm -v "$MIGRATION_DIR:/migration:ro" -v "$PWD/deploy:/tools:ro" "$OLD_IMAGE" \
+  node /tools/db-manifest.mjs "/migration/data/backups/pre-api/$BACKUP_FILE" > "$MIGRATION_DIR/backup-manifest.json"
+diff -u "$MIGRATION_DIR/backup-manifest.json" "$MIGRATION_DIR/restored-manifest.json"
 ```
 
-冒烟测试（在服务器本机）：
+Successful restore, integrity `ok` and matching table counts/digests are the drill evidence. The manifest utility logs no rows, keys or tokens. Keep the drill volume until acceptance. On failure restart the unchanged old container and investigate; do not upgrade using an unverified backup. CLI loopback checks cannot detect a different container writing the same volume: stop **every** writer.
+
+## Start the API with preserved data
+
+In Bash, retain an array so every command includes the correct overlay:
 
 ```bash
+compose=(docker compose -f docker-compose.yml -f docker-compose.migration.yml)
+# Bind: replace migration.yml with docker-compose.bind.yml.
+# Bridge-network Caddy only: append -f docker-compose.caddy.yml.
+# Current server's host-network caddy: do not append the Caddy overlay.
+"${compose[@]}" config --quiet
+```
+
+If using the old Compose project, set `COMPOSE_PROJECT_NAME` to its inspected name and keep service/container names so Compose replaces the old stopped container. A different project with the same `container_name` conflicts: after backup/image/config recording, rename the old container (e.g. `docker rename "$OLD_CONTAINER" jizhang-pre-api`) and record the new name for rollback. Never start old and new against the same data together.
+
+```bash
+"${compose[@]}" up -d --no-build --force-recreate jizhang
+"${compose[@]}" exec -T jizhang whoami               # node
 curl -fsS http://127.0.0.1:8081/api/v1/health
-# {"status":"ok","version":"0.1.0","uptime":12}
+curl -sS -D - http://127.0.0.1:8081/                   # 404 application/json
+curl -sS -D - http://127.0.0.1:8081/dashboard          # 404 application/json
+"${compose[@]}" exec -T jizhang node deploy/db-manifest.mjs /data/jizhang.db \
+  > "$MIGRATION_DIR/new-manifest.json"
 ```
 
----
+Compare old/new manifests **before new writes**. Migrations can legitimately add tables/columns: investigate changes against the actual migrations rather than accepting unexplained differences. Confirm existing ledger, salary allocations, budgets, conversations and photographs in the APK. Roll back if health/login/data fail.
 
-## 4. 反代配置：**只新增，不修改**
-
-> ⚠️ 这一步是整份文档里风险最高的操作。做之前先备份现有配置目录。
-> 出错的典型后果不是本应用打不开，而是**你其它站点一起挂掉**。
-
-### 4.1 先备份
+For a **brand-new installation** only, use the base Compose file, which initializes a project-scoped volume. Create `.env` from the example, then provision the login interactively after startup:
 
 ```bash
-# Nginx
-sudo tar czf /root/nginx-backup-$(date +%F).tar.gz /etc/nginx
-
-# Caddy
-sudo tar czf /root/caddy-backup-$(date +%F).tar.gz /etc/caddy
+docker compose exec -it jizhang node packages/server/dist/cli.js set-password
 ```
 
-### 4.2 Nginx：新增一个 server block
+The environment password hash is a boot validation setting, not a database login provisioner. Existing users remain in the old database; an upgrade needs no password reset.
 
-放到 `/etc/nginx/conf.d/jizhang.conf`（**新建文件**，不要改现有文件）：
+## Existing Caddy: actual topology determines upstream
 
-```nginx
-server {
-    listen 80;
-    server_name jizhang.example.com;
+Replace only the `jz.yansuu1.xyz` site block. Remove its old SPA/file_server fallback and proxy the complete URI. Preserve other domains, global settings, imports and certificate storage. DNS A/AAAA must resolve to this server and its existing 80/443 must reach Caddy. A prior local probe concerned the superseded `.com` domain. Verify the confirmed `.xyz` domain on the server/public resolvers before requesting TLS.
 
-    # 交给证书机器人；如果证书由别处统一签发，这段按你的现有做法写
-    location /.well-known/acme-challenge/ { root /var/www/certbot; }
-    location / { return 301 https://$host$request_uri; }
-}
+**Current server: host-network Caddy container.** The supplied inventory records `caddy:2` with network `host`, `jizhang:64be4b1` on `jizhang_default` and `jizhang_cutout-internal`, and `jizhang-cutout:64be4b1` on the internal network. `komari` is unrelated and must remain untouched. The old `64be4b1` tag is rollback inspection evidence, not the new API image tag. Data mounts and Caddy config paths are still unconfirmed.
 
-server {
-    listen 443 ssl;
-    http2 on;
-    server_name jizhang.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/jizhang.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/jizhang.example.com/privkey.pem;
-
-    # PWA 需要相对宽松的上传体积其实很小，但保留一个上限
-    client_max_body_size 2m;
-
-    location / {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_http_version 1.1;
-
-        # ★ 这三个头是必须的：
-        #   X-Forwarded-Proto 决定 Fastify 是否认为连接是 https，
-        #   而会话 Cookie 带 Secure 属性 —— 缺了它 Cookie 不会被浏览器保存，
-        #   表现为「登录成功但立刻又跳回登录页」。
-        proxy_set_header Host              $host;
-        proxy_set_header X-Real-IP         $remote_addr;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-校验并重载（**先 `-t`，通过才 reload**）：
+Host networking shares the host's network namespace. Merge [Caddyfile.host.example](./deploy/Caddyfile.host.example), upstream `127.0.0.1:8081`. Use base Compose plus the inspected data migration/bind overlay, **without** `docker-compose.caddy.yml`; retain existing Caddy host networking and other site blocks. After inspecting its actual config path/mount, validate and reload inside the existing container:
 
 ```bash
-sudo nginx -t && sudo systemctl reload nginx
+CADDY_CONTAINER=caddy
+# Set to the verified path INSIDE this container; no config path is assumed.
+CADDY_CONFIG=/actual/inspected/path/Caddyfile
+docker exec "$CADDY_CONTAINER" caddy validate --config "$CADDY_CONFIG" --adapter caddyfile
+docker exec "$CADDY_CONTAINER" caddy reload --config "$CADDY_CONFIG" --adapter caddyfile
 ```
 
-### 4.3 Caddy：新增一个 site
-
-Caddyfile 里**追加**：
-
-```
-jizhang.example.com {
-    reverse_proxy 127.0.0.1:8081
-}
-```
-
-Caddy 会自动申请证书，并自动下发 `X-Forwarded-*`，所以不用手写头部。
+**Alternative: Caddy as a host service.** Use the same host site example and loopback upstream. Inspect its actual systemd unit/config first. Typical commands, only if matching that installation:
 
 ```bash
-caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+sudo systemctl reload caddy
 ```
 
-### 4.4 如果反代跑在**容器里**（先分清你属于哪种）
-
-上面的 `reverse_proxy 127.0.0.1:8081` 只在 **Caddy 直接跑在宿主机上**时成立。如果 Caddy 是个
-容器，**它够不到宿主机的 `127.0.0.1:8081`**：容器里的 `host.docker.internal` 解析到的是 docker
-网桥地址（如 `172.17.0.1`），那个地址到达的是宿主的 `docker0` 接口，**不是宿主回环**。这正是
-很多「端口明明通了、反代就是 502」的根因。
-
-先确认自己属于哪种，以及 jizhang 该用哪个上游：
+**Alternative: bridge-network Caddy container.** Merge [Caddyfile.container.example](./deploy/Caddyfile.container.example), use the Caddy Compose overlay. Set `JIZHANG_CADDY_NETWORK` to the existing shared network and ensure alias `jizhang-api` has no collision. Persist that network in the **existing Caddy's** Compose config; an ad-hoc network connection is lost when it is recreated. API diagnostics remain loopback-only. In bridge networking, Caddy's `127.0.0.1` points to its own namespace, so use `jizhang-api:8081`. This alternative does not apply to the supplied host-network server inventory.
 
 ```bash
-docker ps --filter name=caddy --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
-docker network ls
-docker inspect caddy --format '{{json .NetworkSettings.Networks}}' | tr ',' '\n'
-docker inspect caddy --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+CADDY_CONTAINER=actual-caddy-container
+# Confirm the actual config path/mount first.
+docker exec "$CADDY_CONTAINER" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker exec "$CADDY_CONTAINER" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
 
-三种可行接法，**按推荐度排序**：
+Validate using the existing service's modules, environment and permissions. Some modules reserve exclusive resources during provisioning; inspect module guidance if validation conflicts rather than stopping all sites. Graceful reload retains active configuration if new provisioning fails. Recheck all other sites after reload.
 
-**① 让 jizhang 加入 Caddy 所在的网络（推荐，端口完全不暴露）**
+Caddy automatically forwards `X-Forwarded-Proto`. Keep `TRUST_PROXY=true` with this private upstream, without exposing 8081 publicly or overriding proxy headers indiscriminately.
 
-在 jizhang 的 `docker-compose.yml` 里把发布端口去掉，改成加入那个外部网络：
+## Optional cutout
 
-```yaml
-services:
-  jizhang:
-    # 不再写 ports: —— 没有宿主机端口，也就没有公网暴露面
-    networks:
-      - proxy
-
-networks:
-  proxy:
-    external: true
-    name: <上一步查到的 caddy 所在网络名>
-```
-
-Caddyfile 里写**容器名**，不用 `host.docker.internal`：
-
-```
-jz.example.com {
-    reverse_proxy jizhang:8081
-}
-```
-
-> 前提：Caddy 与 jizhang 在同一个 network 上。若 Caddy 用的是它自己 compose 默认创建的网络，
-> 上面的 `name:` 就是那个（通常是 `<目录名>_default`）。
-
-**② 把 Caddy 接进 jizhang 的网络（不改动现有 compose）**
-
-如果不想动 jizhang 的 compose，也可以反过来把**正在运行**的 Caddy 挂到 jizhang 网络上——
-`docker network connect` 是热操作，不需要重启 Caddy：
+Default Compose starts only the API. Item CRUD/photo upload works without inference. On an adequately sized host, set `JIZHANG_ITEM_CUTOUT_SERVICE_URL=http://jizhang-cutout:8090` and a tested `JIZHANG_CUTOUT_IMAGE`, then build/transfer the worker separately:
 
 ```bash
-docker network connect <jizhang 的网络名> caddy
+docker compose --profile cutout build jizhang-cutout
+# On the server with the chosen overlays:
+"${compose[@]}" --profile cutout up -d --no-build --force-recreate jizhang jizhang-cutout
 ```
 
-**③ 绑 0.0.0.0（能用，但不推荐）**
+The worker has no public ports: internal network, 3 GB memory/swap cap, 2 CPUs and 512 MB temporary image tmpfs. Do not impose it on a 1 GB server. Outage shows a cutout error while ordinary upload remains available. To disable, unset the URL, recreate the API and stop the worker. Preserve an existing worker only after resource/compatibility checks.
 
-把 jizhang 的端口从 `127.0.0.1:8081:8081` 改成 `8081:8081`，Caddy 用
-`reverse_proxy host.docker.internal:8081`。代价是**端口直接暴露在公网**上，绕过 TLS——能不用
-就不用。
+## HTTPS and APK acceptance
 
-不论哪种，改完都要：
+Run the read-only API retirement probe locally, then against the real domain. It checks health, JSON 404 for old Web paths and absence of HTML; it performs no ledger writes:
 
 ```bash
-# 在容器里校验并 reload（路径用前面 .Mounts 查到的那条）
-docker exec caddy caddy validate --config /etc/caddy/Caddyfile
-docker exec caddy caddy reload   --config /etc/caddy/Caddyfile
+node packages/server/scripts/check-api-only.mjs http://127.0.0.1:8081
+node packages/server/scripts/check-api-only.mjs https://jz.yansuu1.xyz
 ```
 
-### 4.5 改完立刻做的事
+Run from a source checkout (the runtime image does not contain server test scripts).
 
 ```bash
-# 1. 本应用能打开
-curl -fsS https://jizhang.example.com/api/v1/health
-
-# 2. ★ 你其它站点仍然正常（逐条确认，这是硬性验收项）
-curl -fsS -o /dev/null -w '%{http_code}\n' https://你其它的域名
+curl -fsS https://jz.yansuu1.xyz/api/v1/health
+curl -sS -D - https://jz.yansuu1.xyz/                 # JSON 404, no HTML
+curl -sS -D - https://jz.yansuu1.xyz/login            # JSON 404, no HTML
 ```
 
----
+In the APK verify login, process restart/session restoration, historical data/photos, encrypted AI configuration, new transaction -> budget change, imports/exports, logout and expired-session return to login. Check HTTPS login's `Secure`, `HttpOnly`, SameSite and TTL attributes without logging cookie values. Mutations require `X-Requested-With: fetch`; bodiless POST must omit JSON Content-Type. Verify CSRF and unauthenticated rejection separately. Keep TLS verification enabled.
 
-## 5. 备份与恢复
+## Rollback
 
-### 5.1 为什么不能直接 `cp` 数据库
-
-SQLite 跑在 **WAL 模式**：最近的提交在 `jizhang.db-wal` 边车里。只复制 `.db`
-主文件会拿到一个**旧快照**——开发期我就这样丢过一次诊断数据，还据此去查一个
-根本不存在的 bug。
-
-必须用 SQLite 自己的备份机制。**镜像里没有 `sqlite3` CLI**（基础镜像是
-`node:22-bookworm-slim`，为一条维护命令装一个包不值），所以备份命令做在应用自带的
-CLI 里，用的是同一个 SQLite 构建。
-
-### 5.2 备份
+Stop the new API and **all writers**. If users wrote after migration, preserve a new consistent snapshot first; reverting to the pre-upgrade ledger needs reconciliation of later writes. Changing only the image does not roll back schema migrations.
 
 ```bash
-# 容器运行中即可执行（VACUUM INTO 是事务一致的，不阻塞写入）
-docker compose exec -T jizhang node packages/server/dist/cli.js backup /data/backups 30
+"${compose[@]}" stop jizhang
+docker run --rm --env-file "$MIGRATION_DIR/original.env" \
+  -e NODE_ENV=production -e DATA_DIR=/data \
+  -v "$DATA_MOUNT_SOURCE:/data" "$OLD_IMAGE" \
+  node packages/server/dist/cli.js restore "/data/backups/pre-api/$BACKUP_FILE"
 ```
 
-输出：
+Restore original Compose/environment files and recorded project/image tag, then start the old service with `--no-build --force-recreate`, or start the retained renamed old container after releasing the new port. Restore this site's old Caddy block only if changed; validate/reload, then verify old health/login/ledger and other sites. CLI restore removes stale WAL/SHM and keeps a safety copy. Rollback uses the verified snapshot, not that safety copy; the full cold archive protects other files.
 
-```
-[jizhang] Backup ok: /data/backups/jizhang-2026-09-11T07-28-56-675.db
-          10 tables, 128.0 KiB
-```
+Never use `docker compose down -v`, volume pruning or guessed empty production volumes for migration. Retain old image/config, protected off-server backup and drill evidence until Android/server acceptance.
 
-它做了三件事，缺一不可：
+## Official references
 
-1. 用 `VACUUM INTO` 生成**事务一致**的快照（包含 WAL 里的数据）；
-2. **校验产物**：`integrity_check` 必须为 `ok` 且至少有一张表 —— 校验失败会删除该
-   档案并报错，绝不留一个看起来正常的坏文件；
-3. 按保留期清理旧档案（`0` 表示不清理）。
-
-> ⚠️ **备份必须放在卷里**（如 `/data/backups`）。放 `/tmp` 的话容器一重建就没了——
-> 而"容器重建"正是你最需要备份的时刻。
-
-从容器拷到宿主机（备份的意义在于离开这台机器）：
-
-```bash
-docker compose cp jizhang:/data/backups/jizhang-2026-09-11T07-28-56-675.db ./backups/
-```
-
-定时任务（每天 03:15，保留 30 天）：
-
-```
-15 3 * * * cd /opt/jizhang && docker compose exec -T jizhang node packages/server/dist/cli.js backup /data/backups 30 >> /var/log/jizhang-backup.log 2>&1
-```
-
-### 5.3 校验某个档案
-
-```bash
-docker compose exec -T jizhang node packages/server/dist/cli.js verify /data/backups/jizhang-2026-09-11T07-28-56-675.db
-# [jizhang] /data/backups/... is a valid database (10 tables).
-```
-
-### 5.4 恢复（**必须演练过一遍**）
-
-只测「备份文件生成了」不算验证。下面是完整的恢复流程，**在 T10 里已经实际跑通过
-一次并核对了数据**。
-
-```bash
-cd /opt/jizhang
-
-# 1. 必须先停服务：CLI 会探测 8081 端口，服务还在跑时它会拒绝执行
-docker compose stop
-
-# 2. 执行恢复（run 会在卷上新建一次性容器）
-docker compose run --rm -T --entrypoint node jizhang \
-  /app/packages/server/dist/cli.js restore /data/backups/jizhang-2026-09-11T07-28-56-675.db
-# [jizhang] Current database copied to /data/jizhang.db.before-restore-<时间戳>
-# [jizhang] Restored /data/backups/... -> /data/jizhang.db
-
-# 3. 重启并确认
-docker compose up -d
-curl -fsS http://127.0.0.1:8081/api/v1/health
-```
-
-恢复时的三道保护：
-
-- **服务在跑就拒绝**。判据是 HTTP 健康检查，不是数据库锁——WAL 模式下写锁可以和
-  运行中的服务共存，用锁判断会误放行，然后把数据库从运行中的进程底下抽走。
-- **先留存当前库**为 `jizhang.db.before-restore-<时间戳>`。恢复正是最需要回退的时刻。
-- **删除 `-wal` / `-shm` 边车**。它们描述的是**上一个**数据库，留着会和恢复的库混成
-  两个库的混合物。
-- 恢复前会**校验来源档案**，不是可用数据库就拒绝执行，且不动现有数据。
-
----
-
-## 6. 更新与回滚
-
-> 下面每条命令都是 2026-09-13 那次真实升级（账户余额 + 转账，迁移 003/004）里跑过的，
-> 不是示意。当时的结果：`migrationsApplied: [3,4]`，自动备份落在 `/data/backups/`。
-
-### 更新
-
-**不要用 `tar -czf` 包 `docker save` 的输出。** 那会得到「tar 里套 tar」，而 `gunzip -c x.tar.gz | docker load`
-会去读外层 tar 然后失败或挂住——2026-09-13 就是这么把机器搞停过一次。`docker save` 出来的已经是一个
-OCI 归档，里面的层本身就是压缩的，**再压一遍没有收益**。
-
-```bash
-# ── 本地：构建、打标签、导出（不压缩）
-
-docker compose build
-docker tag jizhang:latest jizhang:2026-09-13-2          # 用日期或 commit 短哈希，别用 latest
-docker save -o jizhang.tar jizhang:2026-09-13-2
-
-# 确认是 OCI 归档而不是套娃：应看到 manifest.json / blobs/sha256/…，且没有 *.tar
-tar -tf jizhang.tar | head -5
-tar -tf jizhang.tar | grep -c '\.tar$'                  # 必须是 0
-
-sha256sum jizhang.tar                                   # 记下来，传完在服务器上核对
-```
-
-```bash
-# ── 服务器：核对、加载、切标签
-
-# 0. 先看内存和 swap。swap 为 0 且 available 很低时，先清理构建缓存：
-docker builder prune -f
-free -m && df -h /
-
-# 1. 传上来之后先验完整性（这一步能省掉一整轮"到底哪里坏了"）
-sha256sum -c <<< "<本地算出的哈希>  /root/jizhang.tar"
-
-# 2. 从磁盘加载，不要用管道
-docker load -i /root/jizhang.tar
-
-# 3. 改 compose 的 tag，然后重建
-cd /opt/jizhang
-cp -n docker-compose.yml docker-compose.yml.bak-$(date +%F)
-sed -i 's|^    image: jizhang:.*$|    image: jizhang:2026-09-13-2|' docker-compose.yml
-docker compose up -d
-```
-
-**验证（不要只看容器起来了）**：
-
-```bash
-docker compose ps                                     # 必须 (healthy)
-docker compose logs jizhang --since 3m | grep 'sqlite ready'
-#   → 期望看到 "migrationsApplied":[3,4] 和 "backupPath":"/data/backups/jizhang-….db"
-#     这两个字段就是「迁移跑了」和「迁移前有备份」的证据。
-docker exec jizhang node -e "
-const D=require('/app/packages/server/node_modules/better-sqlite3');
-const db=new D(process.env.DATA_DIR+'/jizhang.db',{readonly:true});
-console.log(db.prepare('SELECT version,name FROM schema_migrations ORDER BY version').all());
-console.log(db.prepare('SELECT name,initial_balance_cents FROM accounts WHERE deleted=0').all());
-"
-curl -s -o /dev/null -w '%{http_code}\n' https://你的域名/api/v1/health     # 200
-```
-
-**升级后要确认前端也换了**。镜像里烤的是构建期的 `packages/web/dist`，只重启容器不会有新前端。
-SPA 是按路由分包的，所以要**在所有 chunk 里**找标记，只在 `index-*.js` 里找会误判：
-
-```bash
-docker exec jizhang sh -c 'ls /app/public/assets/*.js | wc -l'
-docker exec jizhang sh -c "grep -l 'asset-total' /app/public/assets/*.js"   # 新页面所在的 chunk
-```
-
-### 回滚
-
-镜像级回滚，秒级，不动数据库：
-
-```bash
-cd /opt/jizhang
-sed -i 's|^    image: jizhang:.*$|    image: jizhang:2026-09-13|' docker-compose.yml
-docker compose up -d
-```
-
-**回滚前不要把旧镜像删掉**——保留它才有这条路。`docker load` 新镜像不会覆盖旧 tag，所以旧的会自然留着；
-`docker image prune -a` 会把它删掉，别随手跑。
-
-数据库迁移**只增不改**：003 只加了一列（带常量默认值），004 只加了一张表。旧代码不认识它们也能正常读写，
-所以代码回滚不需要降级迁移。
-
-真要恢复数据库（不是回滚代码）才需要动 `/data`，那走 §5.4 的恢复流程，并且**必须停服**。
-
----
-
-## 7. 1 核 1G 机器的注意事项
-
-- **不要在服务器上构建**：镜像在本地构建好再传。
-- 容器已设 `--max-old-space-size=256`（Dockerfile 与 compose 都写了）。
-- 可选：给 compose 加内存上限，进一步保护宿主：
-  ```yaml
-  deploy:
-    resources:
-      limits:
-        memory: 320m
-  ```
-- 查看占用：`docker stats --no-stream jizhang`
-- 日志会无限增长，建议在 compose 里限制：
-  ```yaml
-  logging:
-    driver: json-file
-    options: { max-size: "10m", max-file: "3" }
-  ```
-
----
-
-## 8. 故障排查
-
-| 现象 | 原因与处理 |
-|---|---|
-| 容器起不来，日志说配置错误 | 缺少 `JIZHANG_USERNAME` 或 `JIZHANG_PASSWORD_HASH`。启动校验会**一次列出所有缺失项**，按提示补 `.env` |
-| 502 Bad Gateway | 容器没在跑，或端口没对上。`docker compose ps`、`curl 127.0.0.1:8081/api/v1/health` |
-| **登录成功但立刻跳回登录页** | 反代没下发 `X-Forwarded-Proto`，Fastify 认为是 http，于是不下发 `Secure` Cookie。补上 `proxy_set_header X-Forwarded-Proto $scheme;` |
-| 登录一直 401 | 账户还没设置：`docker compose exec -it jizhang node packages/server/dist/cli.js set-password`。用 `docker compose logs jizhang \| grep 'login rejected'` 看 `reason`：`no-user` = 还没建账户，`wrong-password` = 密码不对 |
-| 「需要联网才能记账」但网络正常 | 反代超时或后端挂了。看 `docker compose logs` |
-| 数据好像丢了 | 大概率是在 WAL 模式下直接 `cp` 了 `.db`。用 `.backup` 重新取快照 |
-| 改了代码但页面没变 | Service Worker 缓存。刷新两次；`sw.js` 用 `autoUpdate`，第二次加载会切到新版 |
-
----
-
-## 9. 首次上线后要做的事
-
-1. 用 iPhone Safari 打开域名，「添加到主屏幕」
-2. 从主屏图标启动，确认**没有地址栏**（standalone）
-3. 记录一次支出，在预算页看到对应模块变化
-4. 记一次工资，确认按模板比例生成各模块预算
-5. 打开飞行模式，重新启动应用，确认**能打开**且提示需要联网
-6. 逐条确认**其它站点仍正常**
-
----
-
-## 10. 环境变量速查
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `PORT` | `8081` | 容器内监听端口；compose 只映射到 `127.0.0.1:8081` |
-| `HOST` | `0.0.0.0` | 容器内必须是这个，反代从容器外连入 |
-| `TRUST_PROXY` | `false`（线上设 `true`） | 信任反代下发的 `X-Forwarded-*` |
-| `DATA_DIR` | `./data`（镜像内 `/data`） | SQLite 所在目录 |
-| `LOG_LEVEL` | `info` | pino 级别 |
-| `JIZHANG_USERNAME` | **必需** | 单用户登录名 |
-| `JIZHANG_PASSWORD_HASH` | **必需** | 占位即可，真实密码用 `set-password` 写入数据库 |
-| `SESSION_TTL_DAYS` | `30` | 会话有效期 |
-| `JIZHANG_AI_ENCRYPTION_KEY` | 可选 | 64 位十六进制；加密设置页保存的 AI API key |
-
----
-
-## 11. 原生双端发版（APK / Hap，P3）
-
-> 规则总纲见 [`clients/docs/release.md`](./clients/docs/release.md)，基线见 [`clients/docs/versions.md`](./clients/docs/versions.md)，
-> 口径对照见 [`clients/docs/parity-matrix.md`](./clients/docs/parity-matrix.md)。
-> 当前生产域名 `https://jz.yansuu1.com` 已重解析不可用，新域名待定：双端登录页首启必填服务端地址并记住，
-> 不写死域名；等新域名确定后，再回本节与 README 对应条目一并更新默认地址。
-
-### 11.1 Android APK（`clients/android`）
-
-- 包名 `com.yansuu1.jizhang`（拟定）；versionName 与根 `package.json` 同源（当前 `0.1.0`），versionCode 自增（当前 `2`）；minSdk 26 / targetSdk 34。
-- 签名用户本地保管、永不入库：`keystore.properties`（见 `keystore.properties.example`）或 `JIZHANG_*` 环境变量；
-  无 key 材料时 release 回退 debug 签名，仅形状验证、不可分发。签名丢失=无法覆盖安装，须异地备份。
-- 构建：`cd clients/android && ./gradlew clean assembleRelease`，产物 `app/build/outputs/apk/release/app-release.apk`
-  （2026-10-06 实测 ~10.7MB；`apkanalyzer manifest` 确认 id/version）。
-
-### 11.2 Harmony Hap（`clients/harmony`）
-
-- bundleName 与 APK 同名（拟定）；`AppScope/app.json5` 当前 `0.1.0`/`1`；API target 12 起（NEXT 基线，覆盖 5/6；鸿蒙 4 走 APK）。
-- IDE/SDK 基线：DevEco Studio 26.0.0.851 / SDK HarmonyOS 26.0.0.105（API 26）。
-- 无签名配置即产 unsigned Hap（仅形状/可重复构建验证）；正式签名在 DevEco 内配置，永不入库。
-- 构建（PowerShell，2026-10-06 实测 BUILD SUCCESSFUL）：
-  `cd clients/harmony; $env:DEVECO_SDK_HOME="C:/Program Files/Huawei/DevEco Studio/sdk";`
-  `& ".../hvigor/bin/hvigorw.bat" --no-daemon assembleHap`，
-  产物 `entry/build/default/outputs/default/entry-default-unsigned.hap`（~750.8KB）。
-  IDE 等价方式：DevEco 打开 `clients/harmony/` → `Build > Build Hap(s)`。
-
-### 11.3 联调与复现（新域名就绪后）
-
-1. 用 `packages/server/test/` 种子账本起后端（e2e 装置即种子来源，不新增数据）。
-2. 同一账号、同一周期，在 Web / Android / Harmony 三端截图记录 `parity-matrix.md` #1–#7 数字，逐项打勾。
-3. 关键链路演示：登录→记一笔→预算已用变化，三端一致（允许的唯一差异：分→元格式化舍入，需注明）。
+Checked 2026-10-09: [Docker host networking](https://docs.docker.com/engine/network/drivers/host/), [external volumes and exact names](https://docs.docker.com/reference/compose-file/volumes/), [Compose service/env_file/profile options](https://docs.docker.com/reference/compose-file/services/), [Caddy URI and forwarded headers](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), [Caddy validate/reload](https://caddyserver.com/docs/command-line).

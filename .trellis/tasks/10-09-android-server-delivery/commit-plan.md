@@ -1,0 +1,204 @@
+# Proposed local commits
+
+No commit has been executed. Confirmation applies only to these local batches; no push or deployment is implied. Generated APK/source archives stay outside Git. Tasks remain in progress because live deployment and full parity are pending.
+
+## feat(android): complete native workflows and session recovery
+
+- `clients/README.md`
+- `clients/android/app/build.gradle.kts`
+- `clients/android/app/src/debug/AndroidManifest.xml`
+- `clients/android/app/src/debug/java/com/yansuu1/jizhang/DemoActivity.kt`
+- `clients/android/app/src/debug/res/xml/debug_network_security.xml`
+- `clients/android/app/src/main/AndroidManifest.xml`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/DemoActivity.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/MainActivity.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/net/ApiClient.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AuthRepository.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/repo/BudgetRepository.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/repo/ItemPhotoUploader.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/repo/ItemRepository.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/BudgetTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DashboardTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DataTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DocumentFiles.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ItemsTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/LedgerLinkPicker.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/LoginScreen.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MainShell.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManageTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MyTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/PendingTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ProviderSettings.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/RecurringRulesTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalarySheet.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/StatsTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditSheet.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionsTab.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransfersTrashTabs.kt`
+- `clients/android/app/src/main/java/com/yansuu1/jizhang/ui/format.kt`
+- `clients/android/app/src/test/java/com/yansuu1/jizhang/net/NetworkContractTest.kt`
+- `clients/android/app/src/test/java/com/yansuu1/jizhang/ui/InputContractTest.kt`
+- `clients/docs/parity-matrix.md`
+- `clients/docs/release.md`
+
+## feat(server): retire public Web hosting and isolate reference tests
+
+- `package.json`
+- `packages/server/package.json`
+- `packages/server/scripts/check-api-only.mjs`
+- `packages/server/scripts/e2e-auth.mjs`
+- `packages/server/scripts/e2e-home.mjs`
+- `packages/server/scripts/e2e-master-data.mjs`
+- `packages/server/scripts/e2e-portability.mjs`
+- `packages/server/scripts/e2e-pwa.mjs`
+- `packages/server/scripts/e2e-recurring.mjs`
+- `packages/server/scripts/e2e-stats.mjs`
+- `packages/server/scripts/e2e-transactions.mjs`
+- `packages/server/scripts/e2e-trash.mjs`
+- `packages/server/scripts/lib/retired-web.mjs`
+- `packages/server/src/app.ts`
+- `packages/server/src/config.ts`
+- `packages/server/test/app.test.ts`
+- `packages/web/e2e/fixtures.mjs`
+- `packages/web/e2e/reference-host.mjs`
+- `pnpm-lock.yaml`
+
+## feat(deploy): prepare API Docker and container Caddy migration
+
+- `.dockerignore`
+- `.env.example`
+- `.gitignore`
+- `.trellis/spec/backend/directory-structure.md`
+- `.trellis/spec/backend/error-handling.md`
+- `.trellis/spec/backend/index.md`
+- `.trellis/spec/backend/native-delivery.md`
+- `.trellis/spec/backend/quality-guidelines.md`
+- `.trellis/tasks/10-09-android-production-ready/check.jsonl`
+- `.trellis/tasks/10-09-android-production-ready/design.md`
+- `.trellis/tasks/10-09-android-production-ready/implement.jsonl`
+- `.trellis/tasks/10-09-android-production-ready/implement.md`
+- `.trellis/tasks/10-09-android-production-ready/notes.md`
+- `.trellis/tasks/10-09-android-production-ready/prd.md`
+- `.trellis/tasks/10-09-android-production-ready/research/android15-budget-smoke.png`
+- `.trellis/tasks/10-09-android-production-ready/research/android15-csv-roundtrip.png`
+- `.trellis/tasks/10-09-android-production-ready/research/check-review.md`
+- `.trellis/tasks/10-09-android-production-ready/research/emulator-smoke.md`
+- `.trellis/tasks/10-09-android-production-ready/task.json`
+- `.trellis/tasks/10-09-android-server-delivery/check.jsonl`
+- `.trellis/tasks/10-09-android-server-delivery/commit-plan.md`
+- `.trellis/tasks/10-09-android-server-delivery/delivery-status.md`
+- `.trellis/tasks/10-09-android-server-delivery/design.md`
+- `.trellis/tasks/10-09-android-server-delivery/implement.jsonl`
+- `.trellis/tasks/10-09-android-server-delivery/implement.md`
+- `.trellis/tasks/10-09-android-server-delivery/notes.md`
+- `.trellis/tasks/10-09-android-server-delivery/prd.md`
+- `.trellis/tasks/10-09-android-server-delivery/task.json`
+- `.trellis/tasks/10-09-api-docker-caddy/check.jsonl`
+- `.trellis/tasks/10-09-api-docker-caddy/deployment-evidence.md`
+- `.trellis/tasks/10-09-api-docker-caddy/design.md`
+- `.trellis/tasks/10-09-api-docker-caddy/implement.jsonl`
+- `.trellis/tasks/10-09-api-docker-caddy/implement.md`
+- `.trellis/tasks/10-09-api-docker-caddy/prd.md`
+- `.trellis/tasks/10-09-api-docker-caddy/task.json`
+- `.trellis/tasks/10-09-retire-web/check.jsonl`
+- `.trellis/tasks/10-09-retire-web/design.md`
+- `.trellis/tasks/10-09-retire-web/implement.jsonl`
+- `.trellis/tasks/10-09-retire-web/implement.md`
+- `.trellis/tasks/10-09-retire-web/implementation-notes.md`
+- `.trellis/tasks/10-09-retire-web/prd.md`
+- `.trellis/tasks/10-09-retire-web/task.json`
+- `DEPLOY.md`
+- `Dockerfile`
+- `README.md`
+- `deploy/Caddyfile.container.example`
+- `deploy/Caddyfile.host.example`
+- `deploy/create-source-bundle.py`
+- `deploy/db-manifest.mjs`
+- `deploy/db-manifest.test.mjs`
+- `deploy/test_source_bundle.py`
+- `docker-compose.bind.yml`
+- `docker-compose.caddy.yml`
+- `docker-compose.migration.yml`
+- `docker-compose.yml`
+
+## Existing unrelated changes excluded from this proposal
+
+- `.agents/skills/trellis-before-dev/SKILL.md`
+- `.agents/skills/trellis-brainstorm/SKILL.md`
+- `.agents/skills/trellis-break-loop/SKILL.md`
+- `.agents/skills/trellis-channel/SKILL.md`
+- `.agents/skills/trellis-channel/references/command-reference.md`
+- `.agents/skills/trellis-channel/references/forum.md`
+- `.agents/skills/trellis-channel/references/progress-debugging.md`
+- `.agents/skills/trellis-channel/references/workers.md`
+- `.agents/skills/trellis-channel/references/workflows.md`
+- `.agents/skills/trellis-check/SKILL.md`
+- `.agents/skills/trellis-continue/SKILL.md`
+- `.agents/skills/trellis-finish-work/SKILL.md`
+- `.agents/skills/trellis-meta/SKILL.md`
+- `.agents/skills/trellis-meta/references/customize-local/add-project-local-conventions.md`
+- `.agents/skills/trellis-meta/references/customize-local/change-agents.md`
+- `.agents/skills/trellis-meta/references/customize-local/change-context-loading.md`
+- `.agents/skills/trellis-meta/references/customize-local/change-hooks.md`
+- `.agents/skills/trellis-meta/references/customize-local/change-skills-or-commands.md`
+- `.agents/skills/trellis-meta/references/customize-local/change-spec-structure.md`
+- `.agents/skills/trellis-meta/references/customize-local/change-task-lifecycle.md`
+- `.agents/skills/trellis-meta/references/customize-local/change-workflow.md`
+- `.agents/skills/trellis-meta/references/customize-local/overview.md`
+- `.agents/skills/trellis-meta/references/local-architecture/bundled-skills.md`
+- `.agents/skills/trellis-meta/references/local-architecture/context-injection.md`
+- `.agents/skills/trellis-meta/references/local-architecture/generated-files.md`
+- `.agents/skills/trellis-meta/references/local-architecture/multi-agent-channel.md`
+- `.agents/skills/trellis-meta/references/local-architecture/overview.md`
+- `.agents/skills/trellis-meta/references/local-architecture/spec-system.md`
+- `.agents/skills/trellis-meta/references/local-architecture/task-system.md`
+- `.agents/skills/trellis-meta/references/local-architecture/workflow.md`
+- `.agents/skills/trellis-meta/references/local-architecture/workspace-memory.md`
+- `.agents/skills/trellis-meta/references/platform-files/agents.md`
+- `.agents/skills/trellis-meta/references/platform-files/hooks-and-settings.md`
+- `.agents/skills/trellis-meta/references/platform-files/overview.md`
+- `.agents/skills/trellis-meta/references/platform-files/platform-map.md`
+- `.agents/skills/trellis-meta/references/platform-files/skills-and-commands.md`
+- `.agents/skills/trellis-session-insight/SKILL.md`
+- `.agents/skills/trellis-session-insight/references/cli-quick-reference.md`
+- `.agents/skills/trellis-session-insight/references/triggering-patterns.md`
+- `.agents/skills/trellis-spec-bootstrap/SKILL.md`
+- `.agents/skills/trellis-spec-bootstrap/references/mcp-setup.md`
+- `.agents/skills/trellis-spec-bootstrap/references/repository-analysis.md`
+- `.agents/skills/trellis-spec-bootstrap/references/spec-task-planning.md`
+- `.agents/skills/trellis-spec-bootstrap/references/spec-writing.md`
+- `.agents/skills/trellis-start/SKILL.md`
+- `.agents/skills/trellis-update-spec/SKILL.md`
+- `.codex/agents/trellis-check.toml`
+- `.codex/agents/trellis-implement.toml`
+- `.codex/agents/trellis-research.toml`
+- `.codex/config.toml`
+- `.codex/hooks.json`
+- `.codex/hooks/inject-subagent-context.py`
+- `.codex/hooks/inject-workflow-state.py`
+- `.codex/hooks/session-start.py`
+- `.pi/.goals-pool-snapshot.json`
+- `.pi/agents/trellis-check.md`
+- `.pi/agents/trellis-implement.md`
+- `.pi/agents/trellis-research.md`
+- `.pi/extensions/trellis/index.ts`
+- `.pi/goals/.goal-ledger-checkpoint.json`
+- `.pi/goals/active_goal_2026100614130706_muwa8faw-7acan4.md`
+- `.pi/goals/goal_events.jsonl`
+- `.pi/prompts/trellis-continue.md`
+- `.pi/prompts/trellis-finish-work.md`
+- `.pi/prompts/trellis-start.md`
+- `.pi/settings.json`
+- `.tmp-native-expire.mjs`
+- `.tmp-native-smoke-host.mjs`
+- `.tmp-native-ui.py`
+- `.trellis/.template-hashes.json`
+- `.trellis/tasks/00-join-yansuu1/prd.md`
+- `.trellis/tasks/00-join-yansuu1/task.json`
+- `.trellis/workspace/yansuu1/index.md`
+- `.trellis/workspace/yansuu1/journal-1.md`
+
+## Verification and outstanding gates
+
+11 Android JVM tests and both variants build/lint passed. Server478/shared174 tests, checks/build, two manifest and two source-bundle tests passed. Compose models and isolated manifest lockfile validation passed. Emulator core/session/CSV/backup/master/template smoke passed. Docker engine, actual server migration/Caddy reload/HTTPS auth, physical HarmonyOS4 and full AI/cutout/platform-file replay remain pending; no task archive is proposed.

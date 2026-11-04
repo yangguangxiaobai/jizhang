@@ -1,0 +1,3 @@
+b25882f4 5de1a6c8 completed awaiting-choice src=null answeredOpt=null answeredAt=null bornAnswered=false created=1792144125085
+   input={"type":"text","text":"UI TEST C: I need one single-select clarification question about coffee Dining or Entertainment, do not book anything"} | q={"version":1,"id":"efb18d50-0657-4f41-8582-f465b8fc1244","clarification":{"id":"efb18d50-0657-4f41-8582-f465b8fc1244","selection":"single","question":"Choose a category for the coffee:","options":[{"id":"839b6c54-8ddf-4fca-b554-73b90b65b288
+EVENT_TOTAL=700

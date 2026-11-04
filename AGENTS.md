@@ -19,3 +19,7 @@ If you're using Codex or another agent-capable tool, additional project-scoped h
 Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
 
 <!-- TRELLIS:END -->
+
+## Android function inventory maintenance
+
+`clients/android/README.md` is the maintained catalogue of current Android behaviour. Read the affected sections before changing Android UI, repositories or the API contracts consumed by Android. In the same change, update the affected stable feature IDs, fields/validation, entry points, API coverage, known gaps and change log. Preserve IDs when moving or removing features; mark removed entries instead of recycling their IDs. Advance the audit date only after rechecking the corresponding source. Distinguish source implementation from device verification and backend-only capability. `clients/android/ui-redesign/README.md` is a design plan and must not be used as implementation evidence.

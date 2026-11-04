@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Read 5 node(s) (66KB) — full data written to:\n  C:\\Users\\QUIZ\\AppData\\Local\\Temp\\.ardot\\reads\\batch_read-32_11_4-sold-20261015_160034996.jsonl\n\nJSONL, one JSON object per line: line 1 is metadata, then one line per requested node, then `_resolvedComponent` lines, then `_propertyMap` lines. Grep this file by node id for a single node, or read it with an offset/limit window.\n\nTop-level: 32:11 AI14 流式回应中 · 390×844 (FRAME) | 32:75 AI15 追问单选与自由输入 · 390×844 (FRAME) | 32:123 AI16 待确认财务卡(明确未入账) · 390×844 (FRAME) | 32:172 AI17 回答完成独立视觉信号 · 390×844 (FRAME) | 32:214 AI18 断流重连与失败提示 · 390×844 (FRAME)\nIssues:\n  - Some nodes do not have the specified properties will be omitted in the result"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

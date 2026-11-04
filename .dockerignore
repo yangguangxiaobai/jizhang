@@ -10,7 +10,11 @@ node_modules
 **/*.tsbuildinfo
 *.pt
 data
+**/*.db
+**/*.db-wal
+**/*.db-shm
 coverage
+.tmp-*
 .git
 .gitignore
 .dockerignore
@@ -21,6 +25,15 @@ coverage
 .dsh
 .vscode
 .idea
+.tmp-*
+**/.tmp-*
+clients
+packages/web
+**/build
+**/*.jks
+**/*.keystore
+**/keystore.properties
+**/local.properties
 *.log
 *.tar
 *.tar.gz

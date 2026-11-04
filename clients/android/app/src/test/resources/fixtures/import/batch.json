@@ -1,0 +1,48 @@
+{
+  "batch": {
+    "batchId": "91683a05-3168-4358-aae7-98cdc8616a92",
+    "conversationId": "ae02086d-c380-4f20-948d-881e5a0eb118",
+    "version": 1,
+    "status": "prepared",
+    "viewRevision": "126d2705b6c6ea0a4f48328c4f9d8a812b2fd011b5c413ddaa614db0d0dee2d1",
+    "files": [
+      {
+        "fileIndex": 0,
+        "fileName": "synthetic-wechat.csv",
+        "source": "auto",
+        "sizeBytes": 6259,
+        "sha256": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b",
+        "parseStatus": "ok",
+        "rawRowCount": 34,
+        "collectedRowCount": 34,
+        "error": null
+      }
+    ],
+    "summary": {
+      "totalItems": 34,
+      "importable": 34,
+      "existing": 0,
+      "ignored": 8,
+      "mergedGroups": 0,
+      "conflictGroups": 0,
+      "weakDuplicateGroups": 0,
+      "expenseCents": 284555,
+      "incomeCents": 19022,
+      "dateFrom": "2026-09-11",
+      "dateTo": "2026-09-18",
+      "legacyLedgerMatches": 0,
+      "unparsedFiles": 0,
+      "sourceRecords": 34,
+      "notices": []
+    },
+    "analysis": {
+      "state": "idle",
+      "analysisRevision": 0,
+      "analysed": 0,
+      "providerCalls": 0,
+      "suggestedNewCategories": 0,
+      "message": null
+    },
+    "result": null
+  }
+}

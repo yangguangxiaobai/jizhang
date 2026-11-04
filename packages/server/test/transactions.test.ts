@@ -24,6 +24,8 @@ import {
 import {
   TransactionService,
   escapeLikePattern,
+  MAX_SEARCH_ROWS,
+  MAX_SEARCH_TEXT_BYTES,
   type TransactionDto,
 } from '../src/services/transaction-service.js';
 
@@ -1249,3 +1251,249 @@ describe('transaction routes are protected', () => {
     expect(response.statusCode).toBe(403);
   });
 });
+
+describe('independent bill search', () => {
+  const from = Date.UTC(2026, 7, 1);
+  const to = Date.UTC(2026, 8, 1);
+
+  async function get(path: string, params: Record<string, string>) {
+    const response = await app.inject({ method: 'GET', url: `${path}?${new URLSearchParams(params)}`, headers: as(cookie) });
+    expect(response.statusCode, response.body).toBe(200);
+    return response.json();
+  }
+
+  it('searches real decoded fields, historical names, exact cents and literal special characters', async () => {
+    db.prepare('UPDATE categories SET name = ? WHERE id = ?').run('旧分类Cafe', FOOD);
+    db.prepare('UPDATE accounts SET name = ? WHERE id = ?').run('旧账户Wallet', ACCOUNT);
+    const row = service.create(createBody({ date: from, amountCents: 11250, note: '午餐 50%_\\path', tags: ['标签"quoted\\name'] }));
+    service.create(createBody({ date: from, amountCents: 1200, categoryId: TRANSPORT, note: 'other', tags: ['plain'] }));
+    db.prepare('UPDATE categories SET deleted = 1 WHERE id = ?').run(FOOD);
+    db.prepare('UPDATE accounts SET deleted = 1 WHERE id = ?').run(ACCOUNT);
+    for (const term of ['午餐', '分类cafe', '账户wallet', '签"quoted\\', '12.50', '50%_', '\\path']) {
+      const result = await get('/api/v1/transactions', { search: term });
+      expect(result.searchVersion, term).toBe(1);
+      expect(result.items.map((item: TransactionDto) => item.id), term).toContain(row.id);
+    }
+    for (const term of ['50%X', 'quoted/name', '分类CAFÉ', '112.51']) {
+      const result = await get('/api/v1/transactions', { search: term });
+      expect(result.total, term).toBe(0);
+    }
+    expect((await get('/api/v1/transactions', { search: '12' })).total).toBe(2);
+    expect((await get('/api/v1/transactions', { q: '分类' })).total).toBe(0);
+    expect((await get('/api/v1/transactions', { q: '50%_' })).total).toBe(1);
+  });
+
+  it('shares filters across all-history pagination, month summaries and empty results', async () => {
+    const earlier = service.create(createBody({ date: from - 86_400_000, amountCents: 1200, note: 'FindMe' }));
+    const first = service.create(createBody({ date: from, amountCents: 1200, note: 'FindMe' }));
+    const second = service.create(createBody({ date: from + 86_400_000, amountCents: 1250, note: 'findme' }));
+    service.create(createBody({ date: from, type: 1, categoryId: SALARY, note: 'FindMe' }));
+    const deleted = service.create(createBody({ date: from, note: 'FindMe' }));
+    service.softDelete(deleted.id);
+    const filter = { search: 'FINDME', type: '0', accountId: ACCOUNT };
+    const page1 = await get('/api/v1/transactions', { ...filter, limit: '1', offset: '0' });
+    const page2 = await get('/api/v1/transactions', { ...filter, limit: '1', offset: '1' });
+    const page3 = await get('/api/v1/transactions', { ...filter, limit: '1', offset: '2' });
+    expect([page1.total, page2.total, page3.total]).toEqual([3, 3, 3]);
+    expect([page1.items[0].id, page2.items[0].id, page3.items[0].id]).toEqual([second.id, first.id, earlier.id]);
+    const scoped = { ...filter, from: String(from), to: String(to) };
+    const list = await get('/api/v1/transactions', scoped);
+    const summary = await get('/api/v1/transactions/daily-summary', { ...scoped, timeZone: 'UTC' });
+    expect(list.total).toBe(2);
+    expect(summary).toEqual({ searchVersion: 1, searchRevision: list.searchRevision, items: [
+      { day: '2026-08-02', expenseCents: 1250, incomeCents: 0, count: 1 },
+      { day: '2026-08-01', expenseCents: 1200, incomeCents: 0, count: 1 },
+    ] });
+    expect(await get('/api/v1/transactions/daily-summary', { ...scoped, search: 'missing', timeZone: 'UTC' })).toEqual({ items: [], searchVersion: 1, searchRevision: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect(await get('/api/v1/transactions', { search: 'missing' })).toMatchObject({ items: [], total: 0, searchVersion: 1 });
+    expect(await get('/api/v1/transactions', { search: '  ' })).not.toHaveProperty('searchVersion');
+    expect(await get('/api/v1/transactions/daily-summary', { from: String(from), to: String(to), timeZone: 'UTC' })).not.toHaveProperty('searchVersion');
+    expect((await get('/api/v1/transactions', { ...filter, accountId: 'missing' })).total).toBe(0);
+    expect((await get('/api/v1/transactions', { ...filter, q: 'absent' })).total).toBe(0);
+  });
+
+  it('accepts exactly 10000 matches and rejects 10001 before returning any page or summary', async () => {
+    const insert = db.prepare(`INSERT INTO transactions
+      (id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund, deleted, updated_at)
+      VALUES (?, 0, 1, ?, ?, ?, 'limit-match', '[]', 0, 0, ?)`);
+    db.transaction(() => {
+      for (let i = 0; i < MAX_SEARCH_ROWS; i++) insert.run(`limit-${i}`, FOOD, ACCOUNT, from, NOW);
+    })();
+    const params = { search: 'limit-match', from: String(from), to: String(to) };
+    const list = await get('/api/v1/transactions', { ...params, limit: '1' });
+    const summary = await get('/api/v1/transactions/daily-summary', { ...params, timeZone: 'UTC' });
+    expect(list.total).toBe(MAX_SEARCH_ROWS);
+    expect(list.items).toHaveLength(1);
+    expect(summary.searchRevision).toBe(list.searchRevision);
+    expect(summary.items[0]).toMatchObject({ count: MAX_SEARCH_ROWS, expenseCents: MAX_SEARCH_ROWS });
+    insert.run('limit-extra', FOOD, ACCOUNT, from, NOW);
+    for (const [path, extra] of [
+      ['/api/v1/transactions', { limit: '1' }],
+      ['/api/v1/transactions/daily-summary', { timeZone: 'UTC' }],
+    ] as const) {
+      const response = await app.inject({ method: 'GET', url: `${path}?${new URLSearchParams({ ...params, ...extra })}`, headers: as(cookie) });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: { code: 'VALIDATION', message: expect.stringMatching(/缩小.*月份.*账户.*关键词/) } });
+    }
+    expect((await get('/api/v1/transactions', { limit: '1' })).total).toBe(MAX_SEARCH_ROWS + 1);
+  }, 30000);
+
+  it('enforces the exact UTF-8 text budget before snapshot hashing for list and summary', async () => {
+    const id = 'text-limit';
+    const fixedBytes = Buffer.byteLength(id + FOOD + ACCOUNT + '[]', 'utf8');
+    const targetNoteBytes = MAX_SEARCH_TEXT_BYTES - fixedBytes;
+    const prefix = 'text-match\u0000';
+    const remaining = targetNoteBytes - Buffer.byteLength(prefix, 'utf8');
+    const note = prefix + '界'.repeat(Math.floor(remaining / 3)) + 'x'.repeat(remaining % 3);
+    db.prepare(`INSERT INTO transactions
+      (id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund, deleted, updated_at)
+      VALUES (?, 0, 1, ?, ?, ?, ?, '[]', 0, 0, ?)`).run(id, FOOD, ACCOUNT, from, note, NOW);
+    const params = { search: 'text-match', from: String(from), to: String(to) };
+    const list = await get('/api/v1/transactions', { ...params, limit: '1', offset: '1' });
+    const summary = await get('/api/v1/transactions/daily-summary', { ...params, timeZone: 'UTC' });
+    expect(list.total).toBe(1);
+    expect(list.items).toEqual([]);
+    expect(summary.searchRevision).toBe(list.searchRevision);
+    db.prepare('UPDATE transactions SET note = ? WHERE id = ?').run(note + 'x', id);
+    for (const [path, extra] of [
+      ['/api/v1/transactions', { limit: '1', offset: '1' }],
+      ['/api/v1/transactions/daily-summary', { timeZone: 'UTC' }],
+    ] as const) {
+      const response = await app.inject({ method: 'GET', url: `${path}?${new URLSearchParams({ ...params, ...extra })}`, headers: as(cookie) });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: { code: 'VALIDATION', message: expect.stringMatching(/缩小.*月份.*账户.*关键词/) } });
+    }
+    expect((await get('/api/v1/transactions', { limit: '1', offset: '1' })).total).toBe(1);
+  }, 30000);
+
+  it('detects same-count replacements, edits and refund DTO changes across stable search pages and summaries', async () => {
+    service.create(createBody({ date: from, note: 'scope', amountCents: 100 }), 'snapshot-b');
+    service.create(createBody({ date: from, note: 'scope', amountCents: 200 }), 'snapshot-a');
+    const scope = { search: 'scope', from: String(from), to: String(to) };
+    const page1 = await get('/api/v1/transactions', { ...scope, limit: '1', offset: '0' });
+    const page2 = await get('/api/v1/transactions', { ...scope, limit: '1', offset: '1' });
+    expect(page1.items[0].id).toBe('snapshot-a');
+    expect(page2.items[0].id).toBe('snapshot-b');
+    expect(page1.searchRevision).toMatch(/^[0-9a-f]{64}$/);
+    expect(page2.searchRevision).toBe(page1.searchRevision);
+    expect((await get('/api/v1/transactions/daily-summary', { ...scope, timeZone: 'UTC' })).searchRevision).toBe(page1.searchRevision);
+
+    service.softDelete('snapshot-b');
+    service.create(createBody({ date: from, note: 'scope', amountCents: 100 }), 'snapshot-c');
+    const replaced = await get('/api/v1/transactions', scope);
+    expect(replaced.total).toBe(page1.total);
+    expect(replaced.searchRevision).not.toBe(page1.searchRevision);
+    service.update('snapshot-c', { amountCents: 101 });
+    const edited = await get('/api/v1/transactions', scope);
+    expect(edited.total).toBe(replaced.total);
+    expect(edited.searchRevision).not.toBe(replaced.searchRevision);
+    service.create(createBody({ date: from, note: 'refund', type: 1, categoryId: REFUND, isRefund: true, amountCents: 50, refundLinkedTxIds: ['snapshot-c'] }));
+    const refunded = await get('/api/v1/transactions', scope);
+    expect(refunded.total).toBe(edited.total);
+    expect(refunded.searchRevision).not.toBe(edited.searchRevision);
+    expect((await get('/api/v1/transactions/daily-summary', { ...scope, timeZone: 'UTC' })).searchRevision).toBe(refunded.searchRevision);
+  });
+
+  it('changes the search revision when renamed historical references change the matched set', async () => {
+    service.create(createBody({ date: from, note: 'unrelated' }));
+    db.prepare('UPDATE accounts SET name = ? WHERE id = ?').run('old-label', ACCOUNT);
+    const query = { search: 'label' };
+    const before = await get('/api/v1/transactions', query);
+    expect(before.total).toBe(1);
+    db.prepare('UPDATE accounts SET name = ? WHERE id = ?').run('renamed', ACCOUNT);
+    const after = await get('/api/v1/transactions', query);
+    expect(after.total).toBe(0);
+    expect(after.searchRevision).not.toBe(before.searchRevision);
+  });
+
+  it('matches embedded NUL literally in notes, decoded tags and search terms on both endpoints', async () => {
+    const note = service.create(createBody({ date: from, note: 'before\u0000NoteTarget' }));
+    const tag = service.create(createBody({ date: from, note: 'unrelated', tags: ['before\u0000TagTarget'] }));
+    service.create(createBody({ date: from, note: 'beforeMissing' }));
+    for (const [term, id] of [
+      ['notetarget', note.id], ['before\u0000notetarget', note.id],
+      ['tagtarget', tag.id], ['before\u0000tagtarget', tag.id],
+    ] as const) {
+      const list = await get('/api/v1/transactions', { search: term });
+      expect(list.items.map((item: TransactionDto) => item.id), term).toEqual([id]);
+      const summary = await get('/api/v1/transactions/daily-summary', {
+        search: term, from: String(from), to: String(to), timeZone: 'UTC',
+      });
+      expect(summary).toEqual({ searchVersion: 1, searchRevision: list.searchRevision, items: [
+        { day: '2026-08-01', expenseCents: 1999, incomeCents: 0, count: 1 },
+      ] });
+    }
+    for (const term of ['before\u0000missing', '\u0000absent']) {
+      expect((await get('/api/v1/transactions', { search: term })).total).toBe(0);
+      expect(await get('/api/v1/transactions/daily-summary', {
+        search: term, from: String(from), to: String(to), timeZone: 'UTC',
+      })).toEqual({ searchVersion: 1, searchRevision: expect.stringMatching(/^[0-9a-f]{64}$/), items: [] });
+    }
+    // Legacy q remains the pre-existing note-only LIKE implementation.
+    expect((await get('/api/v1/transactions', { q: 'notetarget' })).total).toBe(0);
+  });
+
+  it('formats large integer cents exactly and never searches JSON syntax or malformed tags', async () => {
+    const amount = service.create(createBody({ amountCents: Number.MAX_SAFE_INTEGER, note: 'max' }));
+    const tagged = service.create(createBody({ amountCents: 7, note: 'tagged', tags: ['alpha', 'beta'] }));
+    const exact = await get('/api/v1/transactions', { search: '90071992547409.91' });
+    expect(exact.items.map((item: TransactionDto) => item.id)).toEqual([amount.id]);
+    expect((await get('/api/v1/transactions', { search: '0.07' })).items.map((item: TransactionDto) => item.id)).toEqual([tagged.id]);
+    expect((await get('/api/v1/transactions', { search: '","' })).total).toBe(0);
+    db.prepare('UPDATE transactions SET tags_json = ? WHERE id = ?').run('{"name":"hidden"}', tagged.id);
+    expect((await get('/api/v1/transactions', { search: 'hidden' })).total).toBe(0);
+  });
+
+  it('tolerates malformed tag JSON and requires authentication on both endpoints', async () => {
+    const row = service.create(createBody({ date: from, note: 'abc' }));
+    db.prepare('UPDATE transactions SET tags_json = ? WHERE id = ?').run('not json', row.id);
+    expect((await get('/api/v1/transactions', { search: 'abc' })).total).toBe(1);
+    expect((await get('/api/v1/transactions', { search: 'not json' })).total).toBe(0);
+    for (const url of ['/api/v1/transactions?search=abc', `/api/v1/transactions/daily-summary?search=abc&from=${from}&to=${to}&timeZone=UTC`]) {
+      const response = await app.inject({ method: 'GET', url });
+      expect(response.statusCode).toBe(401);
+      expect(response.json().error.code).toBe('UNAUTHORIZED');
+    }
+  });
+});
+
+describe('transactions list expected expense guards (C3 drilldown)', () => {
+  const from = Date.UTC(2026, 8, 1);
+  const to = Date.UTC(2026, 8, 30);
+
+  it('accepts exact matching totals and rejects changed count or amount', async () => {
+    service.create(createBody({ date: from, amountCents: 5000, categoryId: FOOD, accountId: ACCOUNT }));
+    service.create(createBody({ date: from + 1000, amountCents: 3000, categoryId: FOOD, accountId: ACCOUNT }));
+
+    const validUrl = `/api/v1/transactions?from=${from}&to=${to}&type=0&categoryId=${FOOD}&accountId=${ACCOUNT}&expectedExpenseCents=8000&expectedExpenseCount=2`;
+    const okRes = await app.inject({ method: 'GET', url: validUrl, headers: as(cookie) });
+    expect(okRes.statusCode).toBe(200);
+    const body = okRes.json();
+    expect(body.total).toBe(2);
+    expect(body.items).toHaveLength(2);
+
+    // Mismatched count
+    const badCountUrl = `/api/v1/transactions?from=${from}&to=${to}&type=0&categoryId=${FOOD}&accountId=${ACCOUNT}&expectedExpenseCents=8000&expectedExpenseCount=3`;
+    const badCountRes = await app.inject({ method: 'GET', url: badCountUrl, headers: as(cookie) });
+    expect(badCountRes.statusCode).toBe(409);
+
+    // Mismatched amount
+    const badAmountUrl = `/api/v1/transactions?from=${from}&to=${to}&type=0&categoryId=${FOOD}&accountId=${ACCOUNT}&expectedExpenseCents=9000&expectedExpenseCount=2`;
+    const badAmountRes = await app.inject({ method: 'GET', url: badAmountUrl, headers: as(cookie) });
+    expect(badAmountRes.statusCode).toBe(409);
+  });
+
+  it('rejects incomplete query scope when expected guards are passed', async () => {
+    // Missing categoryId or type=0 or from/to
+    const urls = [
+      `/api/v1/transactions?from=${from}&to=${to}&expectedExpenseCents=8000&expectedExpenseCount=2`,
+      `/api/v1/transactions?from=${from}&to=${to}&type=1&categoryId=${FOOD}&expectedExpenseCents=8000&expectedExpenseCount=2`,
+      `/api/v1/transactions?from=${from}&to=${to}&type=0&categoryId=${FOOD}&expectedExpenseCents=8000`, // only one
+    ];
+    for (const url of urls) {
+      const res = await app.inject({ method: 'GET', url, headers: as(cookie) });
+      expect(res.statusCode, url).toBe(400);
+    }
+  });
+});
+

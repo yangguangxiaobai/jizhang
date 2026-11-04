@@ -1,0 +1,5 @@
+    codePath=/data/app/~~MX0t8XklENN6F08rJkk6Rg==/com.yansuu1.jizhang-THmUU2TpNUJs8zIwwBqJwQ==
+    versionCode=3 minSdk=26 targetSdk=34
+    versionName=0.1.0
+    firstInstallTime=2026-10-10 08:54:23
+    lastUpdateTime=2026-10-17 01:04:23

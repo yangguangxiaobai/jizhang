@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Delete\",\"node\":\"32:242\"},{\"type\":\"Delete\",\"node\":\"32:252\"},{\"type\":\"Update\",\"node\":\"32:216\",\"updated\":{\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":1,\"g\":0.9599999785423279,\"b\":0.8999999761581421},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}],\"strokes\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.9200000166893005,\"g\":0.6399999856948853,\"b\":0.23000000417232513},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}]}},{\"type\":\"Update\",\"node\":\"32:217\",\"updated\":{\"characters\":\"● 连接中断 / 核对中\",\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.7200000286102295,\"g\":0.44999998807907104,\"b\":0.05000000074505806},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}]}},{\"type\":\"Update\",\"node\":\"32:239\",\"updated\":{\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.1843000054359436,\"g\":0.43529999256134033,\"b\":0.5608000159263611},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}]}},{\"type\":\"Update\",\"node\":\"32:240\",\"updated\":{\"characters\":\"[演示数据] 今天下午在星巴克喝拿铁花了35元，微信付的\"}}]}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

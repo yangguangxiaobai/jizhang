@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:379\",\"name\":\"AI12 超过200行 · 明确截断 · 390×844\"}}],\"expiredBindings\":\"binding names [ root11 ] is expired, dont use in next batch_edit\"}}"}]},"jsonrpc":"2.0","id":1}
+

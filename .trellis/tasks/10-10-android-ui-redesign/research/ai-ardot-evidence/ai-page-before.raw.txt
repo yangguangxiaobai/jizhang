@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"nodes\":[{\"id\":\"20:1\",\"type\":\"PAGE\",\"name\":\"04 AI助理｜功能重设计\",\"children\":[]}],\"issues\":[\"Some nodes do not have the specified properties will be omitted in the result\"]}}"}]},"jsonrpc":"2.0","id":1}
+

@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"modeMap\":{},\"variableSets\":[]}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

@@ -1,0 +1,6 @@
+# For bridge-network Caddy only; not the current host-network container.
+# Existing bridge Caddy + API must share JIZHANG_CADDY_NETWORK.
+# Merge ONLY this site's block into the existing full Caddyfile.
+jz.yansuu1.xyz {
+    reverse_proxy jizhang-api:8081
+}

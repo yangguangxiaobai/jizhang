@@ -1,0 +1,15 @@
+会话管理 | [192,230][1032,287] | android.widget.TextView |  | 
+新建对话 | [468,378][612,426] | android.widget.TextView |  | 
+刷新会话列表 | [84,522][300,570] | android.widget.TextView |  | 
+UI TEST: Please provide 400 words of budget planning advice for young professionals. Reading advice only do not book any | [84,630][618,678] | android.widget.TextView |  | 
+打开对话 | [84,726][220,766] | android.widget.TextView |  | 
+I paid 15 dollars for coffee today. First ask me the category: Dining or Entertainment. After I choose the category, ask | [84,910][618,958] | android.widget.TextView |  | 
+打开对话 | [84,1006][220,1046] | android.widget.TextView |  | 
+I spent 15 dollars on coffee today. Please first ask me the category with single choice Dining or Entertainment, then af | [84,1190][618,1238] | android.widget.TextView |  | 
+打开对话 | [84,1286][220,1326] | android.widget.TextView |  | 
+I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options | [84,1470][618,1518] | android.widget.TextView |  | 
+打开对话 | [84,1566][220,1606] | android.widget.TextView |  | 
+UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book any | [84,1750][618,1798] | android.widget.TextView |  | 
+打开对话 | [84,1846][220,1886] | android.widget.TextView |  | 
+Please explain compound interest and why starting early matters for personal finance in detail | [84,2030][618,2078] | android.widget.TextView |  | 
+打开对话 | [84,2126][220,2166] | android.widget.TextView |  | 

@@ -1,0 +1,38 @@
+{
+  "id": "android-ui-redesign",
+  "name": "android-ui-redesign",
+  "title": "Android 全界面 UI 与动效重构规划",
+  "description": "在保留现有功能与账务合同的前提下，按48个界面规划渐进优化原生Android UI与动画。",
+  "status": "in_progress",
+  "dev_type": "frontend",
+  "scope": "android-ui-planning",
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-10",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "clients/android/ui-redesign/README.md",
+    "clients/android/README.md"
+  ],
+  "notes": "2026-10-10: user requested a maintained exhaustive current-function README after rejecting the current UI direction. Documentation delivered in clients/android/README.md; source gaps are recorded without product fixes. Existing UI/device acceptance remains open.",
+  "meta": {
+    "planning_deliverable": "complete",
+    "execution_authorized": true,
+    "product_code_changed": true,
+    "screen_count": 48,
+    "animation_principles": 12,
+    "function_inventory": "clients/android/README.md",
+    "function_inventory_entries": 313,
+    "function_inventory_api_entries": 108
+  }
+}

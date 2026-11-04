@@ -21,6 +21,8 @@ import { registerAssistantRoutes } from './routes/assistant.js';
 import { registerItemRoutes } from './routes/items.js';
 import { registerItemCutoutRoutes } from './routes/item-cutouts.js';
 import { registerFinancialPlanningRoutes } from './routes/financial-planning.js';
+import { registerFinancialGoalsRoutes } from './routes/financial-goals.js';
+import { registerFinancialFundRoutes } from './routes/financial-funds.js';
 import { AuthService } from './services/auth-service.js';
 import type { Db } from './db/index.js';
 
@@ -190,6 +192,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
             db,
             now: options.now,
           }),
+        (instance) => registerFinancialGoalsRoutes(instance, { db, now: options.now }),
+        (instance) => registerFinancialFundRoutes(instance, { db, now: options.now }),
       ],
     });
   } else {

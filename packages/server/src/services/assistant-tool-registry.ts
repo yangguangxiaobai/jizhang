@@ -351,14 +351,15 @@ function createDefinitions(): AssistantToolDefinition[] {
     { name: 'transaction.delete', access: 'write', description: '准备将一笔账单移入回收站。', inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } },
     { name: 'transaction.restore', access: 'write', description: '准备从回收站恢复一笔账单。', inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } },
     { name: 'transfer.create', access: 'write', description: '准备在两个账户之间创建转账。', inputSchema: { type: 'object', required: ['fromAccountId', 'toAccountId', 'amountCents', 'date'], properties: { fromAccountId: { type: 'string' }, toAccountId: { type: 'string' }, amountCents: { type: 'integer' }, date: { type: ['string', 'integer'] }, note: { type: 'string' } } } },
-    { name: 'salary.create', access: 'write', description: '准备记录一笔工资并生成预算分配快照。', inputSchema: { type: 'object', required: ['amountCents', 'accountId', 'date'], properties: { amountCents: { type: 'integer' }, accountId: { type: 'string' }, date: { type: ['string', 'integer'] }, note: { type: 'string' }, templateId: { type: 'string' }, allocations: { type: 'array' } } } },
+    // `salary.create` / `budget.template.apply` are deliberately absent: fresh
+    // module-allocation salary writes are retired, so the assistant must not be able to
+    // recreate them (P07). Legacy entries remain readable through their own endpoints.
     { name: 'category.create', access: 'write', description: '准备创建分类。', inputSchema: { type: 'object', required: ['name', 'type'], properties: { name: { type: 'string' }, type: { enum: [0, 1] }, icon: { type: 'string' }, color: { type: 'string' }, parentId: { type: ['string', 'null'] } } } },
     { name: 'category.update', access: 'write', description: '准备修改分类。', inputSchema: { type: 'object', required: ['id', 'changes'], properties: { id: { type: 'string' }, changes: { type: 'object' } } } },
     { name: 'category.delete', access: 'write', description: '准备软删除分类。', inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } },
     { name: 'account.create', access: 'write', description: '准备创建账户。', inputSchema: { type: 'object', required: ['name', 'type'], properties: { name: { type: 'string' }, type: { type: 'integer' }, initialBalanceCents: { type: 'integer' } } } },
     { name: 'account.update', access: 'write', description: '准备修改账户。', inputSchema: { type: 'object', required: ['id', 'changes'], properties: { id: { type: 'string' }, changes: { type: 'object' } } } },
     { name: 'account.delete', access: 'write', description: '准备软删除账户。', inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } },
-    { name: 'budget.template.apply', access: 'write', description: '准备将预算模板应用到当前预算周期。', inputSchema: { type: 'object', required: ['templateId'], properties: { templateId: { type: 'string' } } } },
     { name: 'backup.create', access: 'write', description: '准备创建数据库备份。', inputSchema: { type: 'object', properties: {} } },
     { name: 'platform-import.prepare', access: 'write', description: '准备微信或支付宝账单文件的干跑预览。', inputSchema: { type: 'object', properties: { source: { enum: ['auto', 'wechat', 'alipay'] }, fileName: { type: 'string' }, selectedIds: { type: ['array', 'null'] }, categoryOverrides: { type: 'object' }, noteOverrides: { type: 'object' } } } },
     { name: 'organization.apply', access: 'write', description: '准备应用已预览的整理动作。', inputSchema: { type: 'object', properties: { actionIds: { type: 'array' } } } },
@@ -651,27 +652,6 @@ export class AssistantToolRegistry {
       },
     });
 
-    this.register(def('salary.create'), (value) => {
-      const record = argsRecord(value); onlyKnown(record, ['amountCents', 'accountId', 'date', 'note', 'templateId', 'allocations']);
-      const allocationsRaw = record['allocations'];
-      let allocations: { categoryId: string; amountCents: number }[] | undefined;
-      if (allocationsRaw !== undefined) {
-        if (!Array.isArray(allocationsRaw) || allocationsRaw.length > 100) throw new AssistantValidationError('allocations 必须是有效的分配数组。');
-        allocations = allocationsRaw.map((item) => {
-          const entry = argsRecord(item); onlyKnown(entry, ['categoryId', 'amountCents']);
-          return { categoryId: stringArg(entry, 'categoryId'), amountCents: integerArg(entry, 'amountCents', 0) as number };
-        });
-      }
-      return json({ amountCents: integerArg(record, 'amountCents', 1), accountId: stringArg(record, 'accountId'), date: dateArg(record), note: typeof record['note'] === 'string' ? record['note'].slice(0, 200) : '', ...(record['templateId'] === undefined ? {} : { templateId: stringArg(record, 'templateId') }), ...(allocations === undefined ? {} : { allocations }) }, 'salary.create');
-    }, {
-      prepare: (context, args) => {
-        const resolved = context.services.salaries.prepareCreate(args);
-        const account = context.services.masterData.getAccountOrThrow(resolved.accountId);
-        return prepared('salary.create', '记录工资', `准备记录工资 ${resolved.amountCents} 分并分配到 ${resolved.allocations.length} 个预算模块。`, { count: 1 }, { ...resolved, accountName: account.name }, { salary: resolved, account }, args, hashJson({ args, account, template: resolved.templateId === undefined ? context.services.templates.getDefault() : context.services.templates.getById(resolved.templateId) }));
-      },
-      confirm: (context, action) => toolResult('salary.create', '工资已记录。', { salary: context.services.salaries.create(argsRecord(action)) }),
-    });
-
     this.register(def('category.create'), (value) => {
       const record = argsRecord(value); onlyKnown(record, ['name', 'type', 'icon', 'color', 'sortOrder', 'parentId']);
       const name = stringArg(record, 'name', true, 40);
@@ -774,17 +754,6 @@ export class AssistantToolRegistry {
         return prepared('account.delete', '软删除账户', `准备删除账户“${account.name}”。`, { count: usage.transactions + usage.salaries + usage.transfers, ids: [id] }, { account, usage }, { account, usage }, args, hashJson({ account, usage }), undefined, usage.transactions + usage.salaries > 0 ? ['历史账单或工资仍引用此账户；删除后账户余额将不再纳入账户列表。'] : []);
       },
       confirm: (context, action) => { const id = stringArg(argsRecord(action), 'id'); context.services.masterData.deleteAccount(id); return toolResult('account.delete', '账户已软删除。', { id, deleted: true }); },
-    });
-
-    this.register(def('budget.template.apply'), (value) => { const record = argsRecord(value); onlyKnown(record, ['templateId']); return json({ templateId: stringArg(record, 'templateId') }, 'budget.template.apply'); }, {
-      prepare: (context, args) => {
-        const templateId = args['templateId'] as string; const template = context.services.templates.getByIdOrThrow(templateId);
-        const rows = context.db.prepare('SELECT sr.id, sr.amount_cents, sr.date, sr.updated_at, ba.allocations_json, ba.updated_at AS allocation_updated_at FROM salary_records sr JOIN budget_allocations ba ON ba.salary_record_id = sr.id WHERE sr.deleted = 0 AND ba.deleted = 0 ORDER BY ba.date DESC, ba.updated_at DESC').all();
-        if (rows.length === 0) throw new AssistantValidationError('当前没有可应用预算模板的周期。');
-        const periodStart = context.services.budget.periods().currentPeriodStart;
-        return prepared('budget.template.apply', '应用预算模板', `准备把“${template.name}”应用到当前预算周期的工资分配。`, { count: rows.length }, { template, periodStart, salaryCount: rows.length }, { template, periodStart, salaries: rows.slice(0, 50) }, args, hashJson({ template, rows }));
-      },
-      confirm: (context, action) => { const templateId = stringArg(argsRecord(action), 'templateId'); return toolResult('budget.template.apply', '预算模板已应用到当前周期。', context.services.salaries.applyTemplateToCurrentCycle(templateId)); },
     });
 
     this.register(def('backup.create'), empty, {

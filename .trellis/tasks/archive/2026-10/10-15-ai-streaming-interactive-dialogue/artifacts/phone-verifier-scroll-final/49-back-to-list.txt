@@ -1,0 +1,15 @@
+会话管理 | [192,230][1032,287] | android.widget.TextView |  | 
+新建对话 | [468,378][612,426] | android.widget.TextView |  | 
+刷新会话列表 | [84,522][300,570] | android.widget.TextView |  | 
+UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not boo | [84,702][618,750] | android.widget.TextView |  | 
+打开对话 | [84,798][220,838] | android.widget.TextView |  | 
+新对话 | [117,982][225,1030] | android.widget.TextView |  | 
+打开对话 | [84,1078][220,1118] | android.widget.TextView |  | 
+UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not boo | [84,1262][618,1310] | android.widget.TextView |  | 
+打开对话 | [84,1358][220,1398] | android.widget.TextView |  | 
+新对话 | [117,1542][225,1590] | android.widget.TextView |  | 
+打开对话 | [84,1638][220,1678] | android.widget.TextView |  | 
+UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not boo | [84,1822][618,1870] | android.widget.TextView |  | 
+当前对话 | [84,1918][220,1958] | android.widget.TextView |  | 
+UI TEST: Please provide 200 words of practical monthly budget planning advice for young professionals. Reading advice on | [84,2102][618,2150] | android.widget.TextView |  | 
+打开对话 | [84,2198][220,2202] | android.widget.TextView |  | 

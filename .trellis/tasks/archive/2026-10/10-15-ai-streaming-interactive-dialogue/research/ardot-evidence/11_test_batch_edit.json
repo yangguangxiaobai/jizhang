@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:1\",\"name\":\"Test Probe\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:2\",\"name\":\"Test Label\",\"content\":\"Hello\"}},{\"type\":\"Delete\",\"node\":\"32:1\"}],\"expiredBindings\":\"binding names [ testFrame, testText ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

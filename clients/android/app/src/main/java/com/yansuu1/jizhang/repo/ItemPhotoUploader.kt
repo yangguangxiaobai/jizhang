@@ -17,26 +17,8 @@ class ItemPhotoUploader(private val api: ApiClient) {
         contentType: String,
         bytes: ByteArray,
     ): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val url = java.net.URL("$baseUrl/api/v1/items/$itemId/photo")
-            val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
-                requestMethod = "PUT"
-                setRequestProperty("Content-Type", contentType)
-                setRequestProperty("X-Requested-With", "fetch")
-                if (sessionCookieHeader.isNotEmpty()) {
-                    setRequestProperty("Cookie", sessionCookieHeader)
-                }
-                doOutput = true
-                connectTimeout = 30000
-                readTimeout = 60000
-            }
-            conn.outputStream.use { it.write(bytes) }
-            val code = conn.responseCode
-            conn.disconnect()
-            code in 200..299
-        } catch (_: Exception) {
-            false
-        }
+        api.putBytes("/api/v1/items/$itemId/photo", contentType, bytes)
+        true
     }
 
     /** Current session as a Cookie header value for the uploader above. */

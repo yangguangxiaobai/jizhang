@@ -1,0 +1,63 @@
+{
+  "id": "core-simplify-saving-investment",
+  "name": "core-simplify-saving-investment",
+  "title": "手动存钱与投资进度简版",
+  "description": "以手动确认的存取和投资投入记录展示真实进度，区分计划、记录金额与市场资产。",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": "manual-goals",
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-29-core-finance-simplification",
+  "relatedFiles": [
+    "packages/server/src/app.ts",
+    "packages/server/src/db/migrate.ts",
+    "packages/server/src/services/financial-operation-store.ts",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MonthlyPlanWorkspace.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialConfigSheet.kt",
+    "packages/shared/src/index.ts",
+    "packages/shared/src/manual-goal-progress.ts",
+    "packages/server/src/services/financial-goals-service.ts",
+    "packages/server/src/services/financial-goal-store.ts",
+    "packages/server/src/routes/financial-goals.ts",
+    "packages/server/src/db/migrations/020-manual-goal-progress.ts",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/FinancialGoalModels.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/FinancialGoalRepository.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManualGoalProgressWorkspace.kt"
+  ],
+  "notes": "",
+  "meta": {
+    "requirements": [
+      "F08",
+      "F09"
+    ],
+    "depends_on": [
+      "C2",
+      "C3"
+    ],
+    "acceptance_ids": [
+      "C4-01",
+      "C4-02",
+      "C4-03",
+      "C4-04",
+      "C4-05",
+      "C4-06",
+      "C4-07",
+      "C4-08"
+    ],
+    "planning_version": "2026-10-29",
+    "implementation_approved": true,
+    "parent_plan": "docs/superpowers/plans/2026-10-29-core-finance-simplification.md"
+  }
+}

@@ -1767,8 +1767,13 @@ export class ImportBatchService {
     const clientRequestId = requireRequestId(input.clientRequestId);
     const expectedVersion = requireInteger(input.expectedVersion, 'expectedVersion');
     const index = requireInteger(fileIndex, 'fileIndex');
-    const previousFiles = parseJson<ImportBatchFileDto[]>(batch.files_json) ?? [];
-    if (index < 0 || index >= previousFiles.length) throw new ImportBatchInvalidError('fileIndex 不在当前文件范围内。');
+    // The digest covers the accepted payload and the operation, so it can be computed before any
+    // guard that reads *current mutable* file state. Key ordering is load-bearing: an accepted
+    // request must resolve to its stored outcome even after it changed the file list. Otherwise a
+    // removal that committed (e.g. [A,B] -> [A]) and then lost its response could never be replayed
+    // — the same index is out of range in the reduced list, index 0 trips the last-file rule, and a
+    // larger batch trips the full-remaining-set rule — and the retained `idRemap`/dropped drafts
+    // would be unreachable. Only a *new* request is validated against the current files/version.
     if (
       kind === 'remove' &&
       input.targetFileIndex !== undefined &&
@@ -1776,17 +1781,20 @@ export class ImportBatchService {
     ) {
       throw new ImportBatchInvalidError('targetFileIndex 必须与路径中的 fileIndex 一致。');
     }
-    const remaining = kind === 'remove' ? previousFiles.length - 1 : previousFiles.length;
-    if (remaining < 1) throw new ImportBatchInvalidError('不能移除最后一个文件。');
-    if (input.files.length !== remaining) {
-      throw new ImportBatchFileFailedError('请重传变更后的全部剩余文件原始内容，不接受局部补丁。');
-    }
     const hash = requestDigest(input.files, { operation: kind, targetFileIndex: index });
     const existingOp = this.operationRecord(batchId, kind, clientRequestId);
     if (existingOp !== undefined) {
       if (existingOp.request_hash !== hash) throw new ImportBatchIdempotencyMismatchError();
       const stored = parseJson<MutationOutcome>(existingOp.result_json);
       return { batch: this.toDtoWithAnalysis(this.batchRow(batchId)!), ...emptyMutationOutcome(stored) };
+    }
+
+    const previousFiles = parseJson<ImportBatchFileDto[]>(batch.files_json) ?? [];
+    if (index < 0 || index >= previousFiles.length) throw new ImportBatchInvalidError('fileIndex 不在当前文件范围内。');
+    const remaining = kind === 'remove' ? previousFiles.length - 1 : previousFiles.length;
+    if (remaining < 1) throw new ImportBatchInvalidError('不能移除最后一个文件。');
+    if (input.files.length !== remaining) {
+      throw new ImportBatchFileFailedError('请重传变更后的全部剩余文件原始内容，不接受局部补丁。');
     }
 
     const expectedUntargeted = previousFiles.filter((_, oldIndex) => oldIndex !== index);
@@ -2474,9 +2482,25 @@ export class ImportBatchService {
       countsBySuggestion.set(assignment.suggestionId, (countsBySuggestion.get(assignment.suggestionId) ?? 0) + 1);
     }
 
-    const categoriesToCreate: { name: string; type: number; selectedRows: number }[] = [];
-    const categoriesToReuse: { categoryId: string; name: string; selectedRows: number }[] = [];
+    const categoriesToReuseMap = new Map<string, { categoryId: string; name: string; selectedRows: number }>();
     const categoryPlans = new Map<string, { name: string; type: number; createsCategory: boolean }>();
+    /** Planned new entities keyed by the identity confirmation itself matches on. */
+    const plannedCreations = new Map<string, { name: string; type: number; selectedRows: number }>();
+
+    // Rows assigned straight to an existing category are reuse too — counted as distinct
+    // CATEGORY ENTITIES, not per row, so three rows sharing one category report exactly one.
+    for (const assignment of assignmentOf.values()) {
+      if (assignment.categoryId === null) continue;
+      const category = currentCategoryById.get(assignment.categoryId);
+      if (category === undefined) continue;
+      const previous = categoriesToReuseMap.get(category.id);
+      categoriesToReuseMap.set(category.id, {
+        categoryId: category.id,
+        name: category.name,
+        selectedRows: (previous?.selectedRows ?? 0) + 1,
+      });
+    }
+
     for (const [suggestionId, count] of countsBySuggestion) {
       const suggestion = suggestions.find((candidate) => candidate.suggestionId === suggestionId)!;
       const approval = approved.get(suggestionId)!;
@@ -2489,13 +2513,34 @@ export class ImportBatchService {
       categoryPlans.set(suggestionId, { name, type: approval.type, createsCategory });
       if (approval.reuseCategoryId !== null) {
         const candidate = currentCategories.find((category) => category.id === approval.reuseCategoryId)!;
-        categoriesToReuse.push({ categoryId: candidate.id, name: candidate.name, selectedRows: count });
+        const previous = categoriesToReuseMap.get(candidate.id);
+        categoriesToReuseMap.set(candidate.id, {
+          categoryId: candidate.id,
+          name: candidate.name,
+          selectedRows: (previous?.selectedRows ?? 0) + count,
+        });
       } else if (sameNameMatches.length === 1) {
-        categoriesToReuse.push({ categoryId: sameNameMatches[0]!.id, name: sameNameMatches[0]!.name, selectedRows: count });
+        const matched = sameNameMatches[0]!;
+        const previous = categoriesToReuseMap.get(matched.id);
+        categoriesToReuseMap.set(matched.id, {
+          categoryId: matched.id,
+          name: matched.name,
+          selectedRows: (previous?.selectedRows ?? 0) + count,
+        });
       } else {
-        categoriesToCreate.push({ name, type: approval.type, selectedRows: count });
+        // Approval names are editable, so two *distinct* suggestions can be renamed onto the SAME
+        // planned entity. Confirmation resolves that entity once (the second row finds the category
+        // the first one inserted) and reports `categoriesCreated: 1`, so Review must also count
+        // distinct planned entities rather than proposals. The identity key is exactly the tuple
+        // confirmation matches on: trimmed name, type and parent.
+        const entityKey = JSON.stringify([name, approval.type, parentId]);
+        const planned = plannedCreations.get(entityKey);
+        if (planned === undefined) plannedCreations.set(entityKey, { name, type: approval.type, selectedRows: count });
+        else planned.selectedRows += count;
       }
     }
+    const categoriesToCreate = [...plannedCreations.values()];
+    const categoriesToReuse = [...categoriesToReuseMap.values()];
 
     const selectedRows: ImportBatchReviewResponseDto['summary']['selectedRows'][number][] = [];
     const filesSelected = new Map<string, number>();
@@ -2701,8 +2746,12 @@ export class ImportBatchService {
         );
         const categoryIdByItem = new Map<string, string>();
         const categoryBySuggestion = new Map<string, string>();
-        let categoriesCreated = 0;
-        let categoriesReused = 0;
+        // Counts are DISTINCT category entities, not rows: three rows sharing one approved new
+        // category create exactly one category, and the same entity is never counted as both
+        // created and reused. `createdCategoryIds` wins when a later row reuses an entity this
+        // confirmation just created.
+        const createdCategoryIds = new Set<string>();
+        const usedCategoryIds = new Set<string>();
         let categoriesSkippedUnused = 0;
         const sourceCache = new Map<string, PlatformBillSource>();
         const sourceOf = (item: MergedItem): PlatformBillSource => {
@@ -2729,6 +2778,7 @@ export class ImportBatchService {
               throw new ImportBatchActionStaleError('所选分类已不可用，请重新提交审核。');
             }
             categoryIdByItem.set(itemId, assignment.categoryId);
+            usedCategoryIds.add(assignment.categoryId);
             continue;
           }
           const suggestion = suggestions.find((candidate) => candidate.suggestionId === assignment.suggestionId);
@@ -2762,10 +2812,10 @@ export class ImportBatchService {
               throw new ImportBatchActionStaleError('指定复用的分类已不可用，请重新提交审核。');
             }
             resolvedId = candidate.id;
-            categoriesReused += 1;
+            usedCategoryIds.add(resolvedId);
           } else if (sameName.length === 1) {
             resolvedId = sameName[0]!.id;
-            categoriesReused += 1;
+            usedCategoryIds.add(resolvedId);
           } else if (sameName.length >= 2) {
             throw new ImportBatchCategoryConflictError(`已存在多个同名「${name}」分类，请指定要复用的分类或改名。`);
           } else {
@@ -2777,11 +2827,14 @@ export class ImportBatchService {
               )
               .run(id, name, approval.type, parentId, 0xff9e9e9e, approval.type, this.now());
             resolvedId = id;
-            categoriesCreated += 1;
+            createdCategoryIds.add(id);
           }
           categoryBySuggestion.set(assignment.suggestionId, resolvedId);
           categoryIdByItem.set(itemId, resolvedId);
         }
+        const categoriesCreated = createdCategoryIds.size;
+        // Reused is every used category entity that wasn't created in this confirmation.
+        const categoriesReused = [...usedCategoryIds].filter((id) => !createdCategoryIds.has(id)).length;
         categoriesSkippedUnused = review.normalized.approvedCategories.filter(
           (approved) => !usedSuggestionIds.has(approved.suggestionId),
         ).length;

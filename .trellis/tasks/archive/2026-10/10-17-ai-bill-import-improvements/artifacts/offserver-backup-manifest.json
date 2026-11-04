@@ -1,0 +1,93 @@
+{
+  "integrity": "ok",
+  "tables": {
+    "accounts": {
+      "rows": 4,
+      "sha256": "1bd9855242b59ef584797ca2e08692ff64b868584153a62e4e6fee07b5024e41"
+    },
+    "ai_organization_audit": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "asset_item_photos": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "asset_items": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "assistant_conversations": {
+      "rows": 22,
+      "sha256": "b807eb5fdad38a35c49f6c278f3747913cd2bc9f88cf59b92c3590d38a734ee6"
+    },
+    "assistant_generation_events": {
+      "rows": 1010,
+      "sha256": "b672ff7cd1c285844276353f8fcf0f5cf30734fe6e3cbc186765a60f43d3bc5c"
+    },
+    "assistant_generations": {
+      "rows": 32,
+      "sha256": "d27b0decb37f904ab12d0477efdd9498735baaedeb9ab53fc75d948f431b8ac6"
+    },
+    "assistant_messages": {
+      "rows": 142,
+      "sha256": "eee7902e2fd9385e777ee57d0b9b742251a76d34b5b620d049497ddacbe31e2a"
+    },
+    "assistant_pending_actions": {
+      "rows": 13,
+      "sha256": "7a41065aef2d11dc13d4abf6301e195cc431844eb78504e734a8441f1730b321"
+    },
+    "budget_allocations": {
+      "rows": 1,
+      "sha256": "ac4189519e15f0ad70cf1f586b532dc3e9b6d0430b21b9f9580e0aa25f8d639c"
+    },
+    "budget_templates": {
+      "rows": 1,
+      "sha256": "36e75e41e9e946db5fdd6766ebb40676a76a0d88ccc68bbe2631b9e1b8c0e006"
+    },
+    "categories": {
+      "rows": 13,
+      "sha256": "f707198c30e7ee8afc5a97cbc4d389eecda04fc53cc591b2a1cdb7a58f5b1d79"
+    },
+    "recurring_occurrences": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "recurring_rules": {
+      "rows": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "refund_links": {
+      "rows": 16,
+      "sha256": "8ab33f94dbfff2509cf28941105e83ae26ff0287645738e947070509e8708f82"
+    },
+    "salary_records": {
+      "rows": 1,
+      "sha256": "c31f2d5a9ef955e7c8558c45125c084320813683daee2c0d6c65f2fdfec3cbf4"
+    },
+    "schema_migrations": {
+      "rows": 11,
+      "sha256": "1e5373c6603d1b67aeb326ffcb422f2ab3c78204c63cdb4d47f917cb18ba06b1"
+    },
+    "sessions": {
+      "rows": 31,
+      "sha256": "c4d8b3b09eae9df1e3491c5345920fb5f90451c3e33046a7d3329d5e2e12893e"
+    },
+    "settings": {
+      "rows": 2,
+      "sha256": "5d8f962aa9438c439c443279165819503c8bdbe4192c0b96fcd8315430a15b56"
+    },
+    "transactions": {
+      "rows": 59,
+      "sha256": "9736cd54f48e9456b43be3b5ae9b1ff636a867ed1aa31085933d98728ceb33af"
+    },
+    "transfers": {
+      "rows": 2,
+      "sha256": "09117a66fa36eaaf4492ef25d7a497bcfab0b8c47fe97f193443e396ed591bc6"
+    },
+    "users": {
+      "rows": 1,
+      "sha256": "7f64c0e0dbf1987282dd79667f75c245a0d3e145426c64f2f33f4d75d9fed6a5"
+    }
+  }
+}

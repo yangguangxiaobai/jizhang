@@ -1,4 +1,4 @@
-import type { SpendingPurpose } from '@jizhang/shared';
+import type { FundPurpose, SpendingPurpose } from '@jizhang/shared';
 
 /** Wire/domain representation. Field names match the API contract (design.md §5). */
 /** Reverse-refund summary for an original expense: how much has been refunded. */
@@ -33,6 +33,10 @@ export interface TransactionDto {
   readonly financialPurpose: SpendingPurpose | null;
   /** 0 until the first explicit override is stored; bumped once per effective change. */
   readonly financialPurposeRevision: number;
+  readonly fundPurpose: FundPurpose | null;
+  readonly fundPurposeRevision: number;
+  readonly fundPurposeStatus: 'resolved' | 'unresolved';
+  readonly fundPurposeSource: string;
   readonly refundLinkedTxIds?: string[];
   readonly refundSummary?: RefundSummary;
   readonly refundDetails?: RefundDetail[];
@@ -54,6 +58,10 @@ export interface CreateTransactionInput {
    * key leaves an existing override untouched (on PATCH).
    */
   readonly financialPurpose?: unknown;
+  /** Canonical four-purpose value, or null to explicitly clear. */
+  readonly fundPurpose?: unknown;
+  /** Canonical purpose revision guard for an explicit fundPurpose PATCH. */
+  readonly expectedFundPurposeRevision?: unknown;
   /** Optional replay key for a purpose-bearing create. */
   readonly operationId?: unknown;
   /** Required with an explicit purpose on PATCH. */
@@ -81,4 +89,5 @@ export interface PreparedTransactionInput {
   readonly refundLinkedTxIds: string[];
   /** Resolved next override value; `null` means no override. */
   readonly financialPurpose: SpendingPurpose | null;
+  readonly fundPurpose: FundPurpose | null;
 }

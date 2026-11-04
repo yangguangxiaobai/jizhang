@@ -1,134 +1,56 @@
-# Quality Guidelines — Frontend (`packages/web`)
+# Quality Guidelines — Native Client and API Boundary
 
-> Established by T9; extended as later tasks land.
+## Current scope and gates
 
----
+`clients/android` is the native Kotlin/Compose client. The former `packages/web`
+Vue/PWA application, its build checks and its browser tests are retired. The other
+Vue/PWA manuals linked from the [frontend index](./index.md) are historical and
+non-operative; do not require their commands or treat their iPhone/PWA results as
+Android acceptance.
 
-## Overview
-
-Vue 3 + Vite + TypeScript, built as an installable PWA and served by the Fastify
-process at the same origin as the API (so there is no CORS surface at all).
-
-The quality gate is the same as the backend's, from the repo root:
+For Android changes run the applicable gates from `clients/android`:
 
 ```bash
-pnpm -r run lint        # eslint, --max-warnings 0, includes scripts/*.mjs
-pnpm -r run typecheck   # vue-tsc
-pnpm -r run test
-pnpm --filter @jizhang/web run build   # build + scripts/check-pwa.mjs
+./gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-`build` runs the PWA assertions, so a broken manifest or a missing icon fails the
-build rather than shipping.
+Report source/JVM checks, lint and APK compilation separately from actual device
+interaction and deployment evidence. Consult the maintained Android feature catalogue
+and update affected entries when UI, repository or consumed API contracts change.
 
-The aggregate raw-asset limits checked by `scripts/check-pwa.mjs` are 352 KiB JavaScript and
-112 KiB CSS. They include every route chunk, including lazily loaded pages. The CSS ceiling
-was explicitly approved for the full Ardot UI pass; evaluate compressed output as well as raw
-size when assessing transfer impact. Do not raise these limits again without an explicit
-product/performance decision.
+## Accounting and API delivery
 
----
+- Amounts are integer cents; display server-computed totals rather than duplicating
+  accounting rules. Ordinary refunds (`type=1`, `isRefund=true`) count as income;
+  ordinary and category-envelope expense remains gross. Confirmed refund allocations
+  reduce only the separate four-purpose execution view's net spending.
+- API responses, including failures and API 404s, must carry `Cache-Control: no-store`.
+  This protects session-specific ledger data and prevents stale financial results.
+  `packages/server/test/app.test.ts` covers the shared hook and error paths.
+- The API-only server returns JSON 404 for `/` and former Web pages and assets, not a
+  SPA shell, including when stale files or legacy configuration are present. Preserve
+  the relevant `app.test.ts` and `check-api-only.mjs` assertions.
+- `packages/server/scripts/e2e-pwa.mjs` is a legacy-named **read-only API-only probe**;
+  it delegates to `check-api-only.mjs` and does not test a manifest, service worker,
+  offline shell, or any client UI.
+- E2E scripts using `resetToKnownState()` clear ledger data. Run them only against
+  an isolated disposable database and server, never against production.
 
-## Required Patterns
+## Native Android addendum: retained financial tabs
 
-- **All money is integer cents.** Convert at the form boundary with
-  `parseYuanToCents` (which uses `Math.round`). Render with `formatCents`, which does
-  integer arithmetic rather than `cents / 100` + `toFixed`.
-- **Dates come from `utils/money.ts`**, never `new Date('YYYY-MM-DD')`. The string
-  form is parsed as UTC and shifts the day for anyone west of Greenwich; the helpers
-  build local dates from components.
-- **One source of truth per rule.** Net expense, income and the carryover pool are
-  computed by the server from `@jizhang/shared`; views render them and never
-  re-aggregate. A second implementation is how the charts and the budget page start
-  disagreeing.
-- **Every interactive target is at least 44x44 px**, and every bottom-anchored bar
-  carries `env(safe-area-inset-bottom)`.
-- **Form controls are at least 16px**, which is what stops iOS Safari from zooming the
-  page on focus.
-- **Charts are hand-rolled SVG** (`components/DonutChart.vue`, `components/BarChart.vue`).
-  Two chart shapes do not justify a library on a phone bundle; the geometry also stays
-  unit-testable instead of hidden inside a canvas.
+`clients/android` is a native Compose client, not the Vue/PWA described above. Its build gates are `testDebugUnitTest`, `lintDebug`, and `assembleDebug`; source/JVM checks alone do not verify gestures.
 
----
+For `FinancialHostScreen`, retained tab compositions must not imply overlapping interactive layouts. **Wrong:** three full-size siblings hidden only with `alpha(0f)` plus `pointerInput(Unit) {}`. Alpha does not remove pointer targets; the empty handler does not disable child scrollables. This caused the invisible Scenario list to scroll while Budget appeared frozen, and hid visible Execution controls from UIAutomator.
 
-## Forbidden Patterns
+**Correct:** keep the three stable composition slots, measure them with finite constraints, and place only the selected child. Inactive slots must not be placed/drawn/hit-tested. Keep dirty/busy leave guards and active-only back ownership. Never replace this with disposal unless all draft and in-flight operation retention is deliberately preserved.
 
-- `user-scalable=no` or `maximum-scale=1` in the viewport meta. Pinch-zoom is an
-  accessibility feature; the focus-zoom problem is solved by the 16px rule instead.
-  (`index.html` documents this — note that a naive regex over the built HTML will match
-  that comment, so strip comments before asserting.)
-- **Caching anything under `/api/` — in the service worker OR the browser's HTTP cache.**
-  This is both a correctness and a privacy rule:
-  - *Correctness*: the app is online-first (parent task D4). Offline means "you can
-    open the app", not "you can browse stale numbers that disagree with the server".
-  - *Privacy*: API responses are per-session and carry the ledger. A response cache is
-    keyed by URL, so it would survive a logout and hand the next visitor the previous
-    user's data on a shared device.
-
-  Two halves, both required:
-  - `vite.config.ts` registers an explicit `NetworkOnly` route for `/api/`, and both
-    `scripts/check-pwa.mjs` and `scripts/e2e-pwa.mjs` assert that no caching handler is
-    attached to an API path.
-  - `packages/server/src/app.ts` sets `Cache-Control: no-store` on every `/api` response
-    via a single `onSend` hook, asserted in `test/app.test.ts` (including a 404, so the
-    header comes from the hook rather than from each route's success path). The SPA
-    shell must NOT get that header — an installed app has to open offline.
-- Serving `sw.js` with an immutable, long-lived cache header. Clients then pin to an
-  old worker and never see a release.
-- Putting the service worker into `vite dev` (`devOptions.enabled`) — it fights hot
-  reload and hides real module errors.
-
----
-
-## Testing Requirements
-
-- Browser tests that stub API calls with Playwright `page.route()` must block the service
-  worker in a narrowly scoped `test.describe` via `test.use({ serviceWorkers: 'block' })`.
-  Once a page is controlled, service-worker-owned fetches can bypass page-level routes.
-  Do not disable the worker globally: tests that exercise PWA behavior need the real worker.
-  Prefer assertions against rendered content and semantic roles actually exposed by the
-  component (for example, a native `<summary>` is not a button).
-- The backend carries the behavioural test suite (246 tests). The frontend's
-  equivalent is **build-output verification**: `scripts/check-pwa.mjs` asserts the
-  manifest fields, the icon dimensions (read from the PNG header, not the filename),
-  the `index.html` wiring, the service-worker policy and the bundle budget.
-- `scripts/e2e-pwa.mjs` re-checks the same facts **as actually served over HTTP** by
-  the container, because a file existing in `dist/` is not the same as the server
-  returning it with a usable content type.
-- Icons are generated by `scripts/generate-icons.mjs` (`pnpm --filter @jizhang/web run
-  icons`) — a hand-rolled PNG encoder over Node's `zlib`, so there is no image
-  dependency and no unreviewable binary blob. `scripts/preview-png.mjs` renders a
-  generated PNG as ASCII for a quick shape check.
-- `scripts/check-mobile.mjs` audits the source for the mobile invariants that no
-  headless build can measure: every interactive rule is >= 44px, every form control is
-  >= 16px, no `min-width` exceeds the 375px viewport, the bars carry the safe-area
-  insets, and zoom is not disabled. It runs as part of `build`.
-
-  It is an **audit, not a proof** — it cannot see a computed style or a rule inherited
-  from a parent. It is still worth running on every change, and the residual device
-  checks stay on the manual list. It has already paid for itself: the first run found
-  seven controls between 22px and 40px (tag chips, row-action buttons, a `<select>`, the
-  install-hint close button and a native checkbox) that had all been written by hand and
-  looked fine at a glance.
-
-  The native checkbox case is worth remembering: a browser checkbox is 13–22px, below
-  the minimum. The fix is `appearance: none` plus a redrawn box at the full 44px with a
-  `background-image` tick — not shrinking the target and not accepting the default.
-- `scripts/e2e-pwa.mjs` re-checks the served facts **and resolves every asset referenced
-  by `index.html`**. A deployed PWA commonly breaks because the HTML points at a hashed
-  asset the reverse proxy does not serve, and the SPA fallback masks it with a 200
-  HTML response — so the check requires a non-HTML content type, not just a 200.
-- Anything that cannot be checked headlessly (the iOS install prompt, the standalone
-  window, real offline behaviour) is documented as **manual verification** in the task
-  PRD rather than claimed as automated.
-
----
+Regression assertions: selected slot index for every tab and fixed child count; retained composition wiring; on-device execution 查看 opens, budget swipe changes the visible list, hidden scenario scroll stays unchanged, and saved scenario/draft survives switching. UI hierarchy and actual taps/swipes are complementary to source checks, not replaceable by them.
 
 ## Code Review Checklist
 
-- [ ] Is every user-facing amount passed through `formatCents`, and every input through `parseYuanToCents`?
-- [ ] Are dates built from components rather than parsed from a string?
-- [ ] Does the view avoid re-deriving a total the server already computed?
-- [ ] Are touch targets >= 44px and bottom bars safe-area padded?
-- [ ] If the service worker config changed, was `pnpm --filter @jizhang/web run build` re-run so `check-pwa.mjs` validated it?
-- [ ] Did lint / typecheck / test / build all pass **after** the last edit?
+- [ ] Are monetary values and refunds displayed using the correct server-provided view?
+- [ ] Are native state ownership, leave guards, accessibility and interaction regressions covered?
+- [ ] Are API no-store and retired-path JSON 404 protections preserved?
+- [ ] Did the applicable Android and backend checks pass after the last relevant edit?
+- [ ] Are device and deployment acceptance reported separately, with unverified items stated?
+- [ ] Are all reset-based integration tests confined to an isolated disposable database?

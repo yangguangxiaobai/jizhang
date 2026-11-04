@@ -1,0 +1,99 @@
+{
+ "id": "58bea9ec-681f-4697-8923-38c6fdbb6cf1",
+ "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+ "status": "completed",
+ "outcome": "awaiting-choice",
+ "source_generation_id": null,
+ "question_id": "1be364fa-fbf2-43c5-9668-3d175ebb2948",
+ "answered_option_id": "605a1a9a-d256-4842-ac4f-49c4ad1c6578",
+ "answered_at": 1792143859274,
+ "created_at": 1792143691939,
+ "input_json": "{\"type\":\"text\",\"text\":\"I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options\"}"
+}
+{
+ "id": "985cda96-aac9-438e-adeb-72ffbd0728c7",
+ "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+ "status": "completed",
+ "outcome": "awaiting-choice",
+ "source_generation_id": "58bea9ec-681f-4697-8923-38c6fdbb6cf1",
+ "question_id": "57c50d13-7bfc-4cb5-8569-e9bc6f5d687e",
+ "answered_option_id": null,
+ "answered_at": 1792143953524,
+ "created_at": 1792143859274,
+ "input_json": "{\"type\":\"choice\",\"sourceGenerationId\":\"58bea9ec-681f-4697-8923-38c6fdbb6cf1\",\"questionId\":\"1be364fa-fbf2-43c5-9668-3d175ebb2948\",\"optionId\":\"605a1a9a-d256-4842-ac4f-49c4ad1c6578\"}"
+}
+{
+ "id": "5a175b78-1366-4646-b1cb-6166621666ae",
+ "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+ "status": "completed",
+ "outcome": "answer",
+ "source_generation_id": null,
+ "question_id": null,
+ "answered_option_id": null,
+ "answered_at": null,
+ "created_at": 1792143953524,
+ "input_json": "{\"type\":\"text\",\"text\":\"UI TEST B AWAITING FREE TEXT: use WeChat for the coffee, do not book anything\"}"
+}
+{
+ "id": "b25882f4-8303-47a6-bfed-0190685cac0b",
+ "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+ "status": "completed",
+ "outcome": "awaiting-choice",
+ "source_generation_id": null,
+ "question_id": "efb18d50-0657-4f41-8582-f465b8fc1244",
+ "answered_option_id": "839b6c54-8ddf-4fca-b554-73b90b65b288",
+ "answered_at": 1792144391290,
+ "created_at": 1792144125085,
+ "input_json": "{\"type\":\"text\",\"text\":\"UI TEST C: I need one single-select clarification question about coffee Dining or Entertainment, do not book anything\"}"
+}
+{
+ "id": "503fecd5-ef65-471e-b77e-0f4553ea8b40",
+ "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+ "status": "completed",
+ "outcome": "answer",
+ "source_generation_id": "b25882f4-8303-47a6-bfed-0190685cac0b",
+ "question_id": "efb18d50-0657-4f41-8582-f465b8fc1244",
+ "answered_option_id": null,
+ "answered_at": null,
+ "created_at": 1792144391290,
+ "input_json": "{\"type\":\"choice\",\"sourceGenerationId\":\"b25882f4-8303-47a6-bfed-0190685cac0b\",\"questionId\":\"efb18d50-0657-4f41-8582-f465b8fc1244\",\"optionId\":\"839b6c54-8ddf-4fca-b554-73b90b65b288\"}"
+}
+{
+ "id": "04071cab-b902-405b-a00a-30b0a8bae922",
+ "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+ "status": "completed",
+ "outcome": "awaiting-choice",
+ "source_generation_id": null,
+ "question_id": "04ae05fd-578f-4c2c-8899-e0557b4afc5a",
+ "answered_option_id": "e2fe3426-3b73-4dcd-aef3-955470f8677b",
+ "answered_at": 1792144552229,
+ "created_at": 1792144498611,
+ "input_json": "{\"type\":\"text\",\"text\":\"I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options\"}"
+}
+{
+ "id": "1b4a6eeb-f670-445f-ac92-f387e885ac16",
+ "conversation_id": "5de1a6c8-ba1d-4f30-9c41-99c60ad7bed3",
+ "status": "completed",
+ "outcome": "answer",
+ "source_generation_id": "04071cab-b902-405b-a00a-30b0a8bae922",
+ "question_id": "04ae05fd-578f-4c2c-8899-e0557b4afc5a",
+ "answered_option_id": null,
+ "answered_at": null,
+ "created_at": 1792144552229,
+ "input_json": "{\"type\":\"choice\",\"sourceGenerationId\":\"04071cab-b902-405b-a00a-30b0a8bae922\",\"questionId\":\"04ae05fd-578f-4c2c-8899-e0557b4afc5a\",\"optionId\":\"e2fe3426-3b73-4dcd-aef3-955470f8677b\"}"
+}
+MESSAGES:
+1792143691939 user text {"version":1,"text":"I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options"}
+1792143696890 assistant text {"version":1,"text":"Should I categorize the $15 coffee expense as Dining or Entertainment?","generationId":"58bea9ec-681f-4697-8923-38c6fdbb6cf1","clarification":{"id":"1be364fa-fbf2-43c5-9668-3d175ebb2948","selection":
+1792143859274 user text {"version":1,"text":"Dining"}
+1792143865089 assistant text {"version":1,"text":"Got it—I'll categorize the $15 coffee expense as Dining. Which account should it be recorded in?","generationId":"985cda96-aac9-438e-adeb-72ffbd0728c7","clarification":{"id":"57c50d13-7bfc-4cb5-8569-
+1792143953524 user text {"version":1,"text":"UI TEST B AWAITING FREE TEXT: use WeChat for the coffee, do not book anything"}
+1792143956937 assistant text {"version":1,"text":"Understood—I won’t book anything. The coffee expense details are ready: $15, Dining, paid with WeChat.","generationId":"5a175b78-1366-4646-b1cb-6166621666ae"}
+1792144125084 user text {"version":1,"text":"UI TEST C: I need one single-select clarification question about coffee Dining or Entertainment, do not book anything"}
+1792144128155 assistant text {"version":1,"text":"For the coffee expense, which category should I use?","generationId":"b25882f4-8303-47a6-bfed-0190685cac0b","clarification":{"id":"efb18d50-0657-4f41-8582-f465b8fc1244","selection":"single","question
+1792144391290 user text {"version":1,"text":"Dining"}
+1792144395174 assistant text {"version":1,"text":"Got it—Dining. I won’t book anything.","generationId":"503fecd5-ef65-471e-b77e-0f4553ea8b40"}
+1792144498611 user text {"version":1,"text":"I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options"}
+1792144502040 assistant text {"version":1,"text":"Which category should I use for the $15 coffee expense?","generationId":"04071cab-b902-405b-a00a-30b0a8bae922","clarification":{"id":"04ae05fd-578f-4c2c-8899-e0557b4afc5a","selection":"single","quest
+1792144552229 user text {"version":1,"text":"Dining"}
+1792144559791 assistant text {"version":1,"text":"Got it—the $15 coffee expense is categorized as Dining. I won’t book anything.","generationId":"1b4a6eeb-f670-445f-ac92-f387e885ac16"}

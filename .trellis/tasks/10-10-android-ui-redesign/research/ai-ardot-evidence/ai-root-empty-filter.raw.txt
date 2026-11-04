@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:266\",\"name\":\"AI07 预览筛选空态 · 390×844\"}}],\"expiredBindings\":\"binding names [ root6 ] is expired, dont use in next batch_edit\"}}"}]},"jsonrpc":"2.0","id":1}
+

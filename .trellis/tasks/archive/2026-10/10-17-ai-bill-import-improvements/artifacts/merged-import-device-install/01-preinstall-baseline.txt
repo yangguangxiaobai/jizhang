@@ -1,0 +1,24 @@
+=== UTC ===
+2026-10-19T05:29:04Z
+=== devices (authorized serial only) ===
+List of devices attached
+TNL0220A15028072       device product:JER-AN20 model:JER_AN20 device:HWJER transport_id:1
+
+=== device identity ===
+JER-AN20
+12
+31
+=== package baseline ===
+    versionCode=3 minSdk=26 targetSdk=34
+    versionName=0.1.0
+    apkSigningVersion=2
+    firstInstallTime=2026-10-10 08:54:23
+    lastUpdateTime=2026-10-17 01:04:23
+    signatures=PackageSignatures{e83339a version:2, signatures:[b7c0cbb9], past signatures:[]}
+=== installed base path ===
+package:/data/app/~~MX0t8XklENN6F08rJkk6Rg==/com.yansuu1.jizhang-THmUU2TpNUJs8zIwwBqJwQ==/base.apk
+=== installed base sha256 ===
+5c004350fefcfe7b3b284f94a5972fba03c6e28ce23f99b5ad8b7176d083896e  /data/app/~~MX0t8XklENN6F08rJkk6Rg==/com.yansuu1.jizhang-THmUU2TpNUJs8zIwwBqJwQ==/base.apk
+=== local APK identity ===
+18473623
+ec2ab9e55f8f78db2b84a5fd5884d413011f7fd5b05733bbebb921ce700deba0 *clients/android/app/build/outputs/apk/debug/app-debug.apk

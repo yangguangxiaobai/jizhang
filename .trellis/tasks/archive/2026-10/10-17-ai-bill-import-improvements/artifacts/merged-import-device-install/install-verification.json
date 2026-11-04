@@ -1,0 +1,63 @@
+{
+  "task": ".trellis/tasks/10-17-ai-bill-import-improvements",
+  "verification_scope": "APK install byte identity and non-writing MainActivity launch smoke only",
+  "status": "INSTALLED_LIMITED_SMOKE_OBSERVED",
+  "observed_at_utc": "2026-10-19T05:30:35Z",
+  "device": {
+    "serial": "TNL0220A15028072",
+    "model": "JER-AN20",
+    "android_release": "12",
+    "sdk": 31,
+    "adb_devices_status": "device"
+  },
+  "apk": {
+    "path": "clients/android/app/build/outputs/apk/debug/app-debug.apk",
+    "size_bytes": 18473623,
+    "expected_sha256": "ec2ab9e55f8f78db2b84a5fd5884d413011f7fd5b05733bbebb921ce700deba0",
+    "installed_base_sha256": "ec2ab9e55f8f78db2b84a5fd5884d413011f7fd5b05733bbebb921ce700deba0",
+    "byte_compare": "IDENTICAL",
+    "signer_certificate_sha256": "d41ce2befa2bef0fda935bae8334b4b63c73f4d1aa5cc35e3c60a1c10e89ed23",
+    "install_command": "adb -s TNL0220A15028072 install -r clients/android/app/build/outputs/apk/debug/app-debug.apk",
+    "install_exit_code": 0,
+    "install_output": "Success"
+  },
+  "package_times": {
+    "version_name": "0.1.0",
+    "version_code": 3,
+    "first_install_time_before": "2026-10-10 08:54:23",
+    "first_install_time_after": "2026-10-10 08:54:23",
+    "first_install_preserved": true,
+    "last_update_time_before": "2026-10-17 01:04:23",
+    "last_update_time_after": "2026-10-19 13:29:41"
+  },
+  "launch_smoke": {
+    "command": "adb -s TNL0220A15028072 shell am start -n com.yansuu1.jizhang/.MainActivity",
+    "observed": "mResumedActivity and focused window both identify com.yansuu1.jizhang/.MainActivity; process present; home screen rendered in screenshot and UI hierarchy",
+    "package_scoped_crash_markers_in_sampled_logcat": 0,
+    "screenshot": "07-launch.png",
+    "ui_hierarchy": "07-launch.xml",
+    "launch_observation": "08-launch-observation.txt",
+    "limits": [
+      "No chat, import, provider request, financial confirmation, bill edit, settings change, app-data clear, or uninstall was performed.",
+      "This smoke does not establish full feature acceptance or backend/provider behavior.",
+      "Backend deployment was concurrent and is outside this device verification; transient HTTP unavailability cannot be attributed to an Android UI defect from this smoke."
+    ]
+  },
+  "evidence_files": [
+    "01-preinstall-baseline.txt",
+    "02-preinstall-signer.txt",
+    "02-preinstall-apk-hash.txt",
+    "03-install-result.txt",
+    "04-postinstall-package.txt",
+    "05-pull-result.txt",
+    "05-apk-hashes.txt",
+    "05-byte-compare.txt",
+    "05-installed-signer.txt",
+    "06-launch-result.txt",
+    "07-launch.png",
+    "07-launch.xml",
+    "07-ui-capture.log",
+    "08-launch-observation.txt",
+    "09-crash-scan-summary.txt"
+  ]
+}

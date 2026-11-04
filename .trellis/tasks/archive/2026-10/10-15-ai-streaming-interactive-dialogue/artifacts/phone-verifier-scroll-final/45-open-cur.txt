@@ -1,0 +1,15 @@
+会话管理 | [192,230][1032,287] | android.widget.TextView |  | 
+新建对话 | [468,378][612,426] | android.widget.TextView |  | 
+刷新会话列表 | [84,522][300,570] | android.widget.TextView |  | 
+新对话 | [117,684][225,732] | android.widget.TextView |  | 
+打开对话 | [84,780][220,820] | android.widget.TextView |  | 
+UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not boo | [84,964][618,1012] | android.widget.TextView |  | 
+当前对话 | [84,1060][220,1100] | android.widget.TextView |  | 
+UI TEST: Please provide 200 words of practical monthly budget planning advice for young professionals. Reading advice on | [84,1244][618,1292] | android.widget.TextView |  | 
+打开对话 | [84,1340][220,1380] | android.widget.TextView |  | 
+UI TEST: Please provide 400 words of budget planning advice for young professionals. Reading advice only do not book any | [84,1524][618,1572] | android.widget.TextView |  | 
+打开对话 | [84,1620][220,1660] | android.widget.TextView |  | 
+I paid 15 dollars for coffee today. First ask me the category: Dining or Entertainment. After I choose the category, ask | [84,1804][618,1852] | android.widget.TextView |  | 
+打开对话 | [84,1900][220,1940] | android.widget.TextView |  | 
+I spent 15 dollars on coffee today. Please first ask me the category with single choice Dining or Entertainment, then af | [84,2084][618,2132] | android.widget.TextView |  | 
+打开对话 | [84,2180][220,2202] | android.widget.TextView |  | 

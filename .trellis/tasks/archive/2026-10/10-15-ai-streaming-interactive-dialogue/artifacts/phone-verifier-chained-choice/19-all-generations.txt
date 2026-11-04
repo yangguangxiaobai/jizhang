@@ -1,0 +1,20 @@
+GEN_TOTAL=12
+f82dd60e db4b1b34 completed answer src=null answeredOpt=null answeredAt=null bornAnswered=false created=1792132729045
+f37bc0a1 db4b1b34 completed awaiting-choice src=null answeredOpt=e09ad998 answeredAt=SET bornAnswered=false created=1792132777199
+   input={"type":"text","text":"I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options"} | q={"version":1,"id":"f8441472-84f6-43bf-94a5-12479b8089a6","clarification":{"id":"f8441472-84f6-43bf-94a5-12479b8089a6","selection":"single","question":"Which category should I use for the $15 coffee expense?","options":[{"id":"e09ad998-c318-
+863a936c db4b1b34 completed awaiting-choice src=f37bc0a1 answeredOpt=e09ad998 answeredAt=SET bornAnswered=true created=1792132800349
+   input={"type":"choice","sourceGenerationId":"f37bc0a1-728a-4e75-8146-ad3d87326985","questionId":"f8441472-84f6-43bf-94a5-12479b8089a6","optionId":"e09ad998-c318-476a-b46c-23bb2e5a2df7"} | q={"version":1,"id":"12f92c72-4bac-4db6-a636-ae756b2c9fb1","clarification":{"id":"12f92c72-4bac-4db6-a636-ae756b2c9fb1","selection":"single","question":"Choose an account for this expense:","options":[{"id":"eb4f539e-7d52-4d94-9cf9-f2483e442c
+4b0b2c99 07e609d8 completed answer src=null answeredOpt=null answeredAt=null bornAnswered=false created=1792132970952
+ed63eb1c 07e609d8 failed  src=null answeredOpt=null answeredAt=null bornAnswered=false created=1792133018779
+106f37ee 07e609d8 completed answer src=null answeredOpt=null answeredAt=null bornAnswered=false created=1792133056849
+84709525 df6a8ef7 completed answer src=null answeredOpt=null answeredAt=null bornAnswered=false created=1792136819439
+98352a36 df6a8ef7 failed  src=null answeredOpt=null answeredAt=null bornAnswered=false created=1792137012673
+e3c66ea2 df6a8ef7 completed awaiting-choice src=null answeredOpt=4de009e6 answeredAt=SET bornAnswered=false created=1792137276824
+   input={"type":"text","text":"I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options"} | q={"version":1,"id":"ca18922d-4a79-4c9a-b5e7-eb597dfd3146","clarification":{"id":"ca18922d-4a79-4c9a-b5e7-eb597dfd3146","selection":"single","question":"Which category should I use?","options":[{"id":"4de009e6-28ad-4318-85eb-713336505d09","la
+ccf489cb df6a8ef7 completed awaiting-choice src=e3c66ea2 answeredOpt=4de009e6 answeredAt=SET bornAnswered=true created=1792137450568
+   input={"type":"choice","sourceGenerationId":"e3c66ea2-5bd0-4fd4-80eb-2b3f9e46dc27","questionId":"ca18922d-4a79-4c9a-b5e7-eb597dfd3146","optionId":"4de009e6-28ad-4318-85eb-713336505d09"} | q={"version":1,"id":"f8477324-d957-4f8a-908e-342a3b005ee0","clarification":{"id":"f8477324-d957-4f8a-908e-342a3b005ee0","selection":"single","question":"Which account did you use for the $15 coffee?","options":[{"id":"7beaee4f-22ce-4dc0-bcfb-
+121e1111 56853b5c completed awaiting-choice src=null answeredOpt=d1ddcec0 answeredAt=SET bornAnswered=false created=1792142484531
+   input={"type":"text","text":"UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book anything"} | q={"version":1,"id":"38f7ce7f-01dc-484b-ad15-ca2a46a178c7","clarification":{"id":"38f7ce7f-01dc-484b-ad15-ca2a46a178c7","selection":"single","question":"这笔 15 元咖啡支出是从哪个账户支付的？","options":[{"id":"d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93","label":"支
+66297b1f 56853b5c completed answer src=121e1111 answeredOpt=null answeredAt=null bornAnswered=false created=1792142598450
+   input={"type":"choice","sourceGenerationId":"121e1111-c545-4712-b75c-701699bb29ee","questionId":"38f7ce7f-01dc-484b-ad15-ca2a46a178c7","optionId":"d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93"} | q={"version":1,"id":"38f7ce7f-01dc-484b-ad15-ca2a46a178c7","clarification":{"id":"38f7ce7f-01dc-484b-ad15-ca2a46a178c7","selection":"single","question":"这笔 15 元咖啡支出是从哪个账户支付的？","options":[{"id":"d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93","label":"支
+EVENT_TOTAL=667

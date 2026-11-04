@@ -1,3 +1,9 @@
 <resources>
-    <string name="app_name">记账</string>
+    <string name="app_name">Yansuu1记账</string>
+    <string name="launcher_icon_option_1">图标 1</string>
+    <string name="launcher_icon_option_2">图标 2</string>
+    <string name="launcher_icon_option_3">图标 3</string>
+    <string name="launcher_icon_option_4">图标 4</string>
+    <string name="launcher_icon_option_5">图标 5</string>
+    <string name="launcher_icon_option_6">图标 6（默认）</string>
 </resources>

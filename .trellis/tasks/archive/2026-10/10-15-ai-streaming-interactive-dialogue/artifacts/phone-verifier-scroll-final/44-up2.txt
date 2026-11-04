@@ -1,0 +1,16 @@
+会话管理 | [192,230][1032,287] | android.widget.TextView |  | 
+新建对话 | [468,378][612,426] | android.widget.TextView |  | 
+刷新会话列表 | [84,522][300,546] | android.widget.TextView |  | 
+打开对话 | [84,618][220,647] | android.widget.TextView |  | 
+I paid 15 dollars for coffee today. First ask me the category: Dining or Entertainment. After I choose the category, ask | [84,791][618,839] | android.widget.TextView |  | 
+打开对话 | [84,887][220,927] | android.widget.TextView |  | 
+I spent 15 dollars on coffee today. Please first ask me the category with single choice Dining or Entertainment, then af | [84,1071][618,1119] | android.widget.TextView |  | 
+打开对话 | [84,1167][220,1207] | android.widget.TextView |  | 
+I spent 15 dollars on coffee, please ask me whether it belongs to Dining or Entertainment with clarification options | [84,1351][618,1399] | android.widget.TextView |  | 
+打开对话 | [84,1447][220,1487] | android.widget.TextView |  | 
+UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book any | [84,1631][618,1679] | android.widget.TextView |  | 
+打开对话 | [84,1727][220,1767] | android.widget.TextView |  | 
+Please explain compound interest and why starting early matters for personal finance in detail | [84,1911][618,1959] | android.widget.TextView |  | 
+打开对话 | [84,2007][220,2047] | android.widget.TextView |  | 
+Please write a detailed 500-word essay about financial independence and budgeting principles | [84,2191][618,2202] | android.widget.TextView |  | 
+打开对话 | [0,0][0,0] | android.widget.TextView |  | 

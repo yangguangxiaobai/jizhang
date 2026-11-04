@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"MCP error -32602: Input validation error: Invalid arguments for tool fetch_guidelines: [\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"table\",\n      \"landing-page\",\n      \"web-app\",\n      \"mobile-app\",\n      \"slides\",\n      \"posters\",\n      \"code\",\n      \"tailwind\"\n    ],\n    \"path\": [\n      \"topic\"\n    ],\n    \"message\": \"Invalid input\"\n  }\n]"}],"isError":true},"jsonrpc":"2.0","id":1}
+

@@ -1,0 +1,10 @@
+=== datastore listing ===
+total 10
+drwx------ 2 u0_a240 u0_a240 3440 2026-10-12 11:50 .
+drwxrwx--x 3 u0_a240 u0_a240 3440 2026-10-16 15:40 ..
+-rw------- 1 u0_a240 u0_a240  104 2026-10-12 11:50 jizhang.preferences_pb
+=== datastore sha256 ===
+d7decd7d08bcba1072da7a638f46e4b8d1aab6375af10d4c0b4928f808955b4c  jizhang.preferences_pb
+=== session prefs (REDACTED: contains session cookie credential; value deliberately NOT recorded) ===
+283 /data/data/com.yansuu1.jizhang/shared_prefs/jizhang_session.xml
+eda4adc46f47fb5bbbd73cfa972ebafb4fcae81acb6920d1c85d1af6913ae8a4  /data/data/com.yansuu1.jizhang/shared_prefs/jizhang_session.xml

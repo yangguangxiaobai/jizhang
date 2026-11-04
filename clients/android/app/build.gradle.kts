@@ -49,7 +49,7 @@ android {
         minSdk = 26
         targetSdk = 34
         // versionName tracks the repo package.json; versionCode increments per release.
-        versionCode = 2
+        versionCode = 3
         versionName = repoVersionName()
     }
 
@@ -101,6 +101,9 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.json:json:20240303")
     val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)

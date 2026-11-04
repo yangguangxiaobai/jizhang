@@ -1,0 +1,5 @@
+{"file":".trellis/tasks/10-19-ai-spending-organization/research/planning-research.md","reason":"Test/review evidence for current migration and legacy data constraints, full-range analysis limits, failure atomicity, and conditional undo risks."}
+{"file":".trellis/spec/backend/ai-provider.md","reason":"Review proposed API/provider behavior against established advisory-only AI, safe errors, bounded inputs, and existing organization authorization/undo contracts."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Review additive migration safety, backward compatibility, soft-delete, JSON parsing, transaction atomicity and database test coverage."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Review stable HTTP error envelope/status behavior, auth/CSRF, validation ownership and error-path test requirements."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Review backend service boundaries, shared accounting rules, deterministic tests and repository-wide quality gate."}

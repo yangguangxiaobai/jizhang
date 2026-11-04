@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:265\",\"name\":\"导航标签 我的\",\"content\":\"我的\"}}],\"expiredBindings\":\"binding names [ n11_0 ] is expired, dont use in next batch_edit\",\"potentialIssues\":[\"Node (20:265): text box extends beyond its parent Node (20:231) (overflows by 1px horizontally); content may be clipped. shrink the font, or set width: (fixed number) to make it auto wrap.\"],\"notify\":\"Please check and fix all potentialIssues before you start the next task\"}}"}]},"jsonrpc":"2.0","id":1}
+

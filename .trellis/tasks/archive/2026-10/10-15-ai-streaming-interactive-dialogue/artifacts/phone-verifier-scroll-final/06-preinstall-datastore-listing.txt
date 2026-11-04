@@ -1,0 +1,12 @@
+=== shared_prefs ===
+total 14
+drwxrwx--x 2 u0_a240 u0_a240 3440 2026-10-12 12:38 .
+drwx------ 6 u0_a240 u0_a240 3440 2026-10-10 08:54 ..
+-rw-rw---- 1 u0_a240 u0_a240  283 2026-10-12 12:38 jizhang_session.xml
+=== files ===
+total 21
+drwxrwx--x 3 u0_a240 u0_a240 3440 2026-10-16 15:40 .
+drwx------ 6 u0_a240 u0_a240 3440 2026-10-10 08:54 ..
+drwx------ 2 u0_a240 u0_a240 3440 2026-10-12 11:50 datastore
+-rw------- 1 u0_a240 u0_a240   24 2026-10-16 15:40 profileInstalled
+-rw------- 1 u0_a240 u0_a240    8 2026-10-10 17:20 profileinstaller_profileWrittenFor_lastUpdateTime.dat

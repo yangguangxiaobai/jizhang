@@ -1,0 +1,29 @@
+{
+  "timestamp": 1792172414810,
+  "ledger": {
+    "transactions": 59,
+    "transfers": 2,
+    "assistant_pending_actions": 11
+  },
+  "counts": {
+    "assistant_conversations": 21,
+    "assistant_messages": 136,
+    "assistant_generations": 31,
+    "assistant_generation_events": 910
+  },
+  "latest_conversation": {
+    "id": "091eb632-c04d-4f13-9ac3-c8c973192477",
+    "title": "UI TEST: Please provide 200 words of practical monthly budget planning advice for young professionals. Reading advice on",
+    "created_at": 1792171733222
+  },
+  "latest_generation": {
+    "id": "770ea689-3e3a-4d6d-bd4b-c88b18c9073e",
+    "conversation_id": "091eb632-c04d-4f13-9ac3-c8c973192477",
+    "status": "completed",
+    "outcome": "answer",
+    "delivery": "stream",
+    "last_seq": 64,
+    "created_at": 1792171797996,
+    "updated_at": 1792171805488
+  }
+}

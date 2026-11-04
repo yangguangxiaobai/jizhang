@@ -56,13 +56,10 @@ class ItemRepository(private val api: ApiClient) {
         id: String,
         contentType: String,
         bytes: ByteArray,
-    ): Boolean = photoUploader.upload(
-        baseUrl = baseUrl,
-        sessionCookieHeader = photoUploader.sessionHeader(),
-        itemId = id,
-        contentType = contentType,
-        bytes = bytes,
-    )
+    ): Boolean = withContext(Dispatchers.IO) {
+        api.putBytes("/api/v1/items/$id/photo", contentType, bytes)
+        true
+    }
 
     suspend fun removePhoto(id: String) =
         withContext(Dispatchers.IO) { api.delete("/api/v1/items/$id/photo") }

@@ -1,0 +1,16 @@
+会话管理 | [192,230][1032,287] | android.widget.TextView |  | 
+新建对话 | [468,378][612,426] | android.widget.TextView |  | 
+刷新会话列表 | [84,522][300,555] | android.widget.TextView |  | 
+UI TEST I bought a coffee for 15  yuan today. Which category and which account do you need me to choose. do not book any | [84,618][618,651] | android.widget.TextView |  | 
+打开对话 | [84,699][220,739] | android.widget.TextView |  | 
+Please explain compound interest and why starting early matters for personal finance in detail | [84,883][618,931] | android.widget.TextView |  | 
+打开对话 | [84,979][220,1019] | android.widget.TextView |  | 
+Please write a detailed 500-word essay about financial independence and budgeting principles | [84,1163][618,1211] | android.widget.TextView |  | 
+打开对话 | [84,1259][220,1299] | android.widget.TextView |  | 
+UI TEST: please list 3 budgeting tips | [84,1443][618,1491] | android.widget.TextView |  | 
+打开对话 | [84,1539][220,1579] | android.widget.TextView |  | 
+UI TEST: Please reply hello only. Do not create, update, delete, confirm or book anything. | [84,1723][618,1771] | android.widget.TextView |  | 
+打开对话 | [84,1819][220,1859] | android.widget.TextView |  | 
+今天天气怎么样 | [84,2003][336,2051] | android.widget.TextView |  | 
+打开对话 | [84,2099][220,2139] | android.widget.TextView |  | 
+你是deepseek吗 | [0,0][0,0] | android.widget.TextView |  | 

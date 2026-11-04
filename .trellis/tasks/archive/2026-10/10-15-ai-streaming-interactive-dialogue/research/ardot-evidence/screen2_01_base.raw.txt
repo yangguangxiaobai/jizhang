@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:75\",\"name\":\"AI15 追问单选与自由输入 · 390×844\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:76\",\"name\":\"标题\",\"content\":\"AI 助理\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:77\",\"name\":\"状态指示胶囊\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:78\",\"name\":\"状态文本\",\"content\":\"● 待确认分类追问\"}}],\"expiredBindings\":\"binding names [ s2, hdr, tag, tag_txt ] is expired, dont use in next batch_edit\"}}"}]},"jsonrpc":"2.0","id":1}
+

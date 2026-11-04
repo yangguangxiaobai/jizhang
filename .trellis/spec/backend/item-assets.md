@@ -5,7 +5,8 @@ must not change transactions, balances, budgets, or financial statistics.
 
 ## 1. Scope / Trigger
 
-- Trigger: additive SQLite migration plus authenticated API and Vue client data-flow contract.
+- Trigger: additive SQLite migration plus authenticated API and native-client data-flow contract.
+  The Web client and its browser tests are retired.
 - Use this contract when changing item records, lifecycle transitions, photos, or optional links
   to existing transactions.
 - Private automatic photo cutout is in scope through the bounded proxy contract below. Visual
@@ -53,7 +54,7 @@ must not change transactions, balances, budgets, or financial statistics.
 - All routes are registered inside the authenticated `authModule.extraRoutes` plugin. Reads
   require a session; writes also require `X-Requested-With: fetch`.
 - Money is integer cents. Dates are local-calendar epoch milliseconds. The server owns all
-  holding-day and daily-cost arithmetic; the web layer formats returned values only.
+  holding-day and daily-cost arithmetic; clients format returned values only.
 - Statuses are `active`, `idle`, `sold`, and `retired`. Open items have no `closedDate`. Sold and
   retired items require a close date. A sale's proceeds and sale link may be unknown.
 - Purchase transaction links must point to a live, non-refund expense. Sale links must point to a
@@ -92,7 +93,7 @@ must not change transactions, balances, budgets, or financial statistics.
 - **Base:** create an item with an unknown price, or a same-day purchase; return `null` for daily
   cost rather than inventing a value.
 - **Bad:** create a transaction as a side effect of saving the item, link income as the purchase,
-  accept an SVG as an image, or compute holding cost independently in Vue.
+  accept an SVG as an image, or compute holding cost independently in a client.
 
 ## 6. Tests Required
 
@@ -102,10 +103,11 @@ must not change transactions, balances, budgets, or financial statistics.
   date validation, lifecycle transitions, transaction-link types, ledger/stat/budget invariance,
   image MIME/size/dimension limits, authenticated no-store/nosniff retrieval, and photo bytes
   surviving a backup/restore snapshot.
-- `packages/web/e2e/item-assets.spec.mjs`: on Chromium and WebKit iPhone viewports, create an item
-  linked to an existing expense and assert the transaction count does not increase.
-- Run server/web lint and typecheck, workspace tests, and the web production build/PWA gates after
-  changing this contract or its implementation.
+- `packages/server/test/items.test.ts`: also assert linking existing bills and retiring an item
+  preserve transaction counts, purchase price and link; a missing photo returns JSON 404, and
+  transparent WebP bytes survive upload and retrieval.
+- Run server lint, typecheck and relevant server tests after changing this contract or its
+  implementation. Native UI/device acceptance is separate from API tests and compilation.
 
 ## 7. Wrong vs Correct
 
@@ -150,8 +152,8 @@ await api.items.create({ ...item, purchaseTransactionId: selectedExistingExpense
 - Register every public cutout route inside the same authenticated `authModule.extraRoutes`
   plugin as item CRUD. Reads require a session; `POST` and `DELETE` also require the existing
   CSRF header.
-- The browser calls Fastify only. Fastify proxies to the Python worker on a dedicated Docker
-  internal network. The worker has no published host port and accepts no browser cookies.
+- Clients call Fastify only. Fastify proxies to the Python worker on a dedicated Docker
+  internal network. The worker has no published host port and accepts no client session cookies.
 - Accept only the existing prepared WebP draft (<=2 MiB, <=40 MP, longest edge <=1600 px).
   Keep one active job plus one queued job, at most three retained results, at most eight
   candidates, and a 120-second job deadline. Expire retained results after ten minutes.
@@ -202,10 +204,11 @@ await api.items.create({ ...item, purchaseTransactionId: selectedExistingExpense
   disabled service, typed proxy responses, no-store/nosniff, and streamed JSON/image byte caps.
 - `packages/cutout/tests/test_service.py`: use a fake engine to assert bounds, queue behavior,
   cancellation/cleanup, private headers, and preservation of transparent source pixels.
-- `packages/web/e2e/item-cutout.spec.mjs` on Chromium and WebKit iPhone viewports: assert
-  candidate selection is a draft until save, ledger invariance, service failure/no-candidate
-  fallback, and cancel. Mock the upstream worker at the Fastify transport seam, not with a
-  browser-wide API route that can hide auth/CSRF wiring.
+- `packages/server/test/item-cutouts.test.ts`: assert the create/status/candidate/cancel cycle
+  creates no item, photo or ledger rows, and upstream failure or an empty ready result leaves
+  ordinary photo upload available. Mock the worker at the Fastify transport seam so auth/CSRF
+  wiring is exercised. Native draft selection and cancellation require separate client/device
+  acceptance; API tests do not prove those interactions.
 - Before enabling in production, build the pinned CPU worker and benchmark at least twelve
   public/synthetic non-personal images: warm p95 <=45 seconds and peak RSS <2.5 GiB. If this
   gate fails, tune and remeasure or stop; do not silently remove the resource caps.
@@ -221,9 +224,9 @@ await api.items.uploadPhoto(itemId, 'image/png', generatedCandidate);
 
 #### Correct
 
-```ts
-// Keep the selected result in the form draft; the existing save flow compresses and uploads it.
-preparedPhoto.value = await prepareItemPhoto(candidateFile);
+```text
+Keep the selected candidate in the client draft; upload it through the existing photo
+endpoint only after the user submits the item form.
 ```
 
 

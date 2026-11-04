@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Update\",\"node\":\"32:245\",\"updated\":{\"height\":90,\"x\":16,\"y\":52}},{\"type\":\"Update\",\"node\":\"32:246\",\"updated\":{\"height\":60,\"x\":16,\"y\":156}},{\"type\":\"Update\",\"node\":\"32:247\",\"updated\":{\"x\":10,\"y\":12}},{\"type\":\"Update\",\"node\":\"32:248\",\"updated\":{\"height\":48,\"x\":16,\"y\":232}},{\"type\":\"Update\",\"node\":\"32:249\",\"updated\":{\"x\":75,\"y\":14}},{\"type\":\"Update\",\"node\":\"32:250\",\"updated\":{\"height\":48,\"x\":16,\"y\":292}},{\"type\":\"Update\",\"node\":\"32:251\",\"updated\":{\"x\":45,\"y\":14}},{\"type\":\"Update\",\"node\":\"32:242\",\"updated\":{\"height\":360}}]}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

@@ -156,7 +156,7 @@ describe('organization durable progress lifecycle', () => {
       runMigrations(db, null, MIGRATIONS.filter((m) => m.version <= 16));
       db.prepare(`INSERT INTO ai_analysis_runs (id,status,start_date,end_date,eligible_count,created_at,updated_at)
         VALUES ('history','ready','2026-08-01','2026-08-31',0,1,1)`).run();
-      expect(runMigrations(db, null).applied).toEqual([17, 18, 19]);
+      expect(runMigrations(db, null).applied).toEqual([17, 18, 19, 20, 21]);
       expect(runMigrations(db, null).applied).toEqual([]);
       const service = new AiSpendingOrganizationService(db, {} as AiConfigService, {} as AiProviderService);
       expect(service.getRun('history').progress).toBeNull();

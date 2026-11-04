@@ -1,0 +1,32 @@
+{
+  "id": "android-brand-recording",
+  "name": "android-brand-recording",
+  "title": "Yansuu1记账品牌与记账体验优化",
+  "description": "整合六款可切换图标、首页真实余额与月份简化、退款、金额输入、顶部错误和账单详情卡片",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-22",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-22-android-brand-icons",
+    "10-22-android-home-balances",
+    "10-22-android-recording-cards"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "approval_gate": "approved_by_user"
+  }
+}

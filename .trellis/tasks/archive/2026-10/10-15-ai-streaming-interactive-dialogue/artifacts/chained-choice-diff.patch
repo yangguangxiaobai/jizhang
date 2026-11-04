@@ -1,0 +1,52 @@
+# Logical diff of the fix (file is untracked, so `git diff` cannot show it)
+# packages/server/src/services/assistant-generation-service.ts — create()
+
+@@ INSERT (assistant_generations) — bind list
+-              source_generation_id, question_id, question_json, answered_option_id, answered_at,
+-              error_code, error_message, today, created_at, updated_at)
+-           VALUES (?, ?, ?, ?, ?, ?, 'accepted', ?, NULL, 0, '[]', '[]', ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)`,
++              source_generation_id, question_id, question_json, answered_option_id, answered_at,
++              error_code, error_message, today, created_at, updated_at)
++           VALUES (?, ?, ?, ?, ?, ?, 'accepted', ?, NULL, 0, '[]', '[]', ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?, ?)`,
+         )
+         .run(
+           id,
+           conversationId,
+           request.clientRequestId,
+           requestHash,
+           JSON.stringify(request.input),
+           user.id,
+           context.delivery,
+           source.sourceGenerationId,
+           source.questionId,
+           source.questionJson,
+-          source.optionId,
+-          source.answeredAt,
+           context.today,
+           at,
+           at,
+         );
+
+# The new generation's own answer columns are now literal NULL. The consumed answer is still
+# written to the *source* row by the pre-existing UPDATE (`SET answered_at = ?, answered_option_id = ?`
+# — unchanged), and provenance for the new row is still carried by `source_generation_id`,
+# `question_id`/`question_json` and `input_json`.
+
+@@ resolveInput() return type — dead provenance fields removed (no functional effect)
+-    optionId: string | null;
+-    answeredAt: number | null;
++    optionId: string | null;
+
+@@ resolveInput() choice branch
+         optionId,
+-        answeredAt: this.now(),
+       };
+
+@@ resolveInput() choice-text branch
+       optionId: null,
+-      answeredAt: this.now(),
+     };
+
+# Not touched: the choice consumption UPDATE, the `source.answered_at !== null` stale guard,
+# the plain-text supersede UPDATE, the 4000-char bounds contract, migrations, routes,
+# provider/model/timeout configuration.

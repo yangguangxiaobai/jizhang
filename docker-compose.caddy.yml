@@ -1,0 +1,14 @@
+# Bridge-network Caddy variant; not for the current host-network container.
+# Add after the base (and migration) Compose files.
+# The EXISTING Caddy container must also join this network. No new proxy starts.
+services:
+  jizhang:
+    networks:
+      caddy-shared:
+        aliases:
+          - jizhang-api
+
+networks:
+  caddy-shared:
+    external: true
+    name: '${JIZHANG_CADDY_NETWORK:?Set JIZHANG_CADDY_NETWORK to the existing Caddy network}'

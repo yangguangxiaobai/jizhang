@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/native-delivery.md","reason":"Native API compatibility, account filtering and inventory contract"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"SQLite data safety and soft deletion"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Android implementation and verification gates"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Search protocol and data flow across layers"}

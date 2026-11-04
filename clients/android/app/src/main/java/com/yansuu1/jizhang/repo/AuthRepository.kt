@@ -2,6 +2,7 @@ package com.yansuu1.jizhang.repo
 
 import com.yansuu1.jizhang.net.ApiClient
 import com.yansuu1.jizhang.net.AuthExpiredException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -23,54 +24,90 @@ class AuthRepository(private val api: ApiClient) {
         private set
 
     suspend fun refresh() = withContext(Dispatchers.IO) {
+        val identity = api.captureRequestIdentity()
         try {
             val me = api.get("/api/v1/auth/me")
-            username = me.optString("username").ifEmpty { null }
-            lastError = null
+            if (api.isCurrent(identity)) {
+                username = me.optString("username").ifEmpty { null }
+                lastError = null
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: AuthExpiredException) {
-            username = null
+            if (api.isCurrent(identity)) {
+                username = null
+            }
         } catch (e: Exception) {
-            username = null
-            lastError = e.message
+            if (api.isCurrent(identity)) {
+                username = null
+                lastError = e.message
+            }
         } finally {
-            checked = true
+            if (api.isCurrent(identity)) {
+                checked = true
+            }
         }
     }
 
     suspend fun login(name: String, password: String): Boolean = withContext(Dispatchers.IO) {
-        lastError = null
+        val identity = api.advanceSession()
+        if (api.isCurrent(identity)) {
+            lastError = null
+        }
         try {
             val me = api.post(
                 "/api/v1/auth/login",
                 JSONObject().put("username", name).put("password", password),
             )
-            username = me.optString("username").ifEmpty { null }
-            true
+            if (api.isCurrent(identity)) {
+                username = me.optString("username").ifEmpty { null }
+                api.sessionExpired.value = false
+                true
+            } else {
+                false
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            lastError = e.message ?: "登录失败，请重试。"
+            if (api.isCurrent(identity)) {
+                lastError = e.message ?: "登录失败，请重试。"
+            }
             false
         }
     }
 
     suspend fun logout() = withContext(Dispatchers.IO) {
+        val identity = api.captureRequestIdentity()
         try {
             api.post("/api/v1/auth/logout")
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             // Clearing local state is what matters; the server session may be gone.
         } finally {
-            api.clearSession()
-            username = null
+            if (api.isCurrent(identity)) {
+                api.advanceSession()
+                api.clearSession()
+                username = null
+            }
         }
     }
 
     suspend fun changePassword(current: String, next: String): Result<Unit> =
         withContext(Dispatchers.IO) {
+            val identity = api.captureRequestIdentity()
             try {
                 api.post(
                     "/api/v1/auth/password",
                     JSONObject().put("currentPassword", current).put("newPassword", next),
                 )
-                Result.success(Unit)
+                if (api.isCurrent(identity)) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(CancellationException("Session expired during password change"))
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Result.failure(e)
             }

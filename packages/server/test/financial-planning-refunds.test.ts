@@ -277,7 +277,11 @@ async function createSalary(
   amountCents: number,
   date: number,
 ): Promise<SalaryDetailDto> {
+  const { config } = await getJson<{ config: { revision: number } }>('/api/v1/financial-funds/config');
   const response = await call('POST', `${API}/salaries`, {
+    contractVersion: 1,
+    expectedFundConfigRevision: config.revision,
+    operationId: requestId(),
     amountCents,
     date,
     accountId,
@@ -437,6 +441,16 @@ function spending(execution: FinancialExecution, purpose: SpendingPurpose) {
   const found = execution.spending.find((entry) => entry.purpose === purpose);
   if (found === undefined) throw new Error(`missing spending entry: ${purpose}`);
   return found;
+}
+
+// Build a consistent legacy/corrupt fixture where the confirmed audit agrees with
+// the edited rows, so cross-refund caps are tested separately from audit mismatch.
+function alignConfirmedSplitSnapshot(refundId: string): void {
+  const rows = db.prepare('SELECT original_tx_id, amount_cents FROM financial_refund_splits WHERE refund_tx_id = ?').all(refundId) as { original_tx_id: string; amount_cents: number }[];
+  const snapshots = rows.sort((a, b) => a.original_tx_id.localeCompare(b.original_tx_id))
+    .map((row) => ({ originalTransactionId: row.original_tx_id, amountCents: row.amount_cents }));
+  db.prepare('UPDATE financial_refund_split_sets SET splits_json = ? WHERE refund_tx_id = ? AND revision = (SELECT MAX(revision) FROM financial_refund_split_sets WHERE refund_tx_id = ?)')
+    .run(JSON.stringify(snapshots), refundId, refundId);
 }
 
 async function ledgerSnapshot(ids: readonly string[]): Promise<unknown[]> {
@@ -623,6 +637,12 @@ describe('financial planning refund queue and review', () => {
 describe('financial planning refund splits', () => {
   it('keeps cash flow, gross envelope spending and confirmed net execution distinct', async () => {
     const plan = await setupPlan(100_000);
+    // Historical envelope evidence is seeded explicitly: fresh salary writes no
+    // longer create module allocations, but this regression still tests old reads.
+    const historicalCategory = db.prepare('SELECT id FROM categories WHERE type = 0 AND deleted = 0 AND id <> ? LIMIT 1')
+      .get(plan.base.essentialsCategoryId) as { id: string };
+    db.prepare('INSERT INTO budget_allocations (id,salary_record_id,date,allocations_json,deleted,updated_at) VALUES (?,?,?,?,0,?)')
+      .run(requestId(), plan.salary.id, plan.salary.date, JSON.stringify([{ categoryId: historicalCategory.id, amountCents: 100_000 }]), NOW);
     const expense = await createExpense({
       accountId: plan.base.accountId,
       categoryId: plan.base.essentialsCategoryId,
@@ -1533,6 +1553,7 @@ describe('financial planning refund lifecycle', () => {
     db.prepare(
       'UPDATE financial_refund_splits SET amount_cents = 9000 WHERE refund_tx_id = ? AND original_tx_id = ?',
     ).run(refundOne.id, globalOriginal.id);
+    alignConfirmedSplitSnapshot(refundOne.id);
 
     const execution = await executionFor(plan.period.id);
     expect(spending(execution, 'essentials')).toMatchObject({
@@ -1569,6 +1590,73 @@ describe('financial planning refund lifecycle', () => {
       .prepare('SELECT state FROM financial_refund_splits ORDER BY refund_tx_id, original_tx_id')
       .all() as { state: string }[];
     expect(states.map((row) => row.state)).toEqual(['active', 'active', 'active']);
+  });
+
+  it('loads every sibling of a competing refund before calculating remaining capacity', async () => {
+    const base = await createBaseFixture();
+    const a = await createExpense({ accountId: base.accountId, categoryId: base.essentialsCategoryId, amountCents: 10_000 });
+    const b = await createExpense({ accountId: base.accountId, categoryId: base.essentialsCategoryId, amountCents: 10_000 });
+    const first = await createRefund({ accountId: base.accountId, categoryId: base.incomeCategoryId, amountCents: 6_000, linkedOriginalIds: [a.id] });
+    expect((await putSplits(first.id, [{ originalTransactionId: a.id, amountCents: 6_000 }])).statusCode).toBe(200);
+    const competitor = await createRefund({ accountId: base.accountId, categoryId: base.incomeCategoryId, amountCents: 5_000, linkedOriginalIds: [a.id, b.id] });
+    expect((await putSplits(competitor.id, [{ originalTransactionId: a.id, amountCents: 4_000 }, { originalTransactionId: b.id, amountCents: 1_000 }])).statusCode).toBe(200);
+
+    // Simulate an old writer bypassing lifecycle invalidation on B. The competing
+    // refund's complete set is invalid, so its A split cannot consume capacity.
+    db.prepare('UPDATE transactions SET amount_cents = 11000 WHERE id = ?').run(b.id);
+    const review = await refundReview(first.id);
+    expect(review.state).toBe('confirmed');
+    expect(review.originals.find((original) => original.transactionId === a.id)).toMatchObject({
+      otherConfirmedRefundCents: 0,
+      remainingRefundableCents: 10_000,
+    });
+    expect((await refundReview(competitor.id)).state).toBe('review-required');
+  });
+
+  it('evaluates overlapping over-cap originals against the same set snapshot', async () => {
+    const base = await createBaseFixture();
+    const a = await createExpense({ accountId: base.accountId, categoryId: base.essentialsCategoryId, amountCents: 10_000 });
+    const b = await createExpense({ accountId: base.accountId, categoryId: base.essentialsCategoryId, amountCents: 10_000 });
+    const first = await createRefund({ accountId: base.accountId, categoryId: base.incomeCategoryId, amountCents: 7_000, linkedOriginalIds: [a.id] });
+    const middle = await createRefund({ accountId: base.accountId, categoryId: base.incomeCategoryId, amountCents: 10_000, linkedOriginalIds: [a.id, b.id] });
+    const last = await createRefund({ accountId: base.accountId, categoryId: base.incomeCategoryId, amountCents: 7_000, linkedOriginalIds: [b.id] });
+    expect((await putSplits(first.id, [{ originalTransactionId: a.id, amountCents: 7_000 }])).statusCode).toBe(200);
+    expect((await putSplits(middle.id, [{ originalTransactionId: a.id, amountCents: 3_000 }, { originalTransactionId: b.id, amountCents: 3_000 }])).statusCode).toBe(200);
+    expect((await putSplits(last.id, [{ originalTransactionId: b.id, amountCents: 7_000 }])).statusCode).toBe(200);
+    db.prepare('UPDATE financial_refund_splits SET amount_cents = 5000 WHERE refund_tx_id = ?').run(middle.id);
+    alignConfirmedSplitSnapshot(middle.id);
+    for (const refund of [first, middle, last]) {
+      const review = await refundReview(refund.id);
+      expect(review.state).toBe('review-required');
+      expect(review.validAttributedCents).toBe(0);
+      expect(review.reasons).toContain('over-refund');
+    }
+    const before = db.prepare('SELECT id, amount_cents FROM financial_refund_splits WHERE refund_tx_id = ?').all(first.id);
+    const retry = await putSplits(first.id, [{ originalTransactionId: a.id, amountCents: 7_000 }]);
+    expect(retry.statusCode, retry.body).toBe(409);
+    expect(db.prepare('SELECT id, amount_cents FROM financial_refund_splits WHERE refund_tx_id = ?').all(first.id)).toEqual(before);
+  });
+
+  it('rejects tampered confirmed splits that exceed the refund even below original caps', async () => {
+    const base = await createBaseFixture();
+    const a = await createExpense({ accountId: base.accountId, categoryId: base.essentialsCategoryId, amountCents: 10_000 });
+    const b = await createExpense({ accountId: base.accountId, categoryId: base.essentialsCategoryId, amountCents: 10_000 });
+    const refund = await createRefund({ accountId: base.accountId, categoryId: base.incomeCategoryId, amountCents: 5_000, linkedOriginalIds: [a.id, b.id] });
+    expect((await putSplits(refund.id, [{ originalTransactionId: a.id, amountCents: 3_000 }, { originalTransactionId: b.id, amountCents: 2_000 }])).statusCode).toBe(200);
+    db.prepare('UPDATE financial_refund_splits SET amount_cents = 6000 WHERE refund_tx_id = ? AND original_tx_id = ?').run(refund.id, a.id);
+    const review = await refundReview(refund.id);
+    expect(review.state).toBe('review-required');
+    expect(review.validAttributedCents).toBe(0);
+    expect(review.unresolvedCents).toBe(5_000);
+    const summary = await getJson<{ totals: { refunded: { essentials: number; joy: number; growth: number; reserve: number } }; coverage: { invalidRefundCount: number } }>('/api/v1/financial-funds/summary');
+    expect(summary.totals.refunded).toEqual({ growth: 0, reserve: 0, essentials: 0, joy: 0 });
+    expect(summary.coverage.invalidRefundCount).toBe(1);
+    // Even if a corrupt external writer also rewrites the audit snapshot, the
+    // resulting 8,000 cents cannot be credited to a 5,000-cent refund.
+    alignConfirmedSplitSnapshot(refund.id);
+    const overRefund = await refundReview(refund.id);
+    expect(overRefund.state).toBe('review-required');
+    expect(overRefund.validAttributedCents).toBe(0);
   });
 
   it('does not remove consumption when only the account is soft deleted', async () => {

@@ -1,0 +1,40 @@
+首页 | [42,198][156,265] | android.widget.TextView |  | 
+2026年10月 ⌵ | [749,201][1014,261] | android.widget.TextView |  | 
+账户总余额 | [102,378][282,438] | android.widget.TextView |  | 
+¥ 5009.90 | [102,468][552,568] | android.widget.TextView |  | 
+微信 ¥ 1669.96 | [102,685][368,745] | android.widget.TextView |  | 
+银行卡 ¥ 3339.94 | [679,685][978,745] | android.widget.TextView |  | 
+本月收入 | [84,877][216,937] | android.widget.TextView |  | 
+¥ 5.00 | [84,949][246,1009] | android.widget.TextView |  | 
+本月支出 | [600,877][732,937] | android.widget.TextView |  | 
+¥ 158.96 | [600,949][816,1009] | android.widget.TextView |  | 
+本周期预算 | [48,1087][243,1147] | android.widget.TextView |  | 
+剩余 ¥4262.83 | [816,1087][1032,1147] | android.widget.TextView |  | 
+日常生活 | [84,1213][216,1273] | android.widget.TextView |  | 
+¥ 1380.02 / ¥ 5642.85 | [492,1213][996,1273] | android.widget.TextView |  | 
+最近账单 | [42,1400][210,1449] | android.widget.TextView |  | 
+查看全部 › | [844,1352][1038,1488] | android.widget.TextView |  | 
+a | [121,1572][144,1632] | android.widget.TextView |  | 
+土豆aa | [219,1539][343,1599] | android.widget.TextView |  | 
+10月15日 · 退款 | [219,1605][447,1665] | android.widget.TextView |  | 
++5.00 | [877,1539][1002,1599] | android.widget.TextView |  | 
+00:00 | [926,1605][1002,1665] | android.widget.TextView |  | 
+豆 | [112,1743][152,1803] | android.widget.TextView |  | 
+土豆 | [219,1710][299,1770] | android.widget.TextView |  | 
+10月15日 · 餐饮 | [219,1776][447,1836] | android.widget.TextView |  | 
+-10.00 | [852,1710][1002,1770] | android.widget.TextView |  | 
+00:00 | [926,1776][1002,1836] | android.widget.TextView |  | 
+值 | [112,1914][152,1974] | android.widget.TextView |  | 
+大米先生充值 | [219,1881][459,1941] | android.widget.TextView |  | 
+10月14日 · 餐饮 | [219,1947][447,2007] | android.widget.TextView |  | 
+-86.00 | [852,1881][1002,1941] | android.widget.TextView |  | 
+00:00 | [926,1947][1002,2007] | android.widget.TextView |  | 
+购 | [112,2085][152,2145] | android.widget.TextView |  | 
+给栗子买零食 | [219,2052][459,2112] | android.widget.TextView |  | 
+10月13日 · 恋爱 | [219,2118][447,2169] | android.widget.TextView |  | 
+-14.00 | [852,2052][1002,2112] | android.widget.TextView |  | 
+00:00 | [926,2118][1002,2169] | android.widget.TextView |  | 
+首页 | [0,0][0,0] | android.widget.TextView |  | 
+账单 | [0,0][0,0] | android.widget.TextView |  | 
+AI 助手 | [0,0][0,0] | android.widget.TextView |  | 
+我的 | [0,0][0,0] | android.widget.TextView |  | 

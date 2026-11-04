@@ -42,6 +42,11 @@ class LedgerRepository(private val api: ApiClient) {
     suspend fun listTransactions(query: Map<String, String> = emptyMap()): JSONObject =
         withContext(Dispatchers.IO) { api.get("/api/v1/transactions", query) }
 
+    suspend fun dailyTransactionSummary(query: Map<String, String>): JSONObject =
+        withContext(Dispatchers.IO) {
+            api.get("/api/v1/transactions/daily-summary", query - "limit" - "offset")
+        }
+
     suspend fun getTransaction(id: String): JSONObject =
         withContext(Dispatchers.IO) { api.get("/api/v1/transactions/$id") }
 

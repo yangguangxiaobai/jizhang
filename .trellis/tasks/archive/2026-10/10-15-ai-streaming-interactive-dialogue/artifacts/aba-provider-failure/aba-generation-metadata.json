@@ -1,0 +1,174 @@
+{
+  "evidence_kind": "read-only metadata (lengths/offsets/status only; no raw provider payload, no credentials)",
+  "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+  "gen": {
+    "generation_id": "3da7ef99-f728-40cd-ac6d-cb8824bf7d2b",
+    "status": "failed",
+    "outcome": null,
+    "delivery": "stream",
+    "last_seq": 13,
+    "partials_json_chars": 310,
+    "partials_count": 1,
+    "partial0_text_len": 219,
+    "partial0_validated": 0,
+    "partial0_step": 0,
+    "message_ids_chars": 2,
+    "error_code": "ASSISTANT_STREAM_BOUNDS",
+    "error_message": "AI 返回内容无法识别，本次生成未产生结果。",
+    "created_at": 1792162844615,
+    "updated_at": 1792162850959
+  },
+  "deltaEventCount": 10,
+  "deltaCharsSum": 219,
+  "events": [
+    {
+      "seq": 1,
+      "type": "state",
+      "created_at": 1792162844615,
+      "payload_len": 110,
+      "offset": null,
+      "text_len": null,
+      "status": "accepted",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 2,
+      "type": "state",
+      "created_at": 1792162844615,
+      "payload_len": 109,
+      "offset": null,
+      "text_len": null,
+      "status": "running",
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 3,
+      "type": "text-delta",
+      "created_at": 1792162850277,
+      "payload_len": 187,
+      "offset": 0,
+      "text_len": 11,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 4,
+      "type": "text-delta",
+      "created_at": 1792162850363,
+      "payload_len": 203,
+      "offset": 11,
+      "text_len": 26,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 5,
+      "type": "text-delta",
+      "created_at": 1792162850424,
+      "payload_len": 195,
+      "offset": 37,
+      "text_len": 18,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 6,
+      "type": "text-delta",
+      "created_at": 1792162850496,
+      "payload_len": 196,
+      "offset": 55,
+      "text_len": 19,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 7,
+      "type": "text-delta",
+      "created_at": 1792162850556,
+      "payload_len": 191,
+      "offset": 74,
+      "text_len": 14,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 8,
+      "type": "text-delta",
+      "created_at": 1792162850634,
+      "payload_len": 212,
+      "offset": 88,
+      "text_len": 35,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 9,
+      "type": "text-delta",
+      "created_at": 1792162850724,
+      "payload_len": 195,
+      "offset": 123,
+      "text_len": 17,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 10,
+      "type": "text-delta",
+      "created_at": 1792162850795,
+      "payload_len": 213,
+      "offset": 140,
+      "text_len": 34,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 11,
+      "type": "text-delta",
+      "created_at": 1792162850894,
+      "payload_len": 209,
+      "offset": 174,
+      "text_len": 30,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 12,
+      "type": "text-delta",
+      "created_at": 1792162850945,
+      "payload_len": 194,
+      "offset": 204,
+      "text_len": 15,
+      "status": null,
+      "error_code": null,
+      "error_message": null
+    },
+    {
+      "seq": 13,
+      "type": "terminal",
+      "created_at": 1792162850959,
+      "payload_len": 221,
+      "offset": null,
+      "text_len": null,
+      "status": "failed",
+      "error_code": "ASSISTANT_STREAM_BOUNDS",
+      "error_message": "AI 返回内容无法识别，本次生成未产生结果。"
+    }
+  ],
+  "totals": {
+    "generations": 29,
+    "transactions": 59,
+    "transfers": 2,
+    "assistant_pending_actions": 11
+  }
+}

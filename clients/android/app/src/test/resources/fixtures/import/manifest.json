@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-10-17T14:57:06.912Z",
+  "mode": "Fastify app.inject + in-memory SQLite; synthetic repository fixture; analyse:false; no real provider",
+  "fixture": "packages/server/test/fixtures/wechat-bill-sample.csv",
+  "sourceFilesSha256": {
+    "packages/server/src/services/import-batch-service.ts": "a92395fae4add85df1c42e97aeafcf3ad92b808a52b3ebc221b4cf52b8db996d",
+    "packages/server/src/services/import-batch-types.ts": "564089314ddcd10eb0f2c63b8ff080e6de6e7a45c43213b6513d6e080b6bda2e",
+    "packages/server/src/routes/import-batches.ts": "69e126d605f1e345cacd58bfe2c3f5e260c2d077d532352e4a6f2ea4d89706c9",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchModels.kt": "bf1df756e9396b16a2c8d428534a90a504e6abff71f88be885b41cbd80707fc2",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchImportWorkspace.kt": "760ee2c87bf46b7e939d0c37a947780b82bfd1feecb8f683f249e3f89532805a"
+  },
+  "endpoints": [
+    "POST create batch analyse:false",
+    "GET batch",
+    "GET rows (all pages)",
+    "GET categories",
+    "POST review"
+  ],
+  "reviewTokenRedaction": "Only reviewToken is replaced with <SYNTHETIC_REDACTED_REVIEW_TOKEN>; no cookie/session/header is exported.",
+  "providerCalls": 0,
+  "financialTablesBeforeAfter": {
+    "before": {
+      "categories": "7ffd608dc73251b8a42dd649af42159f837ed0ca20a584c2dd55180a4dea42e8",
+      "accounts": "d06cf79751dcd83b70dca2d95deeddb45a57cf7ddd150b6701bcc01142052aa8"
+    },
+    "after": {
+      "categories": "7ffd608dc73251b8a42dd649af42159f837ed0ca20a584c2dd55180a4dea42e8",
+      "accounts": "d06cf79751dcd83b70dca2d95deeddb45a57cf7ddd150b6701bcc01142052aa8"
+    },
+    "unchanged": true
+  },
+  "exitCode": 0,
+  "batchId": "91683a05-3168-4358-aae7-98cdc8616a92",
+  "conversationId": "<synthetic-test-conversation-redacted>",
+  "rowsExported": 34,
+  "selectedRows": 2,
+  "noteOverrideEmptyString": true,
+  "serverOtherSuggestionApproved": true,
+  "responseTokenFieldReplaced": "reviewToken"
+}

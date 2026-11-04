@@ -1,0 +1,10 @@
+AI 助理 | [48,170][206,227] | android.widget.TextView |  | 
+● 回答已结束 | [78,251][266,286] | android.widget.TextView |  | 
+会话 | [780,210][852,258] | android.widget.TextView |  | 
+AI 助理 | [84,414][201,456] | android.widget.TextView |  | 
+Start with your take-home pay, not your salary before taxes. List essential monthly costs—housing, utilities, food, transport, debt payments—and set aside money for them first. Then choose realistic limits for flexible spending such as dining out, shopping, and entertainment. A simple starting point is to divide income among needs, wants, and saving, but adjust the proportions to fit your rent, location, and goals rather than treating any rule as mandatory.&#10;&#10;Automate a transfer to savings shortly after payday. Build an emergency fund gradually, aiming first for a small cushion and eventually several months of essential expenses. If you have high-interest debt, make a plan to pay it down while keeping a manageable cash buffer. Save separately for predictable irregular costs—annual fees, travel, gifts, or device replacement—so they do not derail the month.&#10;&#10;Track spending for a few weeks and compare it with your plan. Use broad categories and review them weekly; the goal is awareness, not perfection. At month-end, notice what worked, adjust one or two limits, and carry forward any useful lessons. Keep a little room for enjoyment, and revisit your plan when income, housing, or priorities change. A sustainable budget should help you make deliberate choices, not make every purchase feel like a failure. | [84,480][996,1905] | android.widget.TextView |  | 
+问问账本，或上传账单… | [288,2023][662,2063] | android.widget.TextView |  | 
+首页 | [0,0][0,0] | android.widget.TextView |  | 
+账单 | [0,0][0,0] | android.widget.TextView |  | 
+AI 助手 | [0,0][0,0] | android.widget.TextView |  | 
+我的 | [0,0][0,0] | android.widget.TextView |  | 

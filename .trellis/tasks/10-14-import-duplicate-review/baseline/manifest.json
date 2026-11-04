@@ -1,0 +1,13 @@
+[
+  "packages/server/src/services/portability-service.ts",
+  "packages/server/src/services/assistant-tool-registry.ts",
+  "packages/server/src/routes/assistant.ts",
+  "packages/server/test/assistant.test.ts",
+  "clients/android/README.md",
+  ".trellis/spec/backend/ai-provider.md",
+  "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportStateTest.kt",
+  "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt",
+  "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt",
+  "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportState.kt",
+  "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportWorkspace.kt"
+]

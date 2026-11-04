@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Shared money rules, gross refund policy, account and cycle contracts"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Additive migrations, derived balances, lifecycle and backup requirements"}
+{"file":".trellis/spec/backend/financial-plan.md","reason":"Preserve approved independent v1 no-ledger-write contract"}
+{"file":"clients/android/README.md","reason":"Stable native inventory and existing API/entry behavior"}
+{"file":".trellis/tasks/10-27-four-purpose-execution-system/research.md","reason":"Source-backed upgrade conflicts and compatibility decisions"}

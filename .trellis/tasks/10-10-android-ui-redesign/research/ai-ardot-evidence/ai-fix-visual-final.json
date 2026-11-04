@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Update\",\"node\":\"20:48\",\"updated\":{\"height\":48}},{\"type\":\"Update\",\"node\":\"20:51\",\"updated\":{\"y\":800}},{\"type\":\"Update\",\"node\":\"20:97\",\"updated\":{\"height\":48}},{\"type\":\"Update\",\"node\":\"20:100\",\"updated\":{\"y\":800}},{\"type\":\"Update\",\"node\":\"20:221\",\"updated\":{\"height\":48}},{\"type\":\"Update\",\"node\":\"20:224\",\"updated\":{\"y\":800}},{\"type\":\"Update\",\"node\":\"20:256\",\"updated\":{\"height\":48}},{\"type\":\"Update\",\"node\":\"20:259\",\"updated\":{\"y\":800}},{\"type\":\"Update\",\"node\":\"20:297\",\"updated\":{\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.8039215803146362,\"g\":0.8313725590705872,\"b\":0.843137264251709},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}],\"name\":\"零选择禁用确认入口\"}},{\"type\":\"Update\",\"node\":\"20:298\",\"updated\":{\"characters\":\"请选择至少 1 条\",\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.32549020648002625,\"g\":0.38823530077934265,\"b\":0.4156862795352936},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}]}},{\"type\":\"Update\",\"node\":\"20:395\",\"updated\":{\"characters\":\"全部 200\"}},{\"type\":\"Update\",\"node\":\"20:397\",\"updated\":{\"characters\":\"可导入\"}},{\"type\":\"Update\",\"node\":\"20:399\",\"updated\":{\"characters\":\"疑似重复\"}}]}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

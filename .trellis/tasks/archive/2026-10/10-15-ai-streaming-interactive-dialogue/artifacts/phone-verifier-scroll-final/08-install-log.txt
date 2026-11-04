@@ -1,0 +1,9 @@
+=== install log ===
+command: adb install -r clients/android/app/build/outputs/apk/debug/app-debug.apk
+exit_code: 0
+output:
+Performing Streamed Install
+Success
+timestamp_utc: 2026-10-16T17:04:28Z
+firstInstallTime: 2026-10-10 08:54:23 (PRESERVED -> -r kept data, not a fresh install)
+lastUpdateTime: 2026-10-17 01:04:23

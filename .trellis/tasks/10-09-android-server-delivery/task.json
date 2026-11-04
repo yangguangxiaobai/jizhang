@@ -1,0 +1,30 @@
+{
+  "id": "android-server-delivery",
+  "name": "android-server-delivery",
+  "title": "安卓优先交付与 Caddy Docker 服务迁移",
+  "description": "取消 Web，完善 Android 与鸿蒙4 APK，升级现有 Docker 后端并通过 jz.yansuu1.xyz 的 Caddy 提供服务，保留旧账本数据。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-09",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-09-retire-web",
+    "10-09-android-production-ready",
+    "10-09-api-docker-caddy"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:278\",\"name\":\"未入账状态徽章\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:279\",\"name\":\"未入账文本\",\"content\":\"● 待核对草案 · 尚未入账\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:280\",\"name\":\"金额标签\",\"content\":\"支出金额 [演示数据]\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:281\",\"name\":\"金额数值\",\"content\":\"-¥35.00\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:282\",\"name\":\"分割线\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:283\",\"name\":\"日期标签\",\"content\":\"交易时间\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:284\",\"name\":\"日期数值\",\"content\":\"2026-10-15 15:30 [演示]\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:285\",\"name\":\"分类标签\",\"content\":\"支出分类\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:286\",\"name\":\"分类数值\",\"content\":\"餐饮美食 > 咖啡饮品\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:287\",\"name\":\"账户标签\",\"content\":\"支付账户\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:288\",\"name\":\"账户数值\",\"content\":\"微信零钱\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:289\",\"name\":\"商户标签\",\"content\":\"商户 / 备注\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:290\",\"name\":\"商户数值\",\"content\":\"星巴克拿铁咖啡\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:291\",\"name\":\"核对说明栏\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:292\",\"name\":\"核对流程说明\",\"content\":\"说明：点击“核对并继续”将进入独立二次确认流程，核对要素无误后正式记入账本。当前仅为生成草案，未发生记账。\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:293\",\"name\":\"核对并继续按钮 (主动作)\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:294\",\"name\":\"核对继续文本\",\"content\":\"核对并继续 →\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:295\",\"name\":\"取消此草稿按钮 (次动作)\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:296\",\"name\":\"取消文本\",\"content\":\"取消此草稿\"}}],\"expiredBindings\":\"binding names [ st_pill, st_txt, amt_l, amt_v, div, r1_l, r1_v, r2_l, r2_v, r3_l, r3_v, r4_l, r4_v, sec_b, sec_t, btn_ok, btn_ok_t, btn_no, btn_no_t ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

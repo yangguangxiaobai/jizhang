@@ -1,0 +1,58 @@
+{
+  "genA": [
+    {
+      "id": "21dba779-3d9f-4b59-b631-d294b6c371ba",
+      "conversation_id": "3642b8f8-674a-495f-af27-d61757a45bca",
+      "status": "failed",
+      "outcome": null,
+      "delivery": "stream",
+      "last_seq": 3,
+      "created_at": 1792165859271,
+      "updated_at": 1792165879273,
+      "error_code": "ASSISTANT_STREAM_BOUNDS",
+      "error_message": "AI 响应超时，本次生成已中断。",
+      "partials_len": 2
+    }
+  ],
+  "eventsCountA": 3,
+  "eventsA": [
+    {
+      "generation_id": "21dba779-3d9f-4b59-b631-d294b6c371ba",
+      "seq": 1,
+      "type": "state",
+      "created_at": 1792165859271,
+      "len": 110
+    },
+    {
+      "generation_id": "21dba779-3d9f-4b59-b631-d294b6c371ba",
+      "seq": 2,
+      "type": "state",
+      "created_at": 1792165859271,
+      "len": 109
+    },
+    {
+      "generation_id": "21dba779-3d9f-4b59-b631-d294b6c371ba",
+      "seq": 3,
+      "type": "terminal",
+      "created_at": 1792165879273,
+      "len": 214
+    }
+  ],
+  "msgsA": [
+    {
+      "id": "3f7d9730-0e68-458f-a135-f55d112d113c",
+      "conversation_id": "3642b8f8-674a-495f-af27-d61757a45bca",
+      "role": "user",
+      "created_at": 1792165859270,
+      "len": 158
+    }
+  ],
+  "genB": [],
+  "msgsB": [],
+  "totalGen": 30,
+  "ledger": {
+    "transactions": 59,
+    "transfers": 2,
+    "assistant_pending_actions": 11
+  }
+}

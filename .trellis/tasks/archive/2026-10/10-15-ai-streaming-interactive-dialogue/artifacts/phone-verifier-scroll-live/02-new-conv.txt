@@ -1,0 +1,25 @@
+AI 助理 | [48,186][206,243] | android.widget.TextView |  | 
+账本整理 · 会话管理 | [48,243][355,283] | android.widget.TextView |  | 
+会话 | [780,210][852,258] | android.widget.TextView |  | 
+你好！我可以帮你： | [210,456][588,505] | android.widget.TextView |  | 
+• 记录收支、查询账单&#10;• 分析消费、查看预算&#10;• 导入微信/支付宝账单&#10;• 管理分类、账户和周期账单 | [96,546][587,743] | android.widget.TextView |  | 
+有什么可以帮你的吗？ | [96,767][466,811] | android.widget.TextView |  | 
+快捷提问 | [48,913][204,959] | android.widget.TextView |  | 
+帮我记一笔 | [90,1043][300,1092] | android.widget.TextView |  | 
+记录支出/收入 | [90,1101][307,1141] | android.widget.TextView |  | 
+填入 › | [894,1070][990,1114] | android.widget.TextView |  | 
+分析本月消费 | [90,1267][342,1316] | android.widget.TextView |  | 
+按分类与趋势分析 | [90,1325][362,1365] | android.widget.TextView |  | 
+填入 › | [894,1294][990,1338] | android.widget.TextView |  | 
+查看预算结余 | [90,1491][342,1540] | android.widget.TextView |  | 
+核对预算与风险 | [90,1549][328,1589] | android.widget.TextView |  | 
+填入 › | [894,1518][990,1562] | android.widget.TextView |  | 
+导入微信/支付宝账单 | [90,1715][485,1764] | android.widget.TextView |  | 
+账单文件核对引导 | [90,1773][362,1813] | android.widget.TextView |  | 
+填入 › | [894,1742][990,1786] | android.widget.TextView |  | 
+导入账单只会把文字填入输入框并提示你选择原文件，不会绕过预览、勾选与二次确认。 | [48,1897][1032,1905] | android.widget.TextView |  | 
+问问账本，或上传账单… | [288,2023][662,2063] | android.widget.TextView |  | 
+首页 | [0,0][0,0] | android.widget.TextView |  | 
+账单 | [0,0][0,0] | android.widget.TextView |  | 
+AI 助手 | [0,0][0,0] | android.widget.TextView |  | 
+我的 | [0,0][0,0] | android.widget.TextView |  | 

@@ -56,7 +56,18 @@ export const TRANSACTION_COLUMNS = [
   'note',
   'tags',
   'isRefund',
+  'fundPurpose',
 ] as const;
+
+/**
+ * Columns an *old* file may omit.
+ *
+ * `fundPurpose` was added after the first export format shipped. Requiring it would
+ * make every pre-existing backup unimportable, so absence means "no purpose evidence"
+ * (visibly unassigned), while an unknown non-empty value is a hard line error — the
+ * file is wrong, not merely old.
+ */
+const OPTIONAL_TRANSACTION_COLUMNS: readonly string[] = ['fundPurpose'];
 
 /**
  * The columns of the salaries export.
@@ -87,6 +98,11 @@ export interface ImportResult {
   readonly skipped: number;
   /** Data rows read from the file. */
   readonly total: number;
+  /**
+   * Rows whose CSV carried no purpose evidence and were therefore left explicitly
+   * unassigned. They are not an error: older files simply never recorded a purpose.
+   */
+  readonly unassignedPurpose?: number;
 }
 
 /** One platform bill row as shown in the import preview table. */
@@ -277,10 +293,12 @@ export class PortabilityService {
 
     const query = this.db
       .prepare(
-        `SELECT id, type, amount_cents, category_id, account_id, date, note, tags_json, is_refund
-           FROM transactions
-          WHERE deleted = 0
-          ORDER BY date, updated_at, id`,
+        `SELECT t.id, t.type, t.amount_cents, t.category_id, t.account_id, t.date, t.note, t.tags_json, t.is_refund,
+                p.purpose AS fund_purpose
+           FROM transactions t
+           LEFT JOIN financial_fund_purposes p ON p.transaction_id = t.id
+          WHERE t.deleted = 0
+          ORDER BY t.date, t.updated_at, t.id`,
       )
       .all() as {
       id: string;
@@ -292,6 +310,7 @@ export class PortabilityService {
       note: string;
       tags_json: string;
       is_refund: number;
+      fund_purpose: string | null;
     }[];
 
     for (const row of query) {

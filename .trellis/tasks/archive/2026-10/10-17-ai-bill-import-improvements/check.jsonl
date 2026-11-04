@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend architecture and applicable package guidelines"}
+{"file": ".trellis/spec/backend/ai-provider.md", "reason": "Legacy AI import and financial confirmation boundary; explicit new-batch extension"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Additive migrations and atomic better-sqlite3 writes"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Authenticated CSRF/ownership routes and safe fixed error wire shape"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Fastify authenticated-plugin registration and file boundaries"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Final package lint/typecheck/test/build and evidence gates"}
+{"file": ".trellis/spec/backend/native-delivery.md", "reason": "Android inventory maintenance and source/device distinction"}
+{"file": ".trellis/tasks/10-17-ai-bill-import-improvements/research/android-inventory-context.md", "reason": "Import stable-ID excerpt; explicitly read affected clients/android/README.md sections before edits, full inventory exceeds injection cap"}
+{"file": ".trellis\\tasks\\10-17-ai-bill-import-improvements\\research\\merged-import-final-ux.md", "reason": "Candidate unified workspace interactions; contract and PRD win over early drafts"}
+{"file": ".trellis\\tasks\\10-17-ai-bill-import-improvements\\research\\planning-status.md", "reason": "Consent ledger and phase gates"}
+{"file": ".trellis\\tasks\\10-17-ai-bill-import-improvements\\research\\final-planning-review.md", "reason": "Historical blocking findings to regression-test; fixed by revised design rather than implementation claims"}
+{"file": ".trellis/tasks/10-17-ai-bill-import-improvements/research/merged-import-protocol-v1.md", "reason": "Implementation-approved normative protocol; resolutions override older proposal examples"}
+{"file": ".trellis/tasks/10-17-ai-bill-import-improvements/research/merged-import-protocol-fixtures-v1.json", "reason": "Synthetic wire shape examples, not parser/provider acceptance evidence"}
+{"file": ".trellis/spec/backend/merged-bill-import.md", "reason": "Implemented dedicated merged-batch contracts and local evidence boundaries"}
+{"file": ".trellis/tasks/10-17-ai-bill-import-improvements/research/final-quality-readback.md", "reason": "Latest local quality gate and current artifact evidence, not production acceptance"}
+{"file": ".trellis/tasks/10-17-ai-bill-import-improvements/research/android-identity-wire-fix.md", "reason": "Actual server wire enum mismatch regression and fix; preserve fail-to-pass evidence"}

@@ -1,0 +1,12 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend conventions and current API/ledger ownership."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Additive migrations, source lifecycle, audit/soft-delete and backup contracts."}
+{"file":".trellis/spec/backend/financial-execution.md","reason":"Legacy frozen salary/source/purpose/refund boundaries to preserve while retiring active periods."}
+{"file":".trellis/spec/backend/financial-plan.md","reason":"Four-purpose vocabulary and independent scenario/manual goal boundaries."}
+{"file":".trellis/spec/backend/statistics-window.md","reason":"Server-owned half-open scopes and gross ordinary ledger totals."}
+{"file":".trellis/spec/backend/native-delivery.md","reason":"Android consumed API contracts and source/device evidence boundary."}
+{"file":".trellis/spec/frontend/index.md","reason":"Native Android, shared calculation ownership and catalogue requirements."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Validate storage-service-route-repository-UI dataflow consistently."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/fund-budget-contract.md","reason":"User-confirmed continuous funding model and safe exact historical migration algorithm."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/simplification-impact.md","reason":"Current cycle/module dependencies and all alternative writers."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/backend-repair-audit.md","reason":"Retained prior backend defects and isolated reproductions; recheck cited source anchors."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/android-repair-audit.md","reason":"Retained Android request/leave/refresh defects and test-depth limits."}

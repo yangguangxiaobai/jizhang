@@ -1,0 +1,28 @@
+{
+  "id": "four-purpose-execution-system",
+  "name": "four-purpose-execution-system",
+  "title": "四用途理财执行系统升级规划",
+  "description": "将独立理财计划升级为工资周期、预算账单、资金用途执行与复盘联动系统的三阶段目标规划",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-27",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-27-financial-execution-phase1"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -19,6 +19,8 @@ import { loadConfig } from '../src/config.js';
 import { closeDatabase, initializeDatabase, type Db } from '../src/db/index.js';
 import { SESSION_COOKIE } from '../src/plugins/auth.js';
 import { AuthService } from '../src/services/auth-service.js';
+import { seedHistoricalSalary } from './support/historical-salary-fixture.js';
+import { allocateSalaryCents } from '@jizhang/shared';
 import { CYCLE_START_DAY_KEY } from '../src/services/salary-service.js';
 import { FINANCIAL_PLAN_SETTINGS_KEY } from '../src/services/financial-plan-service.js';
 
@@ -722,13 +724,21 @@ describe('financial plan — isolation from the ledger', () => {
   it('does not touch ledger tables on preview or save', async () => {
     // 先造出真实的账本内容:一条工资(带分配快照)、一笔交易、一次转账、
     // 一个自定义模板与一个自定义分类。
-    const salary = await app.inject({
-      method: 'POST',
-      url: '/api/v1/salaries',
-      headers: authed(),
-      payload: { amountCents: 500000, date: Date.UTC(2026, 9, 1), accountId: 'builtin-default-account' },
+    // Salary + module snapshot are seeded directly: fresh legacy salary writes are retired,
+    // and this case only needs the historical rows to exist so it can prove they survive.
+    const template = db
+      .prepare('SELECT modules_json FROM budget_templates WHERE is_default = 1 AND deleted = 0 LIMIT 1')
+      .get() as { modules_json: string } | undefined;
+    const modules =
+      template === undefined
+        ? []
+        : (JSON.parse(template.modules_json) as { categoryId: string; ratio: number }[]);
+    seedHistoricalSalary(db, {
+      accountId: 'builtin-default-account',
+      amountCents: 500000,
+      date: Date.UTC(2026, 9, 1),
+      allocations: allocateSalaryCents(500000, modules),
     });
-    expect(salary.statusCode).toBe(201);
 
     const category = await app.inject({
       method: 'POST',

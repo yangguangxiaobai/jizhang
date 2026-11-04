@@ -15,7 +15,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../db/index.js';
 import { FinancialPlanningService } from '../services/financial-planning-service.js';
+import { MonthlyPlanService } from '../services/monthly-plan-service.js';
 import { FinancialInvalidError, FinancialNotFoundError } from '../services/financial-errors.js';
+import { requireUserId } from '../plugins/auth.js';
 
 export interface FinancialPlanningRoutesOptions {
   readonly db: Db;
@@ -56,6 +58,25 @@ export async function registerFinancialPlanningRoutes(
     now: options.now,
     actorId: options.actorId,
     serverTimeZone: options.serverTimeZone,
+  });
+
+  // 月计划(C2)是**只读**汇总:同一份已确认执行事实的另一个视图,不创建周期、
+  // 不改分配。它沿用本模块的 auth 封装与统一错误处理器。
+  const monthlyPlanService = new MonthlyPlanService(options.db, {
+    now: options.now,
+    actorId: options.actorId,
+    serverTimeZone: options.serverTimeZone,
+  });
+
+  /** `?periodId=` 或 `?month=YYYY-MM`,互斥;都不给 = 包含服务器当前时刻的冻结区间。 */
+  app.get('/api/v1/monthly-plan', async (request, reply: FastifyReply) => {
+    const query = queryObject(request);
+    return reply.send(
+      monthlyPlanService.getMonthlyPlan({
+        periodId: query['periodId'],
+        month: query['month'],
+      }),
+    );
   });
 
   // ── 能力 / 配置 ────────────────────────────────────────────────────────────
@@ -194,7 +215,12 @@ export async function registerFinancialPlanningRoutes(
   app.get(
     '/api/v1/financial-planning/operations/:operationId',
     async (request, reply: FastifyReply) => {
-      const found = service.operation(requireParam(request, 'operationId'));
+      // Scoped to the signed-in actor: an operationId belonging to another account
+      // must answer 404 exactly like an unknown one, not leak its stored response.
+      const found = service.operation(
+        requireParam(request, 'operationId'),
+        requireUserId(request),
+      );
       if (found === undefined) {
         throw new FinancialNotFoundError('This operation is not known on this server.');
       }

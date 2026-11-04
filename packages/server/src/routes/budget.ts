@@ -31,6 +31,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../db/index.js';
+import { requireUserId } from '../plugins/auth.js';
 import {
   CYCLE_START_DAY_KEY,
   MAX_CYCLE_START_DAY,
@@ -57,6 +58,7 @@ function requireId(request: FastifyRequest): string {
 export interface BudgetRoutesOptions {
   readonly db: Db;
   readonly now?: (() => number) | undefined;
+  readonly serverTimeZone?: string | undefined;
 }
 
 export async function registerBudgetRoutes(
@@ -115,7 +117,7 @@ export async function registerBudgetRoutes(
   });
 
   app.post('/api/v1/salaries', async (request: FastifyRequest, reply: FastifyReply) => {
-    const created = salaries.create((request.body ?? {}) as Record<string, unknown>);
+    const created = salaries.create((request.body ?? {}) as Record<string, unknown>, { actorId: requireUserId(request) });
     return reply.status(201).send(created);
   });
 
@@ -123,6 +125,7 @@ export async function registerBudgetRoutes(
     const updated = salaries.update(
       requireId(request),
       (request.body ?? {}) as Record<string, unknown>,
+      { actorId: requireUserId(request) },
     );
     return reply.send(updated);
   });
@@ -136,7 +139,7 @@ export async function registerBudgetRoutes(
   );
 
   app.delete('/api/v1/salaries/:id', async (request: FastifyRequest, reply: FastifyReply) => {
-    salaries.softDelete(requireId(request));
+    salaries.softDelete(requireId(request), (request.body ?? {}) as Record<string, unknown>, { actorId: requireUserId(request) });
     return reply.status(204).send();
   });
 

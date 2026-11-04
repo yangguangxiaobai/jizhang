@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/backend/ai-provider.md", "reason": "Streaming planning, compatibility, lifecycle and quality context"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Streaming planning, compatibility, lifecycle and quality context"}
+{"file": ".trellis/spec/backend/native-delivery.md", "reason": "Streaming planning, compatibility, lifecycle and quality context"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Streaming planning, compatibility, lifecycle and quality context"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Streaming planning, compatibility, lifecycle and quality context"}
+{"file": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue/research/planning-review.md", "reason": "Streaming planning, compatibility, lifecycle and quality context"}
+{"file": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue/research/ardot-design.md", "reason": "Actual design and protocol proposal for implementation review"}
+{"file": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue/research/protocol-draft.md", "reason": "Actual design and protocol proposal for implementation review"}
+{"file": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue/research/protocol-v1.md", "reason": "Frozen implementation contract overrides prior draft"}
+{"file": ".trellis/spec/backend/assistant-streaming.md", "reason": "Core streaming generation and interactive dialogue specification"}
+{"file": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue/research/change-scope.md", "reason": "File change scope and staged boundary context"}
+{"file": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue/research/backend-postfix-review.md", "reason": "Independent post-fix review for F1/F2 and tokenizer"}
+{"file": ".trellis/tasks/10-15-ai-streaming-interactive-dialogue/research/protocol-fixtures-v1.json", "reason": "Standard protocol fixtures for generation snapshot and SSE events"}

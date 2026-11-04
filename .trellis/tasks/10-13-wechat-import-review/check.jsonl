@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/ai-provider.md", "reason": "Provider boundaries and normalized advisory output"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Accounting and import compatibility"}
+{"file": "clients/android/README.md", "reason": "Stable feature inventory"}
+{"file": ".trellis/tasks/10-13-wechat-import-review/prd.md", "reason": "Scope and acceptance"}
+{"file": ".trellis/tasks/10-13-wechat-import-review/design.md", "reason": "Analysis and confirmation design"}

@@ -1,0 +1,46 @@
+[
+ {
+  "id": "66297b1f-6927-4903-a8e9-e000ff0ba259",
+  "conversation_id": "56853b5c-f801-4046-b821-c059f8d9ba12",
+  "status": "completed",
+  "outcome": "answer",
+  "source_generation_id": "121e1111-c545-4712-b75c-701699bb29ee",
+  "question_id": "38f7ce7f-01dc-484b-ad15-ca2a46a178c7",
+  "answered_option_id": null,
+  "answered_at": null,
+  "created_at": 1792142598450
+ },
+ {
+  "id": "121e1111-c545-4712-b75c-701699bb29ee",
+  "conversation_id": "56853b5c-f801-4046-b821-c059f8d9ba12",
+  "status": "completed",
+  "outcome": "awaiting-choice",
+  "source_generation_id": null,
+  "question_id": "38f7ce7f-01dc-484b-ad15-ca2a46a178c7",
+  "answered_option_id": "d1ddcec0-ec2f-4ebe-8f8a-e299a4d23e93",
+  "answered_at": 1792142598449,
+  "created_at": 1792142484531
+ },
+ {
+  "id": "ccf489cb-7c17-4dbf-9832-8f79f2497722",
+  "conversation_id": "df6a8ef7-07cd-4f8c-aecc-76aaf0e3808a",
+  "status": "completed",
+  "outcome": "awaiting-choice",
+  "source_generation_id": "e3c66ea2-5bd0-4fd4-80eb-2b3f9e46dc27",
+  "question_id": "f8477324-d957-4f8a-908e-342a3b005ee0",
+  "answered_option_id": "4de009e6-28ad-4318-85eb-713336505d09",
+  "answered_at": 1792137450568,
+  "created_at": 1792137450568
+ },
+ {
+  "id": "e3c66ea2-5bd0-4fd4-80eb-2b3f9e46dc27",
+  "conversation_id": "df6a8ef7-07cd-4f8c-aecc-76aaf0e3808a",
+  "status": "completed",
+  "outcome": "awaiting-choice",
+  "source_generation_id": null,
+  "question_id": "ca18922d-4a79-4c9a-b5e7-eb597dfd3146",
+  "answered_option_id": "4de009e6-28ad-4318-85eb-713336505d09",
+  "answered_at": 1792137450568,
+  "created_at": 1792137276824
+ }
+]

@@ -1,0 +1,6 @@
+# Merge ONLY this site's block into the existing full Caddyfile.
+# For a host Caddy service OR host-network Caddy container (current server).
+# Replace its old Web/file_server block; do not add a duplicate domain block.
+jz.yansuu1.xyz {
+    reverse_proxy 127.0.0.1:8081
+}

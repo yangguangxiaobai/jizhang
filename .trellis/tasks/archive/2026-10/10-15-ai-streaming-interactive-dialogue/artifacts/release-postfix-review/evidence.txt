@@ -1,0 +1,37 @@
+# Independent verification evidence (read-only) — 2026-10-16T14:15:26Z
+
+## 1. deployed source bundle integrity
+042baf4e9dff2bca3d3c33295c083b4bc24e552b060341a46c43e99d72b75127 *artifacts/jizhang-api-source-20261016T083118Z.tar.gz
+claimed : 042baf4e9dff2bca3d3c33295c083b4bc24e552b060341a46c43e99d72b75127
+
+## 2. bundle tree vs current working server source (diff -rq)
+only-in-worktree: packages/server/src/db/migrations/README.md
+Only in packages/server/src/db/migrations: README.md
+
+## 3. bundle source file vs worktree (must be identical)
+bb1e66910133ee4d987c98922fdffd4fc3366b2ceb335ca77bfc353098444c6e */tmp/bundle0831/jizhang-api-source/packages/server/src/services/assistant-generation-service.ts
+bb1e66910133ee4d987c98922fdffd4fc3366b2ceb335ca77bfc353098444c6e *packages/server/src/services/assistant-generation-service.ts
+
+## 4. local dist vs deployed in-image compiled artefact
+60fc43e0e0dfd3b5b43edc752a463f7bd33c6e30c266ded3c812b47e74476f6c *packages/server/dist/services/assistant-generation-service.js
+975172f2b02f58131c8f129a427fa7fa9ea912a7f9b32bda218ce137eec908b7 *packages/server/dist/services/assistant-generation-service.js.map
+deployed js  : 60fc43e0e0dfd3b5b43edc752a463f7bd33c6e30c266ded3c812b47e74476f6c
+deployed map : 975172f2b02f58131c8f129a427fa7fa9ea912a7f9b32bda218ce137eec908b7
+
+## 5. deployment#1 bundle (061009Z) contains the PRE-fix file (proves the 083118Z patch is the delta)
+Files /tmp/b1/jizhang-api-source/packages/server/src/services/assistant-generation-service.ts and /tmp/bundle0831/jizhang-api-source/packages/server/src/services/assistant-generation-service.ts differ
+2952c9cc9d1887952d7705441ad3b99cf408418abb6dc24e6c38df11b1ffd679 */tmp/b1/jizhang-api-source/packages/server/src/services/assistant-generation-service.ts
+
+## 6. deployed manifest: no table change across the patch switch
+tables before/after: 22 22 integrity ok ok
+added [] removed []
+changed: []
+
+## 7. round2 device window: ledger/business tables unchanged vs post-patch baseline
+changed vs post-patch baseline: ['assistant_conversations', 'assistant_generation_events', 'assistant_generations', 'assistant_messages', 'assistant_pending_actions']
+non-assistant changed: []
+
+## 8. installed APK identity (round2 evidence, not re-verified here)
+d2a37b550fb110e9b6174ec2fe874b681f924423e08c7c5be465749e3bb56da8 *round2/installed-base.apk
+TS=2026-10-16T12:46:13Z
+d2a37b550fb110e9b6174ec2fe874b681f924423e08c7c5be465749e3bb56da8 *clients/android/app/build/outputs/apk/debug/app-debug.apk

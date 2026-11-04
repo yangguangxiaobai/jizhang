@@ -1,0 +1,42 @@
+{
+  "create": {
+    "clientRequestId": "fixture-create-1",
+    "analyse": true,
+    "files": [
+      {
+        "fileName": "sample.csv",
+        "source": "auto",
+        "fileBase64": "Zml4dHVyZQ=="
+      }
+    ]
+  },
+  "review": {
+    "version": 1,
+    "analysisRevision": 1,
+    "viewRevision": "fixture-view",
+    "selectedItemIds": [
+      "po:wechat:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "categoryAssignments": {
+      "po:wechat:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+        "kind": "existing",
+        "categoryId": "builtin-expense-food"
+      }
+    },
+    "noteOverrides": {
+      "po:wechat:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": ""
+    },
+    "approvedCategories": [],
+    "conflictDecisions": []
+  },
+  "confirm": {
+    "reviewToken": "fixture-not-real",
+    "expectedVersion": 1,
+    "files": [
+      {
+        "fileIndex": 0,
+        "fileBase64": "Zml4dHVyZQ=="
+      }
+    ]
+  }
+}

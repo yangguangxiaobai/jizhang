@@ -1,0 +1,68 @@
+{
+  "maxMessageChars": 4000,
+  "results": [
+    {
+      "name": "truncated envelope, 219 decoded chars, no closing quote",
+      "thrown": true,
+      "code": "ASSISTANT_STREAM_BOUNDS",
+      "message": "AI 返回内容无法识别，本次生成未产生结果。",
+      "shape": "invalid",
+      "decodedChars": 219,
+      "complete": false
+    },
+    {
+      "name": "same input then finish() on unterminated envelope",
+      "thrown": true,
+      "code": null,
+      "message": "AI 返回内容无法识别，本次生成未产生结果。",
+      "shape": "invalid",
+      "decodedChars": 219,
+      "complete": false
+    },
+    {
+      "name": "complete envelope, message exactly 4000 chars",
+      "thrown": false,
+      "code": null,
+      "message": null,
+      "shape": "none",
+      "decodedChars": 4000,
+      "complete": true
+    },
+    {
+      "name": "complete envelope, message 4001 chars",
+      "thrown": true,
+      "code": "ASSISTANT_STREAM_BOUNDS",
+      "message": "AI 回复超出长度上限，本次生成未产生结果。",
+      "shape": "oversize",
+      "decodedChars": 0,
+      "complete": false
+    },
+    {
+      "name": "non-JSON payload",
+      "thrown": true,
+      "code": "ASSISTANT_STREAM_BOUNDS",
+      "message": "AI 返回内容无法识别，本次生成未产生结果。",
+      "shape": "invalid",
+      "decodedChars": 0,
+      "complete": false
+    },
+    {
+      "name": "markdown-fenced JSON payload",
+      "thrown": true,
+      "code": "ASSISTANT_STREAM_BOUNDS",
+      "message": "AI 返回内容无法识别，本次生成未产生结果。",
+      "shape": "invalid",
+      "decodedChars": 0,
+      "complete": false
+    },
+    {
+      "name": "envelope schema drift (content instead of message)",
+      "thrown": true,
+      "code": "ASSISTANT_STREAM_BOUNDS",
+      "message": "AI 返回内容无法识别，本次生成未产生结果。",
+      "shape": "invalid",
+      "decodedChars": 0,
+      "complete": false
+    }
+  ]
+}

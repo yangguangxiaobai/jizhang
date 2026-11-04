@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"API/shared gate and evidence requirements."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Android state, lint/build and device evidence requirements."}
+{"file":".trellis/tasks/10-29-core-finance-simplification/acceptance.md","reason":"Authoritative functional and integration acceptance matrix."}
+{"file":".trellis/tasks/10-29-core-simplify-monthly-plan/prd.md","reason":"Owned requirement/acceptance coverage."}
+{"file":".trellis/tasks/10-29-core-simplify-monthly-plan/design.md","reason":"Contract and compatibility compliance."}

@@ -1,0 +1,679 @@
+{
+  "success": true,
+  "data": {
+    "nodes": [
+      {
+        "id": "7:149",
+        "type": "FRAME",
+        "layout": "none",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 0.9686274528503418,
+            "visible": true,
+            "blendMode": "NORMAL"
+          }
+        ],
+        "width": 373,
+        "height": 78,
+        "x": "auto",
+        "y": "auto",
+        "name": "Frame",
+        "children": [
+          {
+            "id": "7:150",
+            "type": "FRAME",
+            "layout": "vertical",
+            "gap": 2,
+            "padding": {
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 1
+            },
+            "width": 60.20000076293945,
+            "height": 35.900001525878906,
+            "x": 6,
+            "y": 18,
+            "name": "Frame",
+            "children": [
+              {
+                "id": "7:151",
+                "type": "FRAME",
+                "layout": "none",
+                "cornerRadius": 10,
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.9058823585510254,
+                      "g": 0.9411764740943909,
+                      "b": 0.95686274766922
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": 26.299999237060547,
+                "height": 23,
+                "x": "auto",
+                "y": "auto",
+                "name": "Frame",
+                "children": [
+                  {
+                    "id": "7:152",
+                    "type": "TEXT",
+                    "fontSize": 17,
+                    "lineHeight": {
+                      "value": 111.76470184326172,
+                      "unit": "PERCENT"
+                    },
+                    "fontName": {
+                      "family": "Inter",
+                      "style": "SemiBold"
+                    },
+                    "characters": "⌂",
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.18431372940540314,
+                          "g": 0.43529412150382996,
+                          "b": 0.5607843399047852
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "width": 13,
+                    "height": 19,
+                    "x": 8,
+                    "y": 2,
+                    "name": "⌂",
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                ]
+              },
+              {
+                "id": "7:153",
+                "type": "TEXT",
+                "fontSize": 11,
+                "lineHeight": {
+                  "value": 109.99999237060547,
+                  "unit": "PERCENT"
+                },
+                "fontName": {
+                  "family": "Inter",
+                  "style": "SemiBold"
+                },
+                "characters": "首页",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.18431372940540314,
+                      "g": 0.43529412150382996,
+                      "b": 0.5607843399047852
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": "hug_contents",
+                "height": "hug_contents",
+                "x": "auto",
+                "y": "auto",
+                "name": "首页",
+                "textAlignHorizontal": "LEFT",
+                "textAlignVertical": "TOP"
+              }
+            ]
+          },
+          {
+            "id": "7:154",
+            "type": "FRAME",
+            "layout": "vertical",
+            "gap": 2,
+            "padding": {
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 1
+            },
+            "width": 60.20000076293945,
+            "height": 31.899999618530273,
+            "x": 66,
+            "y": 20,
+            "name": "Frame",
+            "children": [
+              {
+                "id": "7:155",
+                "type": "FRAME",
+                "layout": "none",
+                "width": 17,
+                "height": 19,
+                "x": "auto",
+                "y": "auto",
+                "name": "Frame",
+                "children": [
+                  {
+                    "id": "7:156",
+                    "type": "TEXT",
+                    "fontSize": 17,
+                    "lineHeight": {
+                      "value": 111.76470184326172,
+                      "unit": "PERCENT"
+                    },
+                    "fontName": {
+                      "family": "Inter",
+                      "style": "SemiBold"
+                    },
+                    "characters": "▤",
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.5333333611488342,
+                          "g": 0.5764706134796143,
+                          "b": 0.6039215922355652
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "width": 15,
+                    "height": 19,
+                    "x": 0,
+                    "y": 0,
+                    "name": "▤",
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                ]
+              },
+              {
+                "id": "7:157",
+                "type": "TEXT",
+                "fontSize": 11,
+                "lineHeight": {
+                  "value": 109.99999237060547,
+                  "unit": "PERCENT"
+                },
+                "fontName": {
+                  "family": "Inter",
+                  "style": "SemiBold"
+                },
+                "characters": "账单",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.5333333611488342,
+                      "g": 0.5764706134796143,
+                      "b": 0.6039215922355652
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": "hug_contents",
+                "height": "hug_contents",
+                "x": "auto",
+                "y": "auto",
+                "name": "账单",
+                "textAlignHorizontal": "LEFT",
+                "textAlignVertical": "TOP"
+              }
+            ]
+          },
+          {
+            "id": "7:158",
+            "type": "FRAME",
+            "layout": "vertical",
+            "gap": 2,
+            "padding": {
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 1
+            },
+            "width": 60.20000076293945,
+            "height": 31.899999618530273,
+            "x": 126,
+            "y": 20,
+            "name": "Frame",
+            "children": [
+              {
+                "id": "7:159",
+                "type": "FRAME",
+                "layout": "none",
+                "width": 17,
+                "height": 19,
+                "x": "auto",
+                "y": "auto",
+                "name": "Frame",
+                "children": [
+                  {
+                    "id": "7:160",
+                    "type": "TEXT",
+                    "fontSize": 17,
+                    "lineHeight": {
+                      "value": 111.76470184326172,
+                      "unit": "PERCENT"
+                    },
+                    "fontName": {
+                      "family": "Inter",
+                      "style": "SemiBold"
+                    },
+                    "characters": "▧",
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.5333333611488342,
+                          "g": 0.5764706134796143,
+                          "b": 0.6039215922355652
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "width": 15,
+                    "height": 19,
+                    "x": 0,
+                    "y": 0,
+                    "name": "▧",
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                ]
+              },
+              {
+                "id": "7:161",
+                "type": "TEXT",
+                "fontSize": 11,
+                "lineHeight": {
+                  "value": 109.99999237060547,
+                  "unit": "PERCENT"
+                },
+                "fontName": {
+                  "family": "Inter",
+                  "style": "SemiBold"
+                },
+                "characters": "预算",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.5333333611488342,
+                      "g": 0.5764706134796143,
+                      "b": 0.6039215922355652
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": "hug_contents",
+                "height": "hug_contents",
+                "x": "auto",
+                "y": "auto",
+                "name": "预算",
+                "textAlignHorizontal": "LEFT",
+                "textAlignVertical": "TOP"
+              }
+            ]
+          },
+          {
+            "id": "7:162",
+            "type": "FRAME",
+            "layout": "vertical",
+            "gap": 2,
+            "padding": {
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 1
+            },
+            "width": 60.20000076293945,
+            "height": 35.900001525878906,
+            "x": 187,
+            "y": 18,
+            "name": "Frame",
+            "children": [
+              {
+                "id": "7:163",
+                "type": "FRAME",
+                "layout": "none",
+                "cornerRadius": 10,
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.18431372940540314,
+                      "g": 0.43529412150382996,
+                      "b": 0.5607843399047852
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": 33,
+                "height": 23,
+                "x": "auto",
+                "y": "auto",
+                "name": "Frame",
+                "children": [
+                  {
+                    "id": "7:164",
+                    "type": "TEXT",
+                    "fontSize": 17,
+                    "lineHeight": {
+                      "value": 111.76470184326172,
+                      "unit": "PERCENT"
+                    },
+                    "fontName": {
+                      "family": "Inter",
+                      "style": "SemiBold"
+                    },
+                    "characters": "✦",
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "width": 15,
+                    "height": 19,
+                    "x": 8,
+                    "y": 2,
+                    "name": "✦",
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                ]
+              },
+              {
+                "id": "7:165",
+                "type": "TEXT",
+                "fontSize": 11,
+                "lineHeight": {
+                  "value": 109.99999237060547,
+                  "unit": "PERCENT"
+                },
+                "fontName": {
+                  "family": "Inter",
+                  "style": "SemiBold"
+                },
+                "characters": "AI助理",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.5333333611488342,
+                      "g": 0.5764706134796143,
+                      "b": 0.6039215922355652
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": "hug_contents",
+                "height": "hug_contents",
+                "x": "auto",
+                "y": "auto",
+                "name": "AI助理",
+                "textAlignHorizontal": "LEFT",
+                "textAlignVertical": "TOP"
+              }
+            ]
+          },
+          {
+            "id": "7:166",
+            "type": "FRAME",
+            "layout": "vertical",
+            "gap": 2,
+            "padding": {
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 1
+            },
+            "width": 60.20000076293945,
+            "height": 31.899999618530273,
+            "x": 247,
+            "y": 20,
+            "name": "Frame",
+            "children": [
+              {
+                "id": "7:167",
+                "type": "FRAME",
+                "layout": "none",
+                "width": 17,
+                "height": 19,
+                "x": "auto",
+                "y": "auto",
+                "name": "Frame",
+                "children": [
+                  {
+                    "id": "7:168",
+                    "type": "TEXT",
+                    "fontSize": 17,
+                    "lineHeight": {
+                      "value": 111.76470184326172,
+                      "unit": "PERCENT"
+                    },
+                    "fontName": {
+                      "family": "Inter",
+                      "style": "SemiBold"
+                    },
+                    "characters": "▥",
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.5333333611488342,
+                          "g": 0.5764706134796143,
+                          "b": 0.6039215922355652
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "width": 15,
+                    "height": 19,
+                    "x": 0,
+                    "y": 0,
+                    "name": "▥",
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                ]
+              },
+              {
+                "id": "7:169",
+                "type": "TEXT",
+                "fontSize": 11,
+                "lineHeight": {
+                  "value": 109.99999237060547,
+                  "unit": "PERCENT"
+                },
+                "fontName": {
+                  "family": "Inter",
+                  "style": "SemiBold"
+                },
+                "characters": "统计",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.5333333611488342,
+                      "g": 0.5764706134796143,
+                      "b": 0.6039215922355652
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": "hug_contents",
+                "height": "hug_contents",
+                "x": "auto",
+                "y": "auto",
+                "name": "统计",
+                "textAlignHorizontal": "LEFT",
+                "textAlignVertical": "TOP"
+              }
+            ]
+          },
+          {
+            "id": "7:170",
+            "type": "FRAME",
+            "layout": "vertical",
+            "gap": 2,
+            "padding": {
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 1
+            },
+            "width": 60.20000076293945,
+            "height": 31.899999618530273,
+            "x": 307,
+            "y": 20,
+            "name": "Frame",
+            "children": [
+              {
+                "id": "7:171",
+                "type": "FRAME",
+                "layout": "none",
+                "width": 17,
+                "height": 19,
+                "x": "auto",
+                "y": "auto",
+                "name": "Frame",
+                "children": [
+                  {
+                    "id": "7:172",
+                    "type": "TEXT",
+                    "fontSize": 17,
+                    "lineHeight": {
+                      "value": 111.76470184326172,
+                      "unit": "PERCENT"
+                    },
+                    "fontName": {
+                      "family": "Inter",
+                      "style": "SemiBold"
+                    },
+                    "characters": "○",
+                    "fills": [
+                      {
+                        "type": "SOLID",
+                        "color": {
+                          "r": 0.5333333611488342,
+                          "g": 0.5764706134796143,
+                          "b": 0.6039215922355652
+                        },
+                        "opacity": 1,
+                        "visible": true,
+                        "blendMode": "NORMAL"
+                      }
+                    ],
+                    "width": 16,
+                    "height": 19,
+                    "x": 0,
+                    "y": 0,
+                    "name": "○",
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                ]
+              },
+              {
+                "id": "7:173",
+                "type": "TEXT",
+                "fontSize": 11,
+                "lineHeight": {
+                  "value": 109.99999237060547,
+                  "unit": "PERCENT"
+                },
+                "fontName": {
+                  "family": "Inter",
+                  "style": "SemiBold"
+                },
+                "characters": "我的",
+                "fills": [
+                  {
+                    "type": "SOLID",
+                    "color": {
+                      "r": 0.5333333611488342,
+                      "g": 0.5764706134796143,
+                      "b": 0.6039215922355652
+                    },
+                    "opacity": 1,
+                    "visible": true,
+                    "blendMode": "NORMAL"
+                  }
+                ],
+                "width": "hug_contents",
+                "height": "hug_contents",
+                "x": "auto",
+                "y": "auto",
+                "name": "我的",
+                "textAlignHorizontal": "LEFT",
+                "textAlignVertical": "TOP"
+              }
+            ]
+          },
+          {
+            "id": "7:174",
+            "type": "RECTANGLE",
+            "fills": [
+              {
+                "type": "SOLID",
+                "color": {
+                  "r": 0.9058823585510254,
+                  "g": 0.8941176533699036,
+                  "b": 0.8627451062202454
+                },
+                "opacity": 1,
+                "visible": true,
+                "blendMode": "NORMAL"
+              }
+            ],
+            "width": 373,
+            "height": 1,
+            "x": 0,
+            "y": 0,
+            "name": "Rectangle"
+          }
+        ]
+      }
+    ],
+    "issues": [
+      "Some nodes do not have the specified properties will be omitted in the result"
+    ]
+  }
+}

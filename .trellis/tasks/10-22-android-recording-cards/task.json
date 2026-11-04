@@ -1,0 +1,28 @@
+{
+  "id": "android-recording-cards",
+  "name": "android-recording-cards",
+  "title": "账单卡片与退款记账体验",
+  "description": "底部详情卡片、关联退款入口、金额键盘布局与4.5秒顶部错误，保留来源状态和更新",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-22",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-22-android-brand-recording",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "approval_gate": "approved_by_user"
+  }
+}

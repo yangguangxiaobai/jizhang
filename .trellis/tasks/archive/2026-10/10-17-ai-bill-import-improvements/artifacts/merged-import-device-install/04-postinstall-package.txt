@@ -1,0 +1,11 @@
+=== UTC ===
+2026-10-19T05:29:54Z
+=== post-install package metadata ===
+    versionCode=3 minSdk=26 targetSdk=34
+    versionName=0.1.0
+    apkSigningVersion=2
+    firstInstallTime=2026-10-10 08:54:23
+    lastUpdateTime=2026-10-19 13:29:41
+    signatures=PackageSignatures{e83339a version:2, signatures:[b7c0cbb9], past signatures:[]}
+=== pm path ===
+package:/data/app/~~pZAPst4lkSD5YVWypnrJ-A==/com.yansuu1.jizhang-JwC-oiGkC028zouPSePBzA==/base.apk

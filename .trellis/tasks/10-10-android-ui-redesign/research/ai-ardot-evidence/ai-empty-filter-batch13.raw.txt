@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:296\",\"name\":\"选择范围说明\",\"content\":\"仅当前预览 · 空选择不提交\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:297\",\"name\":\"确认入口\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:298\",\"name\":\"确认入口文字\",\"content\":\"继续核对\"}}],\"expiredBindings\":\"binding names [ n13_0, n13_1, n13_2 ] is expired, dont use in next batch_edit\"}}"}]},"jsonrpc":"2.0","id":1}
+

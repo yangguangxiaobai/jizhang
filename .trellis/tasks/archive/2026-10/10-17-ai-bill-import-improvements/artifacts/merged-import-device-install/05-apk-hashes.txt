@@ -1,0 +1,2 @@
+ec2ab9e55f8f78db2b84a5fd5884d413011f7fd5b05733bbebb921ce700deba0 *clients/android/app/build/outputs/apk/debug/app-debug.apk
+ec2ab9e55f8f78db2b84a5fd5884d413011f7fd5b05733bbebb921ce700deba0 *.trellis/tasks/10-17-ai-bill-import-improvements/artifacts/merged-import-device-install/installed-base.apk

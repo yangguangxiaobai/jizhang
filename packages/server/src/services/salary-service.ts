@@ -1,23 +1,9 @@
 /**
- * Salary service: recording a salary is what starts a budget cycle.
- *
- * Contract (T6 PRD R2/R4/R5):
- *   * `budget_allocations` rows are **snapshots**. The amounts are frozen at salary
- *     time, so editing a template later never rewrites history;
- *   * when the caller supplies no allocation, amounts come from the template via
- *     `allocateSalaryCents`, whose rule is "every module but the last is
- *     `round(total × ratio)`, and the last absorbs the remainder". The parts
- *     therefore always add up to exactly the salary;
- *   * when the caller DOES supply an allocation (the "fine-tune" path), the values
- *     are used as given but must still sum to the salary;
- *   * deleting a salary soft-deletes its allocations too, or the budget engine
- *     would keep counting a cycle that the user removed;
- *   * `cycle_start_day` lives in `settings` and must be 1..28.
- *
- * Several allocations may share a cycle: the engine merges them by summing module
- * amounts, so this service must NOT merge anything itself.
+ * Salary writes create one four-purpose grant in the same transaction as the salary
+ * and keyed operation. Grant ratios are frozen; legacy allocation facts remain readable.
+ * Legacy template/cycle methods below are retained for the separate P07 retirement.
  */
-import { allocateSalaryCents, allocationPeriodStart, monthKey } from '@jizhang/shared';
+import { allocateSalaryCents, allocationPeriodStart, monthKey, allocateFundIncomeCents, validateFinancialRatiosBps, type FundRatiosBps, type FundAmounts } from '@jizhang/shared';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import {
@@ -29,6 +15,10 @@ import {
 import { TemplateService } from './template-service.js';
 import { requireFinancialOperationId, runFinancialOperation } from './financial-operation-store.js';
 import { requireLedgerDate, requirePositiveSafeIntegerCents } from './ledger-input-validation.js';
+import { FinancialFundService } from './financial-fund-service.js';
+import { fundGrantNeedsReview } from './financial-fund-store.js';
+import { FinancialInvalidError, FinancialRevisionConflictError, FinancialSourceChangedError, FinancialUnavailableError } from './financial-errors.js';
+import { salarySourceToken } from './financial-planning-types.js';
 
 /** `settings` key holding the optional budget cycle start day. */
 export const CYCLE_START_DAY_KEY = 'budget.cycle_start_day';
@@ -39,6 +29,12 @@ export const CYCLE_START_DAY_KEY = 'budget.cycle_start_day';
  * 与路由字符串一致,但它是**服务层的常量**:指纹的一部分,改动它会作废旧 key。
  */
 export const SALARY_CREATE_RESOURCE = '/api/v1/salaries';
+
+class SalaryLegacyRetiredError extends Error {
+  readonly statusCode = 410;
+  readonly code = 'FEATURE_RETIRED';
+  constructor() { super('Legacy salary allocation writes are retired.'); }
+}
 
 /** Allowed range for the configurable cycle start day (T6 PRD R5). */
 export const MIN_CYCLE_START_DAY = 1;
@@ -82,6 +78,7 @@ export interface SalaryDto {
 export interface SalaryDetailDto extends SalaryDto {
   readonly allocationId: string | null;
   readonly allocations: AllocationItemDto[];
+  readonly fundGrant?: { readonly grantId: string; readonly revision: number; readonly status: string; readonly sourceAmountCents: number; readonly ratiosBps: FundRatiosBps; readonly targets: FundAmounts };
 }
 
 interface ParsedAllocationItem {
@@ -113,6 +110,7 @@ export function parseAllocationsJson(raw: unknown): ParsedAllocationItem[] {
 
 export interface SalaryServiceOptions {
   readonly now?: () => number;
+  readonly serverTimeZone?: string | undefined;
   /**
    * 重放作用域里的操作者。
    *
@@ -123,6 +121,8 @@ export interface SalaryServiceOptions {
 }
 
 export interface CreateSalaryInput {
+  readonly contractVersion?: unknown;
+  readonly expectedFundConfigRevision?: unknown;
   readonly amountCents?: unknown;
   readonly date?: unknown;
   readonly note?: unknown;
@@ -132,7 +132,7 @@ export interface CreateSalaryInput {
   /**
    * 可选的幂等键( UUID )。
    *
-   * 旧客户端不带这个字段 → 行为与今天完全一致(每次调用都新增一笔)。
+   * 旧客户端不带这个字段不能安全恢复未知结果,因此不再接受新建。
    * 新客户端在**第一次尝试**前生成它,重发同一个 key 只会拿回原来那笔工资,
    * 不会多记一次收入。
    */
@@ -149,12 +149,14 @@ export class SalaryService {
   private readonly now: () => number;
   private readonly templates: TemplateService;
   private readonly actorIdOption: string | undefined;
+  private readonly serverTimeZone: string | undefined;
 
   constructor(db: Db, options: SalaryServiceOptions = {}) {
     this.db = db;
     this.now = options.now ?? (() => Date.now());
     this.templates = new TemplateService(db, options);
     this.actorIdOption = options.actorId;
+    this.serverTimeZone = options.serverTimeZone;
   }
 
   /**
@@ -228,8 +230,10 @@ export class SalaryService {
     if (row === undefined) return undefined;
 
     const allocation = this.getAllocationRow(id);
+    const fundGrant = this.getFundGrant(id);
     return {
       ...this.toDto(row),
+      ...(fundGrant === undefined ? {} : { fundGrant }),
       allocationId: allocation !== undefined && allocation.deleted === 0 ? allocation.id : null,
       allocations:
         allocation !== undefined && allocation.deleted === 0
@@ -274,12 +278,10 @@ export class SalaryService {
   }
 
   /**
-   * Records a salary and its allocation snapshot.
+   * Records a salary and a frozen four-purpose grant, or replays a prior result.
    *
-   * @param input.allocations optional fine-tuned allocation; when omitted the
-   *   template's ratios generate the amounts.
-   * @param input.operationId optional idempotency key. When present, a retry with the
-   *   same key returns the ORIGINAL salary instead of recording a second one.
+   * @param input.operationId required for new writes; an identical retry returns the
+   *   ORIGINAL salary instead of recording a second one.
    * @param context.actorId who the replay record belongs to (route supplies the session user).
    */
   create(input: CreateSalaryInput, context: SalaryCreateContext = {}): SalaryDetailDto {
@@ -288,8 +290,11 @@ export class SalaryService {
         ? undefined
         : requireFinancialOperationId(input.operationId);
 
-    // Old callers (and old clients) never send a key: keep the original behaviour exactly.
-    if (operationId === undefined) return this.createOnce(input);
+    // An unkeyed legacy request may be a lost-response retry. Never post it again.
+    if (operationId === undefined) {
+      if (input.contractVersion !== 1) throw new SalaryLegacyRetiredError();
+      throw new FinancialInvalidError('A keyed version 1 salary request is required.');
+    }
 
     // The key MUST be handled before `prepareCreate`: on a retry the template may have
     // been edited or deleted since the first attempt, and failing here would turn
@@ -301,11 +306,9 @@ export class SalaryService {
         actorId: context.actorId ?? this.resolveActorId(),
         method: 'POST',
         resource: SALARY_CREATE_RESOURCE,
-        // Only the RECOGNISED transport fields take part in the fingerprint. A client
-        // that sends its own UI state (`draftX`, `uiTab`, ...) must not turn its own
-        // retry into a 409, and an unrecognised field is by definition not part of
-        // what this endpoint stores.
-        canonicalPayload: {
+        // Keep the old fingerprint byte-compatible for historical replay. Version 1
+        // fingerprints the complete request and rejects unknown fields on fresh writes.
+        canonicalPayload: input.contractVersion === 1 ? input : {
           amountCents: input.amountCents,
           date: input.date,
           note: input.note,
@@ -315,39 +318,50 @@ export class SalaryService {
         },
         now: this.now(),
       },
-      () => ({ statusCode: 201, response: this.createOnce(input) }),
+      () => {
+        if (input.contractVersion !== 1) {
+          throw new SalaryLegacyRetiredError();
+        }
+        return { statusCode: 201, response: this.createFundSalary(input, context.actorId ?? this.resolveActorId(), operationId) };
+      },
     );
     return result.response;
   }
 
-  /** The actual write. Only ever reached when no replay was recorded for this key. */
-  private createOnce(input: CreateSalaryInput): SalaryDetailDto {
-    const prepared = this.prepareCreate(input);
-    const { amountCents, date, note, accountId, allocations } = prepared;
-    // Required, not defaulted. Silently picking an account would put the money somewhere the
-    // user did not choose, and a wrong balance is harder to notice than a rejected form.
-    const salaryId = randomUUID();
-    const allocationId = randomUUID();
-    const nowMs = this.now();
+  private getFundGrant(salaryId: string): SalaryDetailDto['fundGrant'] {
+    const row = this.db.prepare(`SELECT g.id,g.active_revision,g.status,r.source_amount_cents,r.ratios_json,r.targets_json
+      FROM financial_fund_grant_sources s JOIN financial_fund_grants g ON g.id=s.grant_id
+      JOIN financial_fund_grant_revisions r ON r.grant_id=g.id AND r.revision=g.active_revision
+      WHERE s.salary_id=?`).get(salaryId) as { id: string; active_revision: number; status: string; source_amount_cents: number; ratios_json: string; targets_json: string } | undefined;
+    if (row === undefined) return undefined;
+    try {
+      const ratiosBps = validateFinancialRatiosBps(JSON.parse(row.ratios_json));
+      const targets = JSON.parse(row.targets_json) as FundAmounts;
+      const expected = allocateFundIncomeCents(row.source_amount_cents, ratiosBps);
+      if (Object.keys(expected).some((key) => targets[key as keyof FundAmounts] !== expected[key as keyof FundAmounts])) throw new Error('Invalid targets');
+      return { grantId: row.id, revision: row.active_revision, status: fundGrantNeedsReview(this.db, row.id) ? 'review-required' : row.status, sourceAmountCents: row.source_amount_cents, ratiosBps, targets };
+    } catch { throw new FinancialUnavailableError(); }
+  }
 
-    const run = this.db.transaction((): void => {
-      this.db
-        .prepare(
-          `INSERT INTO salary_records (id, amount_cents, date, note, account_id, deleted, updated_at)
-           VALUES (?, ?, ?, ?, ?, 0, ?)`,
-        )
-        .run(salaryId, amountCents, date, note, accountId, nowMs);
-
-      this.db
-        .prepare(
-          `INSERT INTO budget_allocations (id, salary_record_id, date, allocations_json, deleted, updated_at)
-           VALUES (?, ?, ?, ?, 0, ?)`,
-        )
-        .run(allocationId, salaryId, date, JSON.stringify(allocations), nowMs);
-    });
-    run();
-
-    return this.getByIdOrThrow(salaryId);
+  /** Called inside the operation's IMMEDIATE transaction. */
+  private createFundSalary(input: CreateSalaryInput, actorId: string, operationId: string): SalaryDetailDto {
+    if (Object.keys(input).some((key) => !['contractVersion', 'expectedFundConfigRevision', 'operationId', 'amountCents', 'date', 'note', 'accountId'].includes(key))) throw new FinancialInvalidError('Unknown salary field.');
+    if (!Number.isSafeInteger(input.expectedFundConfigRevision) || (input.expectedFundConfigRevision as number) < 0) throw new FinancialInvalidError('expectedFundConfigRevision is required.');
+    const config = new FinancialFundService(this.db, { serverTimeZone: this.serverTimeZone }).getConfig().config;
+    if (config.revision !== input.expectedFundConfigRevision) throw new FinancialRevisionConflictError('The fund configuration changed. Reload it before saving.');
+    const amount = requirePositiveSafeIntegerCents(input.amountCents);
+    const date = requireLedgerDate(input.date, this.now);
+    const accountId = requireNonEmptyString(input.accountId, 'accountId');
+    assertAccountUsable(this.db, accountId);
+    if (input.note !== undefined && typeof input.note !== 'string') throw new ValidationError('note must be a string.');
+    const id = randomUUID(); const grantId = `salary:${id}`; const now = this.now();
+    this.db.prepare('INSERT INTO salary_records (id,amount_cents,date,note,account_id,deleted,updated_at) VALUES (?,?,?,?,?,0,?)').run(id, amount, date, input.note ?? '', accountId, now);
+    this.db.prepare("INSERT INTO financial_fund_grants VALUES (?,'salary',?,1,'active')").run(grantId, id);
+    const token = salarySourceToken({ id, amount_cents: amount, date, account_id: accountId });
+    const sources = [{ salaryId: id, amountCents: amount, date, accountId, sourceToken: token, confirmedAt: now }];
+    this.db.prepare('INSERT INTO financial_fund_grant_revisions VALUES (?,1,?,?,?,?,?,?,?,?)').run(grantId, amount, JSON.stringify(config.ratiosBps), JSON.stringify(allocateFundIncomeCents(amount, config.ratiosBps)), JSON.stringify(sources), actorId, operationId, now, 'salary-create');
+    this.db.prepare("INSERT INTO financial_fund_grant_sources VALUES (?,?,?,?,?,?,'active')").run(id, grantId, token, amount, date, accountId);
+    return this.getByIdOrThrow(id);
   }
 
   /**
@@ -437,9 +451,26 @@ export class SalaryService {
       readonly note?: unknown;
       readonly accountId?: unknown;
       readonly allocations?: unknown;
+      readonly contractVersion?: unknown;
+      readonly operationId?: unknown;
+      readonly expectedGrantRevision?: unknown;
     },
+    context: SalaryCreateContext = {},
   ): SalaryDetailDto {
+    if (changes.contractVersion === 1) {
+      const operationId = requireFinancialOperationId(changes.operationId);
+      return runFinancialOperation(this.db, { operationId, actorId: context.actorId ?? this.resolveActorId(), method: 'PATCH', resource: `${SALARY_CREATE_RESOURCE}/${id}`, canonicalPayload: changes, now: this.now() }, () => ({ statusCode: 200, response: this.updateOnce(id, changes, true, context.actorId ?? this.resolveActorId(), operationId) })).response;
+    }
+    return this.updateOnce(id, changes, false);
+  }
+
+  private updateOnce(id: string, changes: { readonly amountCents?: unknown; readonly date?: unknown; readonly note?: unknown; readonly accountId?: unknown; readonly allocations?: unknown; readonly contractVersion?: unknown; readonly operationId?: unknown; readonly expectedGrantRevision?: unknown }, keyed: boolean, actorId?: string, operationId?: string): SalaryDetailDto {
     const current = this.getByIdOrThrow(id);
+    if (current.fundGrant !== undefined && keyed) {
+      if (!Number.isSafeInteger(changes.expectedGrantRevision) || (changes.expectedGrantRevision as number) < 1) throw new FinancialInvalidError('expectedGrantRevision is required.');
+      if (current.fundGrant.revision !== changes.expectedGrantRevision) throw new FinancialRevisionConflictError('The salary grant changed. Reload it before saving.');
+      if (Object.keys(changes).some((key) => !['contractVersion', 'operationId', 'expectedGrantRevision', 'amountCents', 'date', 'note', 'accountId'].includes(key))) throw new FinancialInvalidError('Unknown salary field.');
+    }
     if (
       changes.amountCents === undefined &&
       changes.date === undefined &&
@@ -466,7 +497,11 @@ export class SalaryService {
         ? current.accountId
         : requireNonEmptyString(changes.accountId, 'accountId');
     if (accountId !== current.accountId) assertAccountUsable(this.db, accountId);
-    if (amountCents !== current.amountCents && changes.allocations === undefined) {
+    if (amountCents === current.amountCents && date === current.date && note === current.note && accountId === current.accountId && changes.allocations === undefined) return current;
+    const fundOwner = this.db.prepare(`SELECT g.id,g.origin_kind,g.active_revision,g.status FROM financial_fund_grant_sources s JOIN financial_fund_grants g ON g.id=s.grant_id WHERE s.salary_id=?`).get(id) as { id: string; origin_kind: string; active_revision: number; status: string } | undefined;
+    if (fundOwner?.origin_kind === 'salary' && !keyed) throw new FinancialInvalidError('A keyed version 1 salary edit is required.');
+    if (fundOwner?.origin_kind === 'salary' && changes.allocations !== undefined) throw new FinancialInvalidError('Funded salaries do not accept module allocations.');
+    if (amountCents !== current.amountCents && changes.allocations === undefined && fundOwner === undefined) {
       throw new ValidationError(
         'Changing the salary amount requires explicit allocations that add up to the new salary.',
       );
@@ -478,6 +513,20 @@ export class SalaryService {
     const nowMs = this.now();
 
     this.db.transaction(() => {
+      const sourceChanged = amountCents !== current.amountCents || date !== current.date || accountId !== current.accountId;
+      if ((sourceChanged || note !== current.note) && fundOwner?.origin_kind === 'salary') {
+        if (fundGrantNeedsReview(this.db, fundOwner.id) || current.fundGrant === undefined) throw new FinancialSourceChangedError('The salary grant changed; reload it before editing.');
+        if (!Number.isSafeInteger(fundOwner.active_revision) || fundOwner.active_revision >= Number.MAX_SAFE_INTEGER) throw new FinancialUnavailableError();
+        const revision = fundOwner.active_revision + 1;
+        const token = salarySourceToken({ id, amount_cents: amountCents, date, account_id: accountId });
+        const sources = [{ salaryId: id, amountCents, date, accountId, sourceToken: token, confirmedAt: nowMs }];
+        this.db.prepare('INSERT INTO financial_fund_grant_revisions VALUES (?,?,?,?,?,?,?,?,?,?)').run(fundOwner.id, revision, amountCents, JSON.stringify(current.fundGrant.ratiosBps), JSON.stringify(allocateFundIncomeCents(amountCents, current.fundGrant.ratiosBps)), JSON.stringify(sources), actorId ?? null, operationId ?? null, nowMs, 'salary-edit');
+        this.db.prepare('UPDATE financial_fund_grant_sources SET source_token=?,amount_cents=?,date=?,account_id=? WHERE salary_id=? AND grant_id=?').run(token, amountCents, date, accountId, id, fundOwner.id);
+        this.db.prepare('UPDATE financial_fund_grants SET active_revision=? WHERE id=?').run(revision, fundOwner.id);
+      } else if (sourceChanged && fundOwner?.origin_kind === 'legacy-group') {
+        this.db.prepare("UPDATE financial_fund_grants SET status='review-required' WHERE id=?").run(fundOwner.id);
+        this.db.prepare("UPDATE financial_fund_grant_sources SET status='review-required' WHERE salary_id=? AND grant_id=?").run(id, fundOwner.id);
+      }
       this.db
         .prepare(
           'UPDATE salary_records SET amount_cents = ?, date = ?, note = ?, account_id = ?, updated_at = ? WHERE id = ?',
@@ -523,9 +572,15 @@ export class SalaryService {
   /** Replaces the allocation snapshot without silently changing the salary. */
   replaceAllocations(id: string, raw: unknown): SalaryDetailDto {
     if (raw === undefined) throw new ValidationError('allocations are required.');
-    const salary = this.getByIdOrThrow(id);
-    const items = this.resolveAllocations(raw, salary.amountCents, undefined);
-    this.db.transaction(() => this.writeAllocation(id, salary.date, items, this.now()))();
+    const write = this.db.transaction(() => {
+      const salary = this.getByIdOrThrow(id);
+      const owner = this.db.prepare(`SELECT g.origin_kind FROM financial_fund_grants g
+        JOIN financial_fund_grant_sources s ON s.grant_id=g.id WHERE s.salary_id=?`).get(id) as { origin_kind: string } | undefined;
+      if (owner?.origin_kind === 'salary') throw new FinancialInvalidError('Funded salaries do not accept module allocations.');
+      const items = this.resolveAllocations(raw, salary.amountCents, undefined);
+      this.writeAllocation(id, salary.date, items, this.now());
+    });
+    write.immediate();
     return this.getByIdOrThrow(id);
   }
 
@@ -591,11 +646,32 @@ export class SalaryService {
    * Both must go: the budget engine reads allocations, so leaving one behind would
    * keep a deleted salary in the current cycle.
    */
-  softDelete(id: string): void {
+  softDelete(id: string, input: { readonly contractVersion?: unknown; readonly expectedGrantRevision?: unknown; readonly operationId?: unknown } = {}, context: SalaryCreateContext = {}): void {
+    if (input.contractVersion === 1) {
+      const operationId = requireFinancialOperationId(input.operationId);
+      runFinancialOperation(this.db, { operationId, actorId: context.actorId ?? this.resolveActorId(), method: 'DELETE', resource: `${SALARY_CREATE_RESOURCE}/${id}`, canonicalPayload: input, now: this.now() }, () => {
+        const current = this.getByIdOrThrow(id);
+        if (!Number.isSafeInteger(input.expectedGrantRevision) || (input.expectedGrantRevision as number) < 1 || Object.keys(input).some((key) => !['contractVersion', 'expectedGrantRevision', 'operationId'].includes(key))) throw new FinancialInvalidError('A valid grant revision is required.');
+        if (current.fundGrant?.revision !== input.expectedGrantRevision) throw new FinancialRevisionConflictError('The salary grant changed. Reload it before deleting.');
+        this.deleteOnce(id);
+        return { statusCode: 204, response: null };
+      });
+      return;
+    }
+    const owner = this.db.prepare("SELECT g.origin_kind FROM financial_fund_grants g JOIN financial_fund_grant_sources s ON s.grant_id=g.id WHERE s.salary_id=?").get(id) as { origin_kind: string } | undefined;
+    if (owner?.origin_kind === 'salary') throw new FinancialInvalidError('A keyed version 1 salary deletion is required.');
+    this.deleteOnce(id);
+  }
+
+  private deleteOnce(id: string): void {
     this.getByIdOrThrow(id);
     const nowMs = this.now();
 
     const run = this.db.transaction((): void => {
+      this.db.prepare(`UPDATE financial_fund_grants SET status=CASE WHEN origin_kind='legacy-group' THEN 'review-required' ELSE 'deleted' END
+        WHERE id=(SELECT grant_id FROM financial_fund_grant_sources WHERE salary_id=?)`).run(id);
+      this.db.prepare(`UPDATE financial_fund_grant_sources SET status=CASE WHEN grant_id IN
+        (SELECT id FROM financial_fund_grants WHERE origin_kind='legacy-group') THEN 'review-required' ELSE 'deleted' END WHERE salary_id=?`).run(id);
       this.db
         .prepare('UPDATE salary_records SET deleted = 1, updated_at = ? WHERE id = ?')
         .run(nowMs, id);

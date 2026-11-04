@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/native-delivery.md","reason":"Verify native contracts, inventory maintenance and no unsupported device claims"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Isolated backend regression tests and evidence-based quality reports if server tests change"}
+{"file":".trellis/tasks/10-22-bill-account-switch/prd.md","reason":"Trace account entry, isolation, filter preservation, page reset, stale response and historical-account acceptance criteria"}
+{"file":".trellis/tasks/10-22-bill-account-switch/design.md","reason":"Verify production helper wiring and complete loading/error/finally ownership, without expanding money/statistics scope"}

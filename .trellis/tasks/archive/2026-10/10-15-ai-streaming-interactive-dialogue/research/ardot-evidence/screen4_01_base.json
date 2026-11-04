@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:172\",\"name\":\"AI17 回答完成独立视觉信号 · 390×844\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:173\",\"name\":\"标题\",\"content\":\"AI 助理\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:174\",\"name\":\"状态指示胶囊\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:175\",\"name\":\"状态文本\",\"content\":\"● 本轮已入账完成\"}}],\"expiredBindings\":\"binding names [ s4, hdr, tag, tag_txt ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

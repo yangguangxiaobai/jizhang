@@ -1,0 +1,68 @@
+{
+  "id": "core-simplify-monthly-plan",
+  "name": "core-simplify-monthly-plan",
+  "title": "本月计划与工资分配统一",
+  "description": "以四用途消费预算统一默认月计划，简化工资录入和分类用途设置，保留旧信封与测算合同。",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": "monthly-plan",
+  "package": null,
+  "priority": "P1",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-29-core-finance-simplification",
+  "relatedFiles": [
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialHostScreen.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialExecutionWorkspace.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialConfigSheet.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinancialCategoryMappingSheet.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalarySheet.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalaryFinancialPrompt.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalaryOperationReplay.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MainShell.kt",
+    "packages/server/src/routes/financial-planning.ts",
+    "packages/server/src/services/financial-planning-service.ts",
+    "packages/server/src/services/financial-planning-refunds.ts",
+    "packages/shared/src/index.ts",
+    "packages/server/src/app.ts",
+    "packages/shared/src/monthly-plan.ts",
+    "packages/server/src/services/monthly-plan-service.ts",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/MonthlyPlanModels.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/MonthlyPlanRepository.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MonthlyPlanWorkspace.kt"
+  ],
+  "notes": "",
+  "meta": {
+    "requirements": [
+      "F03",
+      "F04",
+      "F05"
+    ],
+    "depends_on": [
+      "C1"
+    ],
+    "acceptance_ids": [
+      "C2-01",
+      "C2-02",
+      "C2-03",
+      "C2-04",
+      "C2-05",
+      "C2-06",
+      "C2-07",
+      "C2-08",
+      "C2-09"
+    ],
+    "planning_version": "2026-10-29",
+    "implementation_approved": true,
+    "parent_plan": "docs/superpowers/plans/2026-10-29-core-finance-simplification.md"
+  }
+}

@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/native-delivery.md","reason":"Android source-backed feature inventory, unchanged API/auth contracts and distinction between local and device validation"}
+{"file":".trellis/tasks/10-22-bill-account-switch/prd.md","reason":"Approved minimal scope and testable account-switch requirements; final implementation approval still pending"}
+{"file":".trellis/tasks/10-22-bill-account-switch/design.md","reason":"Reuse visible selector and existing account query; immutable query/request ownership prevents account-result contamination"}
+{"file":".trellis/tasks/10-22-bill-account-switch/implement.md","reason":"Ordered implementation, validation commands, dirty-worktree preservation and approval gate"}

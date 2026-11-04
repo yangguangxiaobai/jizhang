@@ -1,0 +1,6 @@
+=== app data hash comparison (pre vs post install) ===
+[datastore] pre: d7decd7d08bcba1072da7a638f46e4b8d1aab6375af10d4c0b4928f808955b4c
+[datastore] post: d7decd7d08bcba1072da7a638f46e4b8d1aab6375af10d4c0b4928f808955b4c
+[session prefs] pre: eda4adc46f47fb5bbbd73cfa972ebafb4fcae81acb6920d1c85d1af6913ae8a4 (283 bytes)
+[session prefs] post: eda4adc46f47fb5bbbd73cfa972ebafb4fcae81acb6920d1c85d1af6913ae8a4 (283 bytes)
+RESULT: IDENTICAL -> -r preserved app data (login session + preferences)

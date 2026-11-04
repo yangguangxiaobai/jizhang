@@ -1,0 +1,65 @@
+{
+  "id": "core-finance-simplification",
+  "name": "core-finance-simplification",
+  "title": "核心记账与财务规划功能精简",
+  "description": "统一记账与月度计划入口，精简工资、统计、AI导入和扩展工具，补齐手动存钱与投资进度；按用户批准的C1→C5顺序实施并记录本地/设备证据。",
+  "status": "planning",
+  "dev_type": "fullstack",
+  "scope": "core-finance",
+  "package": null,
+  "priority": "P1",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-29-core-simplify-entry-recording",
+    "10-29-core-simplify-monthly-plan",
+    "10-29-core-simplify-statistics",
+    "10-29-core-simplify-saving-investment",
+    "10-29-core-simplify-import-ai"
+  ],
+  "parent": null,
+  "relatedFiles": [
+    "docs/superpowers/plans/2026-10-29-core-finance-simplification.md",
+    ".trellis/tasks/10-29-core-finance-simplification/prd.md",
+    ".trellis/tasks/10-29-core-finance-simplification/design.md",
+    ".trellis/tasks/10-29-core-finance-simplification/implement.md",
+    ".trellis/tasks/10-29-core-finance-simplification/acceptance.md"
+  ],
+  "notes": "",
+  "meta": {
+    "requirements": [
+      "F01",
+      "F02",
+      "F03",
+      "F04",
+      "F05",
+      "F06",
+      "F07",
+      "F08",
+      "F09",
+      "F10",
+      "F11",
+      "F12"
+    ],
+    "depends_on": [],
+    "acceptance_ids": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06"
+    ],
+    "planning_version": "2026-10-29",
+    "implementation_approved": true,
+    "parent_plan": "docs/superpowers/plans/2026-10-29-core-finance-simplification.md"
+  }
+}

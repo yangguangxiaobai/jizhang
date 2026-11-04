@@ -1,0 +1,13 @@
+AI 助理 | [48,170][206,227] | android.widget.TextView |  | 
+● 回答已结束 | [78,251][266,286] | android.widget.TextView |  | 
+会话 | [780,210][852,258] | android.widget.TextView |  | 
+UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not book transactions. | [163,354][996,449] | android.widget.TextView |  | 
+AI 助理 | [84,551][201,593] | android.widget.TextView |  | 
+1. Pay yourself first: Set an automatic transfer to savings on payday, even if you start small. Treat it like a bill, then build toward an emergency fund covering three to six months of essential expenses.&#10;&#10;2. Give every dollar a job: List take-home income and plan for essentials, savings, debt payments, and fun. Try a simple starting split—50% needs, 20% savings and debt, 30% wants—then adjust it to fit your real costs and goals.&#10;&#10;3. Make spending visible: Review transactions once a week and set practical limits for flexible categories such as dining out, rideshares, and subscriptions. Use calendar reminders to cancel services you no longer use, and pause before large purchases. If you overspend, revise next week’s plan rather than abandoning the budget. A budget is a tool for making choices, not a test of perfection. | [84,617][996,1579] | android.widget.TextView |  | 
+✓ 回答已结束 · 本轮未执行记账 | [90,1687][614,1738] | android.widget.TextView |  | 
+会话已回归待命就绪状态。本轮仅提供信息解答，未向账本写入任何记录。 | [90,1756][990,1839] | android.widget.TextView |  | 
+问问账本，或上传账单… | [288,2023][662,2063] | android.widget.TextView |  | 
+首页 | [0,0][0,0] | android.widget.TextView |  | 
+账单 | [0,0][0,0] | android.widget.TextView |  | 
+AI 助手 | [0,0][0,0] | android.widget.TextView |  | 
+我的 | [0,0][0,0] | android.widget.TextView |  | 

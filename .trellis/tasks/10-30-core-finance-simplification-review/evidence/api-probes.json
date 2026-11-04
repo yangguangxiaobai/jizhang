@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-30",
+  "environment": "in-memory SQLite + app.inject, freshly built current source",
+  "salaryWithoutWireKey": {
+    "wireHasOperationId": false,
+    "rowsAdded": 2,
+    "differentSalaryIds": true
+  },
+  "salaryWithWireKey": {
+    "rowsAdded": 1,
+    "sameSalaryId": true
+  },
+  "historicalReserveReference": {
+    "currentMonthlyPlanState": "no-period",
+    "referenceCents": 150000,
+    "conditionalContributionCount": 9
+  },
+  "manualProgress": {
+    "reserveBalanceCents": 1250000,
+    "reserveNetCents": 50000,
+    "investmentPrincipalCents": 650000,
+    "investmentNetCents": 150000,
+    "ledgerCountsUnchanged": true,
+    "accountBalancesUnchanged": true
+  },
+  "windows": {
+    "shanghaiRollingFrom": "2026-09-29T04:00:00.000Z",
+    "shanghaiRollingTo": "2026-10-29T04:00:00.000Z",
+    "repeatedMonthFrom": "2009-11-01T03:30:00.000Z",
+    "firstMidnightLocal": "11/01/2009, 00:00:00",
+    "afterRollbackLocal": "10/31/2009, 23:01:00"
+  }
+}

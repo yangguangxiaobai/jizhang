@@ -38,6 +38,17 @@ function optionalString(value: unknown): string | undefined {
   return value;
 }
 
+/** Strict extra guards are only used by stats drilldown; malformed inputs never disappear. */
+function optionalExpectedInteger(value: unknown, field: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value)) {
+    throw new ValidationError(`${field} must be a non-negative safe integer.`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) throw new ValidationError(`${field} must be a non-negative safe integer.`);
+  return parsed;
+}
+
 function parseListQuery(query: Record<string, unknown>): ListTransactionsQuery {
   const type = optionalNumber(query['type']);
   if (type !== undefined && type !== 0 && type !== 1) {
@@ -57,19 +68,43 @@ function parseListQuery(query: Record<string, unknown>): ListTransactionsQuery {
   const tag = optionalString(query['tag']);
   const tagId = optionalString(query['tagId']);
   if (tag !== undefined && tagId !== undefined) throw new ValidationError('tag and tagId cannot be used together.');
+  const from = optionalNumber(query['from']);
+  const to = optionalNumber(query['to']);
+  const categoryId = optionalString(query['categoryId']);
+  const accountId = optionalString(query['accountId']);
+  const q = optionalString(query['q']);
+  const search = optionalString(query['search']);
+  const includeDeleted = query['includeDeleted'] === 'true' || query['includeDeleted'] === true;
+  const expectedExpenseCents = optionalExpectedInteger(query['expectedExpenseCents'], 'expectedExpenseCents');
+  const expectedExpenseCount = optionalExpectedInteger(query['expectedExpenseCount'], 'expectedExpenseCount');
+  if ((expectedExpenseCents === undefined) !== (expectedExpenseCount === undefined)) {
+    throw new ValidationError('expectedExpenseCents and expectedExpenseCount must be supplied together.');
+  }
+  if (expectedExpenseCents !== undefined) {
+    if (
+      type !== 0 || categoryId === undefined || includeDeleted ||
+      from === undefined || to === undefined || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from >= to ||
+      tag !== undefined || tagId !== undefined || q !== undefined || search !== undefined
+    ) {
+      throw new ValidationError('Expense total guards require an exact live expense category/date scope without other filters.');
+    }
+  }
 
   return {
-    from: optionalNumber(query['from']),
-    to: optionalNumber(query['to']),
+    from,
+    to,
     type,
-    categoryId: optionalString(query['categoryId']),
-    accountId: optionalString(query['accountId']),
+    categoryId,
+    accountId,
     tag,
     tagId,
-    q: optionalString(query['q']),
-    includeDeleted: query['includeDeleted'] === 'true' || query['includeDeleted'] === true,
+    q,
+    search,
+    includeDeleted,
     limit,
     offset,
+    expectedExpenseCents,
+    expectedExpenseCount,
   };
 }
 

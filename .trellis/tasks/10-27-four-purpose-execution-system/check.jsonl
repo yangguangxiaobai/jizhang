@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Actual command evidence and regression quality gates"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Migration/restore, deletion and no-materialized-balance invariants"}
+{"file":".trellis/tasks/10-27-four-purpose-execution-system/acceptance.md","reason":"Thirty phase-specific observable acceptance cases"}
+{"file":".trellis/tasks/10-27-four-purpose-execution-system/design.md","reason":"Cross-layer accounting and backward compatibility contracts"}
+{"file":"clients/android/README.md","reason":"Inventory stable IDs and device/source evidence separation"}

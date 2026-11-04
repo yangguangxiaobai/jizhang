@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: jizhang:latest
+    image: '${JIZHANG_IMAGE:-jizhang:latest}'
     container_name: jizhang
     restart: unless-stopped
 
@@ -24,17 +24,16 @@ services:
       NODE_ENV: production
       PORT: '8081'
       DATA_DIR: /data
-      WEB_DIST_DIR: /app/public
       NODE_OPTIONS: --max-old-space-size=256
       LOG_LEVEL: '${LOG_LEVEL:-info}'
       TRUST_PROXY: '${TRUST_PROXY:-true}'
-      JIZHANG_ITEM_CUTOUT_SERVICE_URL: http://jizhang-cutout:8090
+      JIZHANG_ITEM_CUTOUT_SERVICE_URL: '${JIZHANG_ITEM_CUTOUT_SERVICE_URL:-}'
 
     volumes:
       # Named volume (not a host bind mount) so /data is initialised with the
       # image's ownership and the non-root `node` user can write the SQLite
       # file. A bind mount needs `mkdir -p data && sudo chown 1000:1000 data`
-      # on the host first — see README "Data directory" for the alternative.
+      # on the host first — see DEPLOY.md for the inspected-bind alternative.
       - jizhang-data:/data
 
     ports:
@@ -46,13 +45,14 @@ services:
       - cutout-internal
 
   jizhang-cutout:
+    profiles: [cutout]
     build:
       context: .
       dockerfile: packages/cutout/Dockerfile
       target: runtime
       args:
         PYTHON_PACKAGE_INDEX_URL: '${PYTHON_PACKAGE_INDEX_URL:-https://pypi.org/simple}'
-    image: jizhang-cutout:latest
+    image: '${JIZHANG_CUTOUT_IMAGE:-jizhang-cutout:latest}'
     container_name: jizhang-cutout
     restart: unless-stopped
     init: true

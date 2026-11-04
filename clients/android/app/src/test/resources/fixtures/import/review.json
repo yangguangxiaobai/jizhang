@@ -1,0 +1,64 @@
+{
+  "reviewToken": "<SYNTHETIC_REDACTED_REVIEW_TOKEN>",
+  "version": 1,
+  "analysisRevision": 0,
+  "viewRevision": "126d2705b6c6ea0a4f48328c4f9d8a812b2fd011b5c413ddaa614db0d0dee2d1",
+  "expiresInSec": 900,
+  "summary": {
+    "selected": 2,
+    "amountCents": 800,
+    "expenseCents": 400,
+    "incomeCents": 400,
+    "refundIncomeCents": 0,
+    "categoriesToCreate": [
+      {
+        "name": "其他",
+        "type": 0,
+        "selectedRows": 1
+      }
+    ],
+    "categoriesToReuse": [],
+    "selectedRows": [
+      {
+        "itemId": "po:wechat:ff0ffb4f866ff2065b17b03df937590b",
+        "type": 1,
+        "amountCents": 400,
+        "categoryId": "builtin-income-other",
+        "categoryName": "其他收入",
+        "categoryType": 1,
+        "suggestionId": null,
+        "approvedNewCategoryName": null,
+        "note": "罗文 (stylish)"
+      },
+      {
+        "itemId": "po:wechat:07264ee30c7414e6bb5876e8d0ecfb1f",
+        "type": 0,
+        "amountCents": 400,
+        "categoryId": null,
+        "categoryName": "其他",
+        "categoryType": 0,
+        "suggestionId": "nc-fallback-0-1",
+        "approvedNewCategoryName": "其他",
+        "note": ""
+      }
+    ],
+    "files": [
+      {
+        "fileName": "synthetic-wechat.csv",
+        "selectedRows": 2
+      }
+    ],
+    "excluded": 32,
+    "existing": 0,
+    "conflicts": 0,
+    "counts": {
+      "total": 34,
+      "selected": 2,
+      "notSelected": 32,
+      "preexisting": 0,
+      "ruleIgnored": 8,
+      "conflictRows": 0,
+      "userExcluded": null
+    }
+  }
+}

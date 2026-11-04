@@ -1,0 +1,10 @@
+import { createRequire } from "node:module";
+const require = createRequire("/app/packages/server/package.json");
+const D = require("better-sqlite3");
+const db = new D("/data/jizhang.db", { readonly: true, fileMustExist: true });
+const r = db.prepare("SELECT id, conversation_id, status, outcome, source_generation_id, question_id, answered_option_id, answered_at, created_at, input_json FROM assistant_generations WHERE conversation_id LIKE '5de1a6c8%' ORDER BY created_at").all();
+for (const x of r) console.log(JSON.stringify(x, null, 1));
+const m = db.prepare("SELECT id, role, kind, content_json, created_at FROM assistant_messages WHERE conversation_id LIKE '5de1a6c8%' ORDER BY created_at").all();
+console.log("MESSAGES:");
+for (const x of m) console.log(x.created_at, x.role, x.kind, x.content_json.slice(0, 220));
+db.close();

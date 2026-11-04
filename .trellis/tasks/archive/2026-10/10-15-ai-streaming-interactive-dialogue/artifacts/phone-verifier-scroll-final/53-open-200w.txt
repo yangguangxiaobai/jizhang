@@ -1,0 +1,16 @@
+AI 助理 | [48,170][206,227] | android.widget.TextView |  | 
+● 生成失败 | [78,251][236,286] | android.widget.TextView |  | 
+会话 | [780,210][852,258] | android.widget.TextView |  | 
+我 | [163,414][199,456] | android.widget.TextView |  | 
+UI TEST: Please provide 200 words of practical monthly budget planning advice for young professionals. Reading advice only do not book any transaction. | [163,480][996,677] | android.widget.TextView |  | 
+● 流式生成中 · 结构化草案 | [120,803][489,838] | android.widget.TextView |  | 
+Start with your take-home pay, not your pre-tax salary. Before the month begins, list fixed essentials such as rent, utilities, insurance, minimum debt payments, and commuting costs. Then set realistic limits for groceries, dining, subscriptions, and personal spending using recent statements rather than idealized guesses. Give every dollar a purpose, while keeping the plan flexible enough for irregular | [96,931][984,1437] | android.widget.TextView |  | 
+流式生成过程中不向账本写入任何记录，生成完毕后需手动核对 | [96,1473][936,1508] | android.widget.TextView |  | 
+停止生成 (保留已输出片段) | [319,1594][762,1638] | android.widget.TextView |  | 
+生成未完成（ASSISTANT_STREAM_BOUNDS） | [168,1802][996,1902] | android.widget.TextView |  | 
+流式事件超出安全大小或长度限制，请精简提问或分步交互。 | [168,1902][996,1905] | android.widget.TextView |  | 
+问问账本，或上传账单… | [288,2023][662,2063] | android.widget.TextView |  | 
+首页 | [0,0][0,0] | android.widget.TextView |  | 
+账单 | [0,0][0,0] | android.widget.TextView |  | 
+AI 助手 | [0,0][0,0] | android.widget.TextView |  | 
+我的 | [0,0][0,0] | android.widget.TextView |  | 

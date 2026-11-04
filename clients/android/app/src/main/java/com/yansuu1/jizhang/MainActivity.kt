@@ -1,6 +1,8 @@
 package com.yansuu1.jizhang
 
+import android.animation.ValueAnimator
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -24,6 +26,9 @@ import com.yansuu1.jizhang.ui.theme.JizhangTheme
 import com.yansuu1.jizhang.ui.theme.ThemePreference
 import com.yansuu1.jizhang.ui.writeThemePrefs
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.collectAsState
+import com.yansuu1.jizhang.ui.readReduceMotionPref
+import com.yansuu1.jizhang.ui.writeReduceMotionPref
 
 /**
  * Entry: session gate (login <-> shell) + persisted theme (A10/A11).
@@ -31,25 +36,36 @@ import kotlinx.coroutines.launch
  * deciding where to land; 401 stays on login.
  */
 class MainActivity : ComponentActivity() {
+    private var systemAnimationsEnabled by mutableStateOf(true)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        systemAnimationsEnabled = ValueAnimator.areAnimatorsEnabled()
         val api = ApiClient(applicationContext)
         val auth = AuthRepository(api)
         setContent {
             val scope = rememberCoroutineScope()
             var theme by remember { mutableStateOf(ThemePreference.System) }
             var accent by remember { mutableStateOf(AccentPreset.Titanium) }
+            var reduceMotion by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
                 val (t, a) = readThemePrefs(applicationContext)
                 theme = t
                 accent = a
+                reduceMotion = readReduceMotionPref(applicationContext)
             }
-            JizhangTheme(preference = theme, accent = accent) {
+            JizhangTheme(
+                preference = theme,
+                accent = accent,
+                reduceMotion = reduceMotion || !systemAnimationsEnabled,
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     var signedIn by remember { mutableStateOf(false) }
+                    val expired by api.sessionExpired.collectAsState()
+                    LaunchedEffect(expired) { if (expired) signedIn = false }
                     if (signedIn) {
                         MainShell(
                             api = api,
@@ -63,6 +79,21 @@ class MainActivity : ComponentActivity() {
                             onAccent = { a ->
                                 accent = a
                                 scope.launch { writeThemePrefs(applicationContext, theme, a) }
+                            },
+                            reduceMotion = reduceMotion,
+                            onReduceMotion = { reduced ->
+                                reduceMotion = reduced
+                                scope.launch {
+                                    try {
+                                        writeReduceMotionPref(applicationContext, reduced)
+                                    } catch (_: Exception) {
+                                        Toast.makeText(
+                                            applicationContext,
+                                            "减少动态设置未能保存，当前仅本次打开有效。",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                }
                             },
                             onLogout = { signedIn = false },
                             onAuthExpired = { signedIn = false },
@@ -79,5 +110,10 @@ class MainActivity : ComponentActivity() {
             @Suppress("UNUSED_EXPRESSION")
             isSystemInDarkTheme().let { }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        systemAnimationsEnabled = ValueAnimator.areAnimatorsEnabled()
     }
 }

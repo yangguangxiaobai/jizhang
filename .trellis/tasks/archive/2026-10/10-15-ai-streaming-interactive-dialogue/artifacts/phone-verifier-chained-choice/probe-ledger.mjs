@@ -1,0 +1,10 @@
+import { createRequire } from "node:module";
+const require = createRequire("/app/packages/server/package.json");
+const D = require("better-sqlite3");
+const db = new D("/data/jizhang.db", { readonly: true, fileMustExist: true });
+const t = ["accounts","transactions","transfers","refund_links","budget_allocations","budget_templates","categories","salary_records","settings","users","asset_items","assistant_pending_actions","assistant_conversations","assistant_messages","assistant_generations","assistant_generation_events"];
+const o = {};
+for (const x of t) o[x] = db.prepare("SELECT COUNT(*) c FROM " + x).get().c;
+console.log("INTEGRITY=" + db.pragma("integrity_check", { simple: true }));
+console.log("COUNTS=" + JSON.stringify(o));
+db.close();

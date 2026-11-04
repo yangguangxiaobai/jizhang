@@ -1,0 +1,61 @@
+{
+  "id": "core-simplify-import-ai",
+  "name": "core-simplify-import-ai",
+  "title": "统一账单导入与按需 AI",
+  "description": "复用多文件批次协议统一平台导入入口，使人工核对不依赖 AI，保留完整校验与确认。",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": "platform-import",
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-29-core-finance-simplification",
+  "relatedFiles": [
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DataTab.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MyTab.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MainShell.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ProviderSettings.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchImportWorkspace.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchModels.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportState.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt",
+    "packages/server/src/routes/import-batches.ts",
+    "packages/server/src/services/import-batch-service.ts",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/imports/PlatformImportHost.kt"
+  ],
+  "notes": "",
+  "meta": {
+    "requirements": [
+      "F10",
+      "F11"
+    ],
+    "depends_on": [
+      "C1",
+      "C4"
+    ],
+    "acceptance_ids": [
+      "C5-01",
+      "C5-02",
+      "C5-03",
+      "C5-04",
+      "C5-05",
+      "C5-06",
+      "C5-07",
+      "C5-08"
+    ],
+    "planning_version": "2026-10-29",
+    "implementation_approved": true,
+    "parent_plan": "docs/superpowers/plans/2026-10-29-core-finance-simplification.md"
+  }
+}

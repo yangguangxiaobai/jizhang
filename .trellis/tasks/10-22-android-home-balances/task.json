@@ -1,0 +1,28 @@
+{
+  "id": "android-home-balances",
+  "name": "android-home-balances",
+  "title": "首页真实账户余额与月份简化",
+  "description": "移除首页月份选择，保留本月概览，动态展示余额接口实际账户明细并处理加载失败",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-22",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-22-android-brand-recording",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "approval_gate": "approved_by_user"
+  }
+}

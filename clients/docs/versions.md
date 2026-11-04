@@ -56,13 +56,14 @@ $env:DEVECO_SDK_HOME = "C:/Program Files/Huawei/DevEco Studio/sdk"
 
 DevEco 内（等价）：`Build > Build Hap(s)`；模拟器或实机点亮登录页（H0 门）。
 
-## 服务端/Web 回归面（联调前必跑，不动代码）
+## 服务端回归面（联调前必跑，不动代码）
 
 ```bash
 pnpm --filter @jizhang/server run typecheck
-pnpm --filter @jizhang/web run typecheck
 pnpm --filter @jizhang/server test
 ```
 
-> 注：本机 pnpm 需经 corepack 下载（2026-10-06 实测 registry 超时），
-> 回归命令在网络恢复后执行；阻塞只记在此处，不卡 A0/H0 落盘。
+Web 工程已退役并从工作区移除，不再运行 Web typecheck。
+
+> 历史记录：2026-10-06 本机通过 corepack 下载 pnpm 时遇到 registry 超时；
+> 该历史阻塞不卡当时的 A0/H0 落盘，不代表当前回归结果。

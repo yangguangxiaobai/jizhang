@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:300\",\"name\":\"系统状态栏\",\"content\":\"9:41\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:301\",\"name\":\"电池轮廓\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:303\",\"name\":\"返回对话\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:305\",\"name\":\"页面标题\",\"content\":\"导入状态\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:306\",\"name\":\"系统手势条\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:307\",\"name\":\"核对异常 Hero\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:308\",\"name\":\"核对提示\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:310\",\"name\":\"确认异常标题\",\"content\":\"结果需要核对\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:311\",\"name\":\"异常解释\",\"content\":\"请求未得到明确结果。\\n先刷新服务端状态，不自动重复提交。\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:312\",\"name\":\"过期补充说明\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:313\",\"name\":\"卡片过期说明\",\"content\":\"若卡片已过期\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:314\",\"name\":\"过期建议\",\"content\":\"预览变化、原件不匹配或参数边界不一致\\n都可能使卡片过期。重新生成预览后核对；\\n未知状态不开放确认。\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"20:315\",\"name\":\"刷新核对\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"20:316\",\"name\":\"刷新核对文字\",\"content\":\"刷新并核对状态\"}}],\"expiredBindings\":\"binding names [ n14_0, n14_1, n14_2, n14_3, n14_4, n14_5, n14_6, n14_7, n14_8, n14_9, n14_10, n14_11, n14_12, n14_13 ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

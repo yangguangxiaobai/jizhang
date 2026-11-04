@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Read 43 node(s) (20KB) — full data written to:\n  C:\\Users\\QUIZ\\AppData\\Local\\Temp\\.ardot\\reads\\capture_layout-20_115_42-ggdu-20261013_140825891.jsonl\n\nJSONL, one JSON object per line: line 1 is metadata, then one line per requested node, then `_resolvedComponent` lines, then `_propertyMap` lines. Grep this file by node id for a single node, or read it with an offset/limit window.\n\nTop-level: 20:115 导入来源摘要 (FRAME) | 20:116 合成文件名 (TEXT) | 20:117 边界摘要 (TEXT) | 20:118 本地搜索 (FRAME) | 20:119 搜索图标 (FRAME) | 20:121 搜索占位 (TEXT) | 20:122 筛选 全部 12 (FRAME) | 20:123 筛选文字 全部 12 (TEXT) | 20:124 筛选 可导入 10 (FRAME) | 20:125 筛选文字 可导入 10 (TEXT) | 20:126 筛选 疑似重复 2 (FRAME) | 20:127 筛选文字 疑似重复 2 (TEXT) | 20:128 预览行 1 (FRAME) | 20:129 选择框 1 (FRAME) | 20:130 选中勾 1 (FRAME) | 20:132 商户 1 (TEXT) | 20:133 金额 1 (TEXT) | 20:134 日期 1 (TEXT) | 20:135 分类覆盖字段 1 (FRAME) | 20:136 分类值 1 (TEXT) | 20:137 行状态 1 (TEXT) | 20:138 预览行 2 (FRAME) | 20:139 选择框 2 (FRAME) | 20:140 选中勾 2 (FRAME) | 20:142 商户 2 (TEXT) | 20:143 金额 2 (TEXT) | 20:144 日期 2 (TEXT) | 20:145 分类覆盖字段 2 (FRAME) | 20:146 分类值 2 (TEXT) | 20:147 行状态 2 (TEXT) | 20:148 预览行 3 (FRAME) | 20:149 选择框 3 (FRAME) | 20:150 商户 3 (TEXT) | 20:151 金额 3 (TEXT) | 20:152 日期 3 (TEXT) | 20:153 分类覆盖字段 3 (FRAME) | 20:154 分类值 3 (TEXT) | 20:155 行状态 3 (TEXT) | 20:157 固定选择及操作栏 (FRAME) | 20:158 固定选择数量 (TEXT) | 20:159 选择范围说明 (TEXT) | 20:160 确认入口 (FRAME) | 20:161 确认入口文字 (TEXT)"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

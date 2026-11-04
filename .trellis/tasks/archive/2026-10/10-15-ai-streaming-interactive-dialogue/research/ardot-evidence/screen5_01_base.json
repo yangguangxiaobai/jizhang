@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:214\",\"name\":\"AI18 断流重连与失败提示 · 390×844\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:215\",\"name\":\"标题\",\"content\":\"AI 助理\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:216\",\"name\":\"状态指示胶囊\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:217\",\"name\":\"状态文本\",\"content\":\"● 连接中断 / 未完成\"}}],\"expiredBindings\":\"binding names [ s5, hdr, tag, tag_txt ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

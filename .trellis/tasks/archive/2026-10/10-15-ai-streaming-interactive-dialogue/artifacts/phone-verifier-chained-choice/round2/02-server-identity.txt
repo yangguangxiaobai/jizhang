@@ -1,0 +1,4 @@
+== running image identity ==
+image=jizhang:api-chained-choice-20261016T083118Z id=sha256:31bb967e806c556c39c2b257c33c927976d9e568ce2255335b6c9bdb7e9ef11b started=2026-10-16T08:57:13.935239781Z health=healthy
+60fc43e0e0dfd3b5b43edc752a463f7bd33c6e30c266ded3c812b47e74476f6c  packages/server/dist/services/assistant-generation-service.js
+TS=2026-10-16T12:47:04Z

@@ -1,0 +1,68 @@
+OBSERVATION_UTC=2026-10-19T05:30:35Z
+=== top resumed activity ===
+    mResumedActivity: ActivityRecord{83d2f0d u0 com.yansuu1.jizhang/.MainActivity t267}
+=== focused window ===
+  mCurrentFocus=Window{3e9d87e u0 com.yansuu1.jizhang/com.yansuu1.jizhang.MainActivity}
+=== app process ===
+17570
+=== recent exit info (package scoped) ===
+ACTIVITY MANAGER PROCESS EXIT INFO (dumpsys activity exit-info)
+Last Timestamp of Persistence Into Persistent Storage: 2026-10-19 13:22:12.619
+  package: com.yansuu1.jizhang
+    Historical Process Exit for uid=10240
+        ApplicationExitInfo #0:
+          timestamp=2026-10-18 23:00:00.105
+          pid=31750
+          realUid=10240
+          packageUid=10240
+          definingUid=10240
+          user=0
+          process=com.yansuu1.jizhang
+          reason=10 (USER REQUESTED)
+          subreason=0 (UNKNOWN)
+          status=0
+          importance=400
+          pss=77MB
+          rss=161MB
+          description=stop com.yansuu1.jizhang due to from pid 2239 iAwareF[SystemManager] 8818169ms
+          state=empty
+          trace=null
+        ApplicationExitInfo #1:
+          timestamp=2026-10-18 00:17:56.735
+          pid=29032
+          realUid=10240
+          packageUid=10240
+          definingUid=10240
+          user=0
+          process=com.yansuu1.jizhang
+          reason=10 (USER REQUESTED)
+          subreason=0 (UNKNOWN)
+          status=0
+          importance=400
+          pss=129MB
+          rss=123MB
+          description=stop com.yansuu1.jizhang due to from pid 2239 iAwareF[SystemManager] 30527022ms
+          state=empty
+          trace=null
+        ApplicationExitInfo #2:
+          timestamp=2026-10-17 01:04:23.311
+          pid=15442
+          realUid=10240
+          packageUid=10240
+          definingUid=10240
+          user=0
+          process=com.yansuu1.jizhang
+          reason=10 (USER REQUESTED)
+          subreason=0 (UNKNOWN)
+          status=0
+          importance=100
+          pss=145MB
+          rss=196MB
+          description=stop com.yansuu1.jizhang due to installPackageLI
+          state=empty
+          trace=null
+        ApplicationExitInfo #3:
+          timestamp=2026-10-16 15:36:46.431
+          pid=10356
+          realUid=10240
+          packageUid=10240

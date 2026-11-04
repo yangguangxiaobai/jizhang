@@ -1,0 +1,10 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Required backend/shared lint/typecheck/test/build evidence."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Android JVM/lint/APK and device acceptance separation."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Verify idempotent migration, unique salary ownership and lifecycle preservation."}
+{"file":".trellis/spec/backend/financial-execution.md","reason":"Preserve ordinary gross/refund and source/replay contracts."}
+{"file":".trellis/spec/backend/statistics-window.md","reason":"Verify identical list/summary/drilldown purpose/date/tag scopes."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Trace canonical purpose/funding fields through every layer and writer."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/fund-budget-contract.md","reason":"Exact aggregate rounding, partial coverage and source migration acceptance."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/backend-repair-audit.md","reason":"Verify F01/F02 retained fixes and baseline gates without discarding evidence."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/android-repair-audit.md","reason":"Verify retained Back/replay/goal/refresh behavior and retired prerequisites."}
+{"file":".trellis/tasks/11-02-four-purpose-only-finance/research/evidence-2026-11-03/check-results.md","reason":"Prior audit baseline only; these results do not establish acceptance for new implementation."}

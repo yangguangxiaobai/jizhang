@@ -38,6 +38,7 @@ import { loadConfig } from '../src/config.js';
 import { closeDatabase, initializeDatabase, type Db } from '../src/db/index.js';
 import { SESSION_COOKIE } from '../src/plugins/auth.js';
 import { AuthService } from '../src/services/auth-service.js';
+import { seedHistoricalSalary } from './support/historical-salary-fixture.js';
 import type {
   FinancialConfig,
   FinancialMeta,
@@ -321,14 +322,22 @@ async function createSalary(
   date: number,
   note = '既有工资流水',
 ): Promise<SalaryDetailDto> {
-  const response = await call('POST', `${API}/salaries`, {
-    amountCents,
-    date,
-    accountId,
-    note,
-  });
-  expect(response.statusCode, response.body).toBe(201);
-  return response.json() as SalaryDetailDto;
+  // Seeded directly: fresh module-allocation salary writes are retired, while this
+  // suite is about using an *already recorded* salary as a planning source.
+  const { id } = seedHistoricalSalary(db, { amountCents, date, accountId, note });
+  const row = db.prepare('SELECT * FROM salary_records WHERE id = ?').get(id) as {
+    id: string; amount_cents: number; date: number; note: string; account_id: string; updated_at: number;
+  };
+  return {
+    id: row.id,
+    amountCents: row.amount_cents,
+    date: row.date,
+    note: row.note,
+    accountId: row.account_id,
+    updatedAt: row.updated_at,
+    allocationId: null,
+    allocations: [],
+  };
 }
 
 async function salarySources(groupMonth: string): Promise<SourceListResponse> {

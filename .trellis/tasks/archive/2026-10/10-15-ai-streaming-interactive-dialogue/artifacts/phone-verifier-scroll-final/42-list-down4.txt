@@ -1,0 +1,15 @@
+会话管理 | [192,230][1032,287] | android.widget.TextView |  | 
+新建对话 | [468,378][612,426] | android.widget.TextView |  | 
+刷新会话列表 | [84,522][300,570] | android.widget.TextView |  | 
+UI TEST: Please reply hello only. Do not create, update, delete, confirm or book anything. | [84,720][618,768] | android.widget.TextView |  | 
+打开对话 | [84,816][220,856] | android.widget.TextView |  | 
+今天天气怎么样 | [84,1000][336,1048] | android.widget.TextView |  | 
+打开对话 | [84,1096][220,1136] | android.widget.TextView |  | 
+你是deepseek吗 | [84,1280][353,1328] | android.widget.TextView |  | 
+打开对话 | [84,1376][220,1416] | android.widget.TextView |  | 
+帮我导入这个账单 | [84,1560][372,1608] | android.widget.TextView |  | 
+打开对话 | [84,1656][220,1696] | android.widget.TextView |  | 
+请分析本月消费：按分类汇总、最大三项及异常波动。 | [84,1840][618,1888] | android.widget.TextView |  | 
+打开对话 | [84,1936][220,1976] | android.widget.TextView |  | 
+我昨天买服务器花了298，微信支付 | [84,2120][618,2168] | android.widget.TextView |  | 
+打开对话 | [0,0][0,0] | android.widget.TextView |  | 

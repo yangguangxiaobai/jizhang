@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"nodes\":[{\"id\":\"8:1\",\"type\":\"FRAME\",\"layout\":\"none\",\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.9686274528503418,\"g\":0.9607843160629272,\"b\":0.9411764740943909},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}],\"width\":1200,\"height\":1413,\"x\":0,\"y\":0,\"name\":\"记账｜设计系统与组件规范\",\"children\":[{\"id\":\"8:2\",\"type\":\"FRAME\",\"layout\":\"none\",\"width\":1040,\"height\":1413,\"x\":80,\"y\":0,\"name\":\"Frame\",\"children\":\"...\"}]}]}}"}]},"jsonrpc":"2.0","id":1}
+

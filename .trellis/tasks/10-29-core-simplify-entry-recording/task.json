@@ -1,0 +1,54 @@
+{
+  "id": "core-simplify-entry-recording",
+  "name": "core-simplify-entry-recording",
+  "title": "核心导航与快捷记账精简",
+  "description": "重排核心入口、折叠低频记账字段、保留草稿和返回来源，收拢扩展工具。",
+  "status": "in_progress",
+  "dev_type": "frontend",
+  "scope": "android-entry",
+  "package": null,
+  "priority": "P1",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-29-core-finance-simplification",
+  "relatedFiles": [
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MainShell.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MyTab.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DashboardTab.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditSheet.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditorHelper.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditorStateHelper.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/RecordingDefaults.kt"
+  ],
+  "notes": "",
+  "meta": {
+    "requirements": [
+      "F01",
+      "F02",
+      "F11"
+    ],
+    "depends_on": [],
+    "acceptance_ids": [
+      "C1-01",
+      "C1-02",
+      "C1-03",
+      "C1-04",
+      "C1-05",
+      "C1-06",
+      "C1-07",
+      "C1-08"
+    ],
+    "planning_version": "2026-10-29",
+    "implementation_approved": true,
+    "parent_plan": "docs/superpowers/plans/2026-10-29-core-finance-simplification.md"
+  }
+}

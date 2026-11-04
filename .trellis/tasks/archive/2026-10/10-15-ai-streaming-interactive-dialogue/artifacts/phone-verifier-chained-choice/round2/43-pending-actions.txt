@@ -1,0 +1,5 @@
+{"id":"aff9101e-562d-4982-800b-7145225e64ac","conversation_id":"17624436-c25f-4968-b363-d0c9635e0c27","tool_name":"transaction.create","status":"pending","created_at":1792157645248,"updated_at":1792157645248}
+{"id":"066c6fe1-1cd4-43f1-a69b-105818e087f5","conversation_id":"2ce3969a-f2b8-479a-87d2-64205382f2cd","tool_name":"platform-import.prepare","status":"pending","created_at":1792075225406,"updated_at":1792075225406}
+{"id":"e7bd8f7a-ecb5-42e4-a9be-0d5ca4e13b85","conversation_id":"1c8dfb59-2f9e-4660-827e-9e22ba701107","tool_name":"transaction.create","status":"confirmed","created_at":1791989320781,"updated_at":1791989325008}
+{"id":"ec83664d-47bb-4236-8384-45b46f16c225","conversation_id":"1c8dfb59-2f9e-4660-827e-9e22ba701107","tool_name":"transaction.create","status":"confirmed","created_at":1791989243390,"updated_at":1791989253649}
+pending_total=2

@@ -1,0 +1,2 @@
+{"generation_id":"ed63eb1c-495b-4b7f-a06f-5151ea296f8d","seq":90,"type":"text-delta","p":"{\"version\":1,\"generationId\":\"ed63eb1c-495b-4b7f-a06f-5151ea296f8d\",\"seq\":90,\"type\":\"text-delta\",\"messageId\":\"a15f221d-6839-4c97-86cd-78cb21f606a6\",\"step\":0,\"off"}
+{"generation_id":"baee1991-9486-4d2a-b0b0-db95e2b22546","seq":9,"type":"terminal","p":"{\"version\":1,\"generationId\":\"baee1991-9486-4d2a-b0b0-db95e2b22546\",\"seq\":9,\"type\":\"terminal\",\"status\":\"completed\",\"outcome\":\"pending-confirmation\",\"messageIds\":"}

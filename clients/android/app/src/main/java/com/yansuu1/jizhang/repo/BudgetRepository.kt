@@ -23,13 +23,24 @@ class BudgetRepository(private val api: ApiClient) {
     suspend fun salaries(): JSONObject =
         withContext(Dispatchers.IO) { api.get("/api/v1/salaries") }
 
-    suspend fun createSalary(input: Map<String, Any?>): JSONObject =
+    suspend fun createSalary(input: Map<String, Any?>, operationId: String? = null): JSONObject =
         withContext(Dispatchers.IO) {
-            api.post("/api/v1/salaries", JSONObject(input))
+            val payload = JSONObject(input)
+            if (operationId != null) payload.put("operationId", operationId)
+            api.post("/api/v1/salaries", payload)
         }
 
     suspend fun removeSalary(id: String) =
         withContext(Dispatchers.IO) { api.delete("/api/v1/salaries/$id") }
+
+    suspend fun updateSalary(id: String, input: Map<String, Any?>): JSONObject =
+        withContext(Dispatchers.IO) { api.patch("/api/v1/salaries/$id", JSONObject(input)) }
+
+    suspend fun salary(id: String): JSONObject =
+        withContext(Dispatchers.IO) { api.get("/api/v1/salaries/$id") }
+
+    suspend fun replaceAllocations(id: String, allocations: org.json.JSONArray): JSONObject =
+        withContext(Dispatchers.IO) { api.put("/api/v1/salaries/$id/allocations", JSONObject().put("allocations", allocations)) }
 
     suspend fun templates(): JSONObject =
         withContext(Dispatchers.IO) { api.get("/api/v1/templates") }
@@ -109,21 +120,5 @@ class RecurringRepository(private val api: ApiClient) {
         withContext(Dispatchers.IO) { api.post("/api/v1/recurring/occurrences/$id/ignore") }
 }
 
-/** Statistics (A6 slice, rendered on dashboard + stats tab later). */
-class StatsRepository(private val api: ApiClient) {
-    suspend fun categoryShare(from: Long, to: Long): JSONObject =
-        withContext(Dispatchers.IO) {
-            api.get(
-                "/api/v1/stats/category-share",
-                mapOf("from" to from.toString(), "to" to to.toString()),
-            )
-        }
-
-    suspend fun monthlyTrend(months: Int = 6): JSONObject =
-        withContext(Dispatchers.IO) {
-            api.get("/api/v1/stats/monthly-trend", mapOf("months" to months.toString()))
-        }
-
-    suspend fun poolTrend(): JSONObject =
-        withContext(Dispatchers.IO) { api.get("/api/v1/stats/pool-trend") }
-}
+// Statistics moved to repo/StatsRepository.kt (C3). Keep the class in its own file so
+// the stats window/drilldown contract is not edited together with budget code.

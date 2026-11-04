@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Update\",\"node\":\"32:148\",\"updated\":{\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.1843000054359436,\"g\":0.43529999256134033,\"b\":0.5608000159263611},\"opacity\":1,\"visible\":true,\"blendMode\":\"NORMAL\"}]}},{\"type\":\"Update\",\"node\":\"32:149\",\"updated\":{\"characters\":\"[演示数据] 选择：餐饮美食 · 咖啡饮品\"}},{\"type\":\"Delete\",\"node\":\"32:151\"},{\"type\":\"Delete\",\"node\":\"32:153\"},{\"type\":\"Delete\",\"node\":\"32:154\"},{\"type\":\"Delete\",\"node\":\"32:155\"},{\"type\":\"Delete\",\"node\":\"32:156\"},{\"type\":\"Delete\",\"node\":\"32:157\"},{\"type\":\"Delete\",\"node\":\"32:158\"},{\"type\":\"Delete\",\"node\":\"32:159\"},{\"type\":\"Delete\",\"node\":\"32:160\"},{\"type\":\"Delete\",\"node\":\"32:161\"},{\"type\":\"Delete\",\"node\":\"32:162\"},{\"type\":\"Delete\",\"node\":\"32:163\"},{\"type\":\"Delete\",\"node\":\"32:164\"},{\"type\":\"Delete\",\"node\":\"32:166\"},{\"type\":\"Delete\",\"node\":\"32:168\"}]}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

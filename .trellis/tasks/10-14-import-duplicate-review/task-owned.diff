@@ -1,0 +1,566 @@
+--- baseline/packages/server/src/services/portability-service.ts
++++ packages/server/src/services/portability-service.ts
+@@ -42,7 +42,7 @@
+ import { createBackup } from '../cli-db.js';
+ import type { Db } from '../db/index.js';
+ import { decodeBillFile } from './bill-decode.js';
+-import { ValidationError } from './transaction-service.js';
++import { TransactionService, ValidationError } from './transaction-service.js';
+ 
+ /** The columns of the transactions export. Order is the file's contract. */
+ export const TRANSACTION_COLUMNS = [
+@@ -92,6 +92,8 @@
+ export interface PlatformImportRowDto {
+   readonly id: string;
+   readonly dateLabel: string;
++  readonly comparisonAccountId: string | null;
++  readonly externalId: string | null;
+   /** 0 expense, 1 income — before ignore rules. */
+   readonly type: number;
+   readonly amountCents: number;
+@@ -218,6 +220,33 @@
+   constructor(db: Db, options: PortabilityServiceOptions) {
+     this.db = db;
+     this.dataDir = options.dataDir;
++  }
++
++  /** Current, read-only heuristic matches. Facts must come from a stored preview, not the client. */
++  duplicateCandidates(source: Record<string, unknown>, limitInput: unknown, cursorInput: unknown, readAt = Date.now()) {
++    const limit = limitInput === undefined ? 20 : typeof limitInput === 'string' && /^[1-9]\d*$/.test(limitInput) ? Number(limitInput) : NaN;
++    if (!Number.isInteger(limit) || limit < 1 || limit > 50 || (cursorInput !== undefined && (typeof cursorInput !== 'string' || cursorInput.length === 0 || cursorInput.length > 100))) {
++      throw new ValidationError('分页参数无效：limit 为1–50，cursor 为有效账单编号。');
++    }
++    if (!Object.hasOwn(source, 'comparisonAccountId') || typeof source['dateLabel'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(source['dateLabel']) || (source['type'] !== 0 && source['type'] !== 1) || typeof source['amountCents'] !== 'number' || !Number.isSafeInteger(source['amountCents']) || source['amountCents'] <= 0 || (source['comparisonAccountId'] !== null && typeof source['comparisonAccountId'] !== 'string')) {
++      throw new ValidationError('旧预览缺少对比事实，请重新上传账单并预览。');
++    }
++    const [year, month, day] = source['dateLabel'].split('-').map(Number);
++    const start = new Date(year!, month! - 1, day!);
++    if (start.getFullYear() !== year || start.getMonth() !== month! - 1 || start.getDate() !== day) throw new ValidationError('预览日期无效，请重新上传账单并预览。');
++    const end = new Date(year!, month! - 1, day! + 1);
++    const where = 'account_id = ? AND date >= ? AND date < ? AND type = ? AND amount_cents = ? AND deleted = 0';
++    const params = [source['comparisonAccountId'], start.getTime(), end.getTime(), source['type'], source['amountCents']];
++    const total = (this.db.prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${where}`).get(...params) as { n: number }).n;
++    const ids = this.db.prepare(`SELECT id FROM transactions WHERE ${where} AND id > ? ORDER BY id LIMIT ?`).all(...params, cursorInput ?? '', limit + 1) as { id: string }[];
++    const accounts = this.nameMap('accounts');
++    const categories = this.nameMap('categories');
++    const transactions = new TransactionService(this.db);
++    const items = ids.slice(0, limit).map(({ id }) => {
++      const row = transactions.getById(id)!;
++      return { ...row, accountName: accounts.get(row.accountId) ?? null, categoryName: categories.get(row.categoryId) ?? null };
++    });
++    return { source, total, items, nextCursor: ids.length > limit ? items.at(-1)?.id ?? null : null, readAt, rationale: '同平台账户、服务端本地同日、同类型、同金额，仅为疑似重复线索，不证明是同一笔账。' };
+   }
+ 
+   /** `<dataDir>/backups`, matching what `cli.js backup` writes to by default. */
+@@ -818,6 +847,8 @@
+       return {
+         id: row.id,
+         dateLabel: row.dateLabel,
++        comparisonAccountId: liveAccountId ?? null,
++        externalId: row.externalId,
+         type: row.type,
+         amountCents: row.amountCents,
+         note: row.note,
+--- baseline/packages/server/src/services/assistant-tool-registry.ts
++++ packages/server/src/services/assistant-tool-registry.ts
+@@ -302,6 +302,8 @@
+   return result.rows.slice(0, MAX_IMPORT_PREVIEW_ROWS).map((row) => ({
+     id: row['id'],
+     dateLabel: row['dateLabel'],
++    comparisonAccountId: row['comparisonAccountId'],
++    externalId: row['externalId'],
+     type: row['type'],
+     amountCents: row['amountCents'],
+     note: typeof row['note'] === 'string' ? row['note'] : '',
+--- baseline/packages/server/src/routes/assistant.ts
++++ packages/server/src/routes/assistant.ts
+@@ -5,6 +5,7 @@
+ import type { Db } from '../db/index.js';
+ import { AssistantConversationService } from '../services/assistant-conversation-service.js';
+ import { AssistantActionStaleError, AssistantError, AssistantValidationError, type AssistantAttachmentMetadata } from '../services/assistant-types.js';
++import { AssistantImportComparisonService } from '../services/assistant-import-comparison-service.js';
+ import { AssistantOrchestrator } from '../services/assistant-orchestrator.js';
+ 
+ const MAX_TEXT_LENGTH = 2_000;
+@@ -118,6 +119,15 @@
+     return { items: conversations.messages(request.params.id) };
+   });
+ 
++  app.get<{ Params: { conversationId: string; id: string; rowId: string }; Querystring: { limit?: unknown; cursor?: unknown } }>(
++    '/api/v1/assistant/conversations/:conversationId/actions/:id/rows/:rowId/duplicates', async (request, reply) => {
++      reply.header('Cache-Control', 'no-store');
++      return new AssistantImportComparisonService(options.db, options.config.dataDir, now).read(
++        request.params.conversationId, request.params.id, request.params.rowId, request.query.limit, request.query.cursor,
++      );
++    },
++  );
++
+   app.post<{ Params: { id: string } }>('/api/v1/assistant/actions/:id/analyse', async (request) => {
+     const pending = conversations.pending(request.params.id);
+     if (pending.status !== 'pending' || pending.toolName !== 'platform-import.prepare' || !pending.attachment) throw new AssistantActionStaleError();
+--- baseline/packages/server/test/assistant.test.ts
++++ packages/server/test/assistant.test.ts
+@@ -344,3 +344,73 @@
+   });
+ 
+ });
++
++describe('current action-row scoped duplicate comparison', () => {
++  async function prepareComparison() {
++    const conversation = (await inject('POST', '/api/v1/assistant/conversations', {})).json();
++    const response = await inject('POST', `/api/v1/assistant/conversations/${conversation.id}/messages`, {
++      text: '导入', attachment: { fileName: 'wechat.csv', source: 'auto', fileBase64: wechatBytes.toString('base64') },
++    });
++    const card = response.json().items.at(-1).content.card;
++    const row = card.preview.rows.find((r: { ignored: boolean; amountCents: number }) => !r.ignored && r.amountCents > 0);
++    return { conversation, card, row, url: `/api/v1/assistant/conversations/${conversation.id}/actions/${card.actionId}/rows/${row.id}/duplicates` };
++  }
++  it('requires authentication, correct conversation/action and a displayed row; rejects closed and legacy actions', async () => {
++    const { conversation, card, row, url } = await prepareComparison();
++    const unauthenticated = await app.inject({ method: 'GET', url });
++    expect(unauthenticated.statusCode).toBe(401);
++    expect(unauthenticated.json().error.code).toBe('UNAUTHORIZED');
++    const other = (await inject('POST', '/api/v1/assistant/conversations', {})).json();
++    const wrongOwner = await inject('GET', url.replace(conversation.id, other.id));
++    expect(wrongOwner.statusCode).toBe(409);
++    expect(wrongOwner.json().error.code).toBe('ASSISTANT_ACTION_STALE');
++    const missing = await inject('GET', url.replace(`/rows/${row.id}/`, '/rows/missing/'));
++    expect(missing.statusCode).toBe(400);
++    expect(missing.json().error.message).toContain('当前预览');
++    const stored = db.prepare('SELECT preview_json FROM assistant_pending_actions WHERE id = ?').get(card.actionId) as { preview_json: string };
++    const legacy = JSON.parse(stored.preview_json);
++    const hidden = { ...legacy.rows.find((r: { id: string }) => r.id === row.id), id: 'hidden-row' };
++    const bounded = { ...legacy, rows: [...Array.from({ length: 200 }, (_, index) => ({ ...hidden, id: `visible-${index}` })), hidden] };
++    db.prepare('UPDATE assistant_pending_actions SET preview_json = ? WHERE id = ?').run(JSON.stringify(bounded), card.actionId);
++    const outsideDisplay = await inject('GET', url.replace(`/rows/${row.id}/`, '/rows/hidden-row/'));
++    expect(outsideDisplay.statusCode).toBe(400);
++    expect(outsideDisplay.json().error).toMatchObject({ code: 'ASSISTANT_INVALID', message: expect.stringContaining('当前预览') });
++    delete legacy.rows.find((r: { id: string }) => r.id === row.id).comparisonAccountId;
++    db.prepare('UPDATE assistant_pending_actions SET preview_json = ? WHERE id = ?').run(JSON.stringify(legacy), card.actionId);
++    const old = await inject('GET', url);
++    expect(old.statusCode).toBe(400);
++    expect(old.json().error.message).toContain('重新上传');
++    await inject('POST', `/api/v1/assistant/actions/${card.actionId}/cancel`, {});
++    const closed = await inject('GET', url);
++    expect(closed.statusCode).toBe(409);
++    expect(closed.json().error.code).toBe('ASSISTANT_ACTION_STALE');
++  });
++  it('validates bounded query values and returns live reads without invoking AI or changing any database row', async () => {
++    const { url } = await prepareComparison();
++    for (const query of ['limit=0', 'limit=51', 'limit=1.5', 'limit=-1', 'cursor=', `cursor=${'x'.repeat(101)}`, 'limit=2&limit=3']) {
++      const invalid = await inject('GET', `${url}?${query}`);
++      expect(invalid.statusCode, query).toBe(400);
++      expect(invalid.json().error).toMatchObject({ code: 'VALIDATION', message: expect.stringContaining('分页') });
++    }
++    const before = db.serialize();
++    const calls = billCalls;
++    const response = await inject('GET', url);
++    expect(response.statusCode, response.body).toBe(200);
++    expect(response.json()).toMatchObject({ total: 0, items: [], nextCursor: null, readAt: NOW });
++    expect(response.headers["cache-control"]).toBe("no-store");
++    expect(billCalls).toBe(calls);
++    expect(db.serialize()).toEqual(before);
++  });
++  it('rejects the original comparison after explicit analysis replacement and an archived workspace', async () => {
++    const { conversation, card, url } = await prepareComparison();
++    const retry = await inject('POST', `/api/v1/assistant/actions/${card.actionId}/analyse`, { fileBase64: wechatBytes.toString('base64') });
++    expect(retry.statusCode).toBe(200);
++    const stale = await inject('GET', url);
++    expect(stale.statusCode).toBe(409);
++    expect(stale.json().error.code).toBe('ASSISTANT_ACTION_STALE');
++    await inject('DELETE', `/api/v1/assistant/conversations/${conversation.id}`);
++    const archived = await inject('GET', url);
++    expect(archived.statusCode).toBe(404);
++    expect(archived.json().error.code).toBe('ASSISTANT_NOT_FOUND');
++  });
++});
+--- baseline/clients/android/README.md
++++ clients/android/README.md
+@@ -510,7 +510,7 @@
+ | A023 | 全屏二次核对所选收支合计、退款标签、每行现有分类与审核备注（空值明确）；返回不写账，0选择禁止确认。 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)|
+ | A024 | 普通工具保持可选字段语义；平台导入始终传非空显式selectedIds（1–100），不会null/省略全文件；仅传所选行覆盖；未知结果提示并刷新，无自动重发，需显式刷新核对才重新开放确认 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)；[AssistantRepository.kt](app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt)|
+ | A025 | 待确认操作可取消；请求中锁单个 action；失败刷新核对；对话发送/执行中禁止归档 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)|
+-| A026 | 全屏最多前200行预览，本地搜索/筛选；分别显示来源备注、审核备注、AI建议/理由、来源状态、退款提醒与硬阻断原因；未展示行不会导入。 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)；[assistant-tool-registry.ts](../../packages/server/src/services/assistant-tool-registry.ts)|
++| A026 | 全屏最多前200行预览，本地搜索/筛选；分别显示来源备注、审核备注、AI建议/理由、来源状态、退款提醒与硬阻断原因；疑似重复行可在工作区内打开只读对比，返回保留筛选/搜索/滚动与审核草稿；未展示行不会导入。 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)；[assistant-tool-registry.ts](../../packages/server/src/services/assistant-tool-registry.ts)|
+ | A027 | 初始选择来自完成的AI建议，且仅硬规则允许行、最多100；AI失败初始不选。用户可逆转建议、手动选疑似重复；已存在/来源禁止/非正金额锁定。 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)|
+ | A028 | 编辑页仅选择现有活跃同类型可记账分类ID（有子分类的支出父类不可选），不创建/恢复分类；独立审核备注≤200字符可明确清空，未编辑保留完整来源备注。缺分类必须用户处理。 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)；[AssistantRepository.kt](app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt)|
+ | A029 | 显式选择及发送覆盖最多100，预览200；审核草稿可保留当前预览内已编辑但未选中的分类，不静默丢弃后续编辑；上限、请求中及关闭操作有解释；0禁继续，缺分类禁继续；仅发送所选分类ID/备注覆盖。 |[AssistantTab.kt](app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt)、876|
+@@ -604,11 +604,15 @@
+ | A098 | 确认路由、registry与严格导入服务共同限制显式非空1–100行及最多100覆盖；超限拒绝而非静默截断；只能选择前200预览行；未知执行结果须刷新核对。 |[assistant.ts](../../packages/server/src/routes/assistant.ts)；[assistant-tool-registry.ts](../../packages/server/src/services/assistant-tool-registry.ts)|
+ | A099 | Provider 自定义模板支持有限变量和点/数组下标响应路径；不运行 JS/任意代码；拒绝重定向、2 MiB 响应大小限制 |[ai-provider-service.ts](../../packages/server/src/services/ai-provider-service.ts)|
+ | A100 | Chat 模式固定 JSON object + temperature 0，Responses 模式固定 JSON object + temperature 0；测试只是成功调用并提取响应，并不验证正常记账完整草稿或所有工具 |[ai-provider-service.ts](../../packages/server/src/services/ai-provider-service.ts)；[ai-transaction-service.ts](../../packages/server/src/services/ai-transaction-service.ts)|
++| A101 | 疑似重复行 → 对比现有账单：来源日期/整数分金额/类型/独立退款/账户/来源分类/审核分类/完整来源及审核备注，单号/状态/交易对方按可用事实显示；服务端当前候选完整备注/历史账户分类名称/退款身份；同平台账户、服务端本地同日同类型同金额是线索而非证明。 |[AssistantImportWorkspace.kt](app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportWorkspace.kt)；[assistant-import-comparison-service.ts](../../packages/server/src/services/assistant-import-comparison-service.ts)|
++| A102 | 对比候选按ID分页（手机20/页，服务端limit 1–50）和总数/读取时间展示；加载、空结果、刷新/失败重试、下一页；打开/关闭不改选择，显式保留/排除只改来源ID，遵守不可导入/忙碌/未知结果/100行上限；父列表保持挂载，action+row及请求代次隔离晚响应；已关闭操作关闭对比；当前有效对比请求401返回登录，失效请求不触发导航；整数事实拒绝小数/溢出而非截断。 |[AssistantDuplicateState.kt](app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateState.kt)；[AssistantImportWorkspace.kt](app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportWorkspace.kt)|
++| A103 | 鉴权GET按conversation/action/前200显示row解析存储事实；取消/替换/归档操作不可读取；候选读不调用AI、不写账本。旧卡缺对比账户等事实要求重上传，候选变化不是确认快照；最终摘要/指纹/原件/事务/幂等保护不放宽，稳定ID硬去重保持。 |[assistant.ts](../../packages/server/src/routes/assistant.ts)；[portability-service.ts](../../packages/server/src/services/portability-service.ts)|
+ 
+ ### 6.5 API 覆盖矩阵
+ 
+ | API | Android 实际入口 | 可用程度 |
+ |---|---|---|
++| GET /assistant/conversations/:conversationId/actions/:id/rows/:rowId/duplicates | 导入工作区疑似重复行→对比现有账单；A101–A103 | 源码接入/自动测试与构建；设备待验 |
+ | GET /assistant/tools | 无 Repository 方法/UI | 仅后端 catalog |
+ | GET /assistant/conversations | 对话列表 | 已接入 |
+ | POST /assistant/conversations | 新对话 | 已接入；不发送 title |
+@@ -658,7 +662,7 @@
+ | 周期规则 | 名称、收入/支出、金额、分类、账户、五频率、锚点日期 | 默认支出/月/今天；名称1–60、金额>0；切类型清分类；日期选择器；不确定提交结果先核对 |
+ | 待确认 | 确认或忽略弹窗，字段只读 | 不能在确认时改金额/日期，不能批量确认；不可用引用禁确认，仍可忽略 |
+ | AI对话 | 文本、单个账单文件、移除附件 | 纯文本或附件其一即可，服务端文字≤2000；发送UUID去重；没有模型请求取消 |
+-| AI导入卡 | 行选择、现有分类ID、独立备注编辑/清空、同原件分析重试 | hash+长度匹配；200预览/100选择；AI建议可逆，失败非成功；缺分类先处理 |
++| AI导入卡 | 行选择、现有分类ID、独立备注编辑/清空、同原件分析重试、疑似重复就地对比 | hash+长度匹配；200预览/100选择；AI建议可逆，失败非成功；缺分类先处理；对比不改草稿，显式保留/排除只改选择；每页20候选/当前总数，旧卡重上传 |
+ | AI操作确认 | 只读摘要/影响数量/warnings及导入行选择 | 二次确认；取消；终态不可再执行；通用卡不展示所有嵌套数据 |
+ | AI Provider | enabled、mode、name、url、model、auth kind、secret、clearSecret、method、timeoutMs、headers、bodyTemplate、responsePath、headerName | 完整逐字段规则如下；保存/测试互斥，测试只针对已保存配置 |
+ 
+@@ -1029,3 +1033,6 @@
+ 
+ ### 2026-10-13 reviewed bill-import implementation
+ A023/A026–A030/A086/A094/A098 source rechecked for deterministic file facts, configured-provider advisory batches, reasons, refund facts, existing-category IDs and independent editable notes. Added `POST /assistant/actions/:id/analyse` with original digest validation. No feature ID recycled. Shared/server automated tests and Android unit/lint/debug build are separate evidence; no device, live Provider, production deployment or real ledger writes were performed. See `.trellis/tasks/10-13-wechat-import-review/implementation-status.md` for exact checks and remaining manual acceptance. The global audit date is unchanged.
++
++### 2026-10-14 in-workspace duplicate comparison
++A026/A095/A098 and new A101–A103 source rechecked; stable IDs preserved. Added authenticated read-only action/row-scoped duplicate API, bounded pagination/current total/read timestamp, full existing notes and historical reference labels, and in-workspace comparison preserving parent list/drafts. Known gaps: older previews need re-upload; live pages are not a confirmation snapshot; scroll/back, large fonts, weak network and stale-workspace flows still require device acceptance. Shared/server automated tests and Android pure unit/lint/debug build are evidence only, not device or live-provider verification. No deployment, installation or production ledger writes. Global audit date unchanged; exact checks/manual checklist: `.trellis/tasks/10-14-import-duplicate-review/implementation-status.md`.
+--- baseline/.trellis/spec/backend/ai-provider.md
++++ .trellis/spec/backend/ai-provider.md
+@@ -291,3 +291,13 @@
+ - Refunded originals remain gross expenses; income rows with explicit source refund trade/category evidence carry independent isRefund. Status alone neither creates income nor links purchases. Only explicit terminal refund status labels may supplement the existing success-status predicate; a substring such as `退款中`, `待退款` or `退款审核中` is not completion evidence and remains blocked. A refunded original warning asks the user to verify actual refund movements.
+ - Android review drafts may cover the bounded 200-row preview, but confirmation projects category/note overrides to the explicit at-most-100 selection. Never silently discard the 101st edited category merely because an earlier edited row is now deselected. Retry completion may update only its owning workspace; failed refresh must retain uncertain-result gates.
+ - Evidence: shared refund fixture, analysis normalization tests, mocked provider/assistant route tests, rollback/stale-category tests and Android pure helper tests. Live Provider/device acceptance remains separate.
++
++## Scenario: Read-only import duplicate comparison
++
++- `GET /assistant/conversations/:conversationId/actions/:id/rows/:rowId/duplicates?limit=20&cursor=<id>` lives in the authenticated API plugin. The service resolves a pending platform-import action owned by a live conversation and a row among its first 200 stored preview rows. The client never supplies matching amounts, dates or account IDs.
++- Preview facts add `comparisonAccountId` (nullable) and original `externalId`; they participate in existing deterministic row fingerprints. Legacy previews missing comparison facts return a 400 refresh/re-upload instruction; do not infer them from client inputs.
++- Only live transactions with equal captured platform account, server-local calendar day, type and integer-cent amount qualify. Refund identity is displayed, not an added matching restriction. Stable-ID hard blockers are unchanged.
++- ID keyset pagination uses default 20, strict 1–50 limit and nonempty at-most-100-character cursor. Return current total, bounded transaction detail DTOs with historical account/category labels, nextCursor, readAt and a heuristic-not-proof rationale. Deleted cursor rows do not break pagination; pages are live reads, not an immutable confirmation snapshot.
++- No provider call, ledger write, automatic merge or existing-ledger edit. Candidate responses are never embedded into pending cards or provider context. Final confirmation still uses digest/fingerprint/staleness/atomic/idempotence checks.
++- Android overlays comparison without unmounting the workspace list and gates completion by action+row+request generation. Close/disposal/terminal action invalidates responses. Only explicit include/exclude changes the source selection, respecting eligibility, busy/uncertain gates and the 100-row cap; category/note drafts remain untouched.
++- Tests cover auth, wrong conversation, absent displayed row, cancelled/replaced/archived action, old preview, query bounds, multiple/empty-note matches, day/type/amount/account/refund identity, deleted references/candidates, database byte equality and no extra AI calls. Android helper tests cover typed full notes/pagination/refunds, malformed results, late-response isolation and selection/draft independence. Device scroll/back/large-font/weak-network acceptance remains separate.
+--- baseline/clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt
++++ clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt
+@@ -72,6 +72,11 @@
+         api.post("/api/v1/assistant/actions/$actionId/analyse", JSONObject().put("fileBase64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)))
+     }
+ 
++    suspend fun duplicateCandidates(conversationId: String, actionId: String, rowId: String, cursor: String?): JSONObject = withContext(Dispatchers.IO) {
++        fun encode(value: String) = java.net.URLEncoder.encode(value, "UTF-8")
++        api.get("/api/v1/assistant/conversations/${encode(conversationId)}/actions/${encode(actionId)}/rows/${encode(rowId)}/duplicates?limit=20" + (cursor?.let { "&cursor=${encode(it)}" } ?: ""))
++    }
++
+     suspend fun cancelAction(actionId: String): JSONObject =
+         withContext(Dispatchers.IO) {
+             api.post("/api/v1/assistant/actions/$actionId/cancel", JSONObject())
+--- baseline/clients/android/app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt
++++ clients/android/app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt
+@@ -546,7 +546,10 @@
+     val workspaceCard = messages.firstNotNullOfOrNull { it.optJSONObject("content")?.optJSONObject("card")?.takeIf { c -> c.optString("actionId") == workspaceActionId } }
+     if (workspaceActionId != null && workspaceCard != null) {
+         val actionId = workspaceActionId!!
++        val comparisonConversationId = conversationId.orEmpty()
+         AssistantImportWorkspace(
++            loadDuplicates = { rowId, cursor -> repo.duplicateCandidates(comparisonConversationId, actionId, rowId, cursor) },
++            onAuthExpired = onAuthExpired,
+             card = workspaceCard,
+             selected = selectedRows[actionId].orEmpty(),
+             overrides = overrides[actionId].orEmpty(),
+--- baseline/clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportState.kt
++++ clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportState.kt
+@@ -9,7 +9,7 @@
+     val category: String, val status: String, val eligible: Boolean, val softDuplicate: Boolean,
+     val type: Int = 0,
+     val recommendation: Boolean = false, val reason: String = "", val categoryId: String = "",
+-    val sourceNote: String = "", val isRefund: Boolean = false, val refundWarning: String = "", val rawStatus: String = "",
++    val sourceNote: String = "", val isRefund: Boolean = false, val refundWarning: String = "", val rawStatus: String = "", val sourceCategory: String = "",
+ )
+ internal fun assistantImportRows(card: JSONObject): List<AssistantImportRow> {
+     val rows = card.optJSONObject("preview")?.optJSONArray("rows") ?: return emptyList()
+@@ -25,7 +25,7 @@
+             row.optString("dateLabel"), row.optLong("amountCents"), row.optString("categoryName"),
+             when { row.optBoolean("alreadyExists") -> "已存在"; row.optBoolean("ignored") -> row.optString("ignoreReason").ifBlank { "来源规则禁止导入" }; row.optLong("amountCents") <= 0 -> "金额无效"; row.optBoolean("possibleDuplicate") -> "疑似重复，请核对"; else -> "可导入" },
+             eligible, row.optBoolean("possibleDuplicate"), row.optInt("type", -1), suggestion?.optBoolean("include") == true, suggestion?.optString("reason").orEmpty(),
+-            suggestion?.optString("categoryId")?.takeUnless { it == "null" }.orEmpty(), row.optString("note"), row.optBoolean("isRefund"), row.optString("refundWarning").takeUnless { it == "null" }.orEmpty(), row.optString("rawStatus"))
++            suggestion?.optString("categoryId")?.takeUnless { it == "null" }.orEmpty(), row.optString("note"), row.optBoolean("isRefund"), row.optString("refundWarning").takeUnless { it == "null" }.orEmpty(), row.optString("rawStatus"), row.optString("sourceCategory"))
+     }.distinctBy { it.id }
+ }
+ internal fun reconcileImportSelection(previous: Set<String>?, rows: List<AssistantImportRow>): Set<String> {
+--- baseline/clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportWorkspace.kt
++++ clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportWorkspace.kt
+@@ -4,6 +4,9 @@
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.lazy.rememberLazyListState
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.launch
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+@@ -15,6 +18,7 @@
+ import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.unit.dp
++import com.yansuu1.jizhang.net.AuthExpiredException
+ import com.yansuu1.jizhang.ui.SelectedDocument
+ import com.yansuu1.jizhang.ui.formatYuan
+ import org.json.JSONArray
+@@ -27,12 +31,94 @@
+ 
+ @Composable
+ internal fun AssistantImportWorkspace(
++    loadDuplicates: suspend (String, String?) -> JSONObject,
++    onAuthExpired: () -> Unit,
+     card: JSONObject, selected: Set<String>, overrides: Map<String, String>, notes: Map<String, String>, busy: Boolean,
+     sourceReady: Boolean, fileError: String?, uncertain: Boolean, onRefresh: () -> Unit, onBack: () -> Unit,
+     onSelection: (Set<String>) -> Unit, onCategory: (String, String) -> Unit, onNote: (String, String) -> Unit, onRetryAnalysis: () -> Unit,
+     onChooseSource: () -> Unit, onContinue: () -> Unit, onCancel: () -> Unit,
+ ) {
+     val actionId = card.optString("actionId")
++    val parentListState = rememberLazyListState()
++    var comparing by remember(actionId) { mutableStateOf<AssistantImportRow?>(null) }
++    var comparisonPage by remember(actionId) { mutableStateOf<AssistantDuplicatePage?>(null) }
++    var comparisonError by remember(actionId) { mutableStateOf<String?>(null) }
++    var comparisonLoading by remember(actionId) { mutableStateOf(false) }
++    val comparisonGate = remember(actionId) { AssistantRequestGate() }
++    val comparisonScope = rememberCoroutineScope()
++    DisposableEffect(actionId) { onDispose { comparisonGate.invalidate() } }
++    LaunchedEffect(actionId, card.optString("status")) {
++        if (card.optString("status") != "pending") {
++            comparisonGate.invalidate(); comparing = null; comparisonPage = null; comparisonLoading = false
++        }
++    }
++    fun closeComparison() { comparisonGate.invalidate(); comparing = null; comparisonPage = null; comparisonError = null; comparisonLoading = false }
++    fun loadComparison(row: AssistantImportRow, cursor: String? = null) {
++        val owner = "$actionId|${row.id}"
++        val ticket = comparisonGate.begin("comparison", owner)
++        comparisonLoading = true; comparisonError = null
++        comparisonScope.launch {
++            try {
++                val page = decodeAssistantDuplicatePage(loadDuplicates(row.id, cursor))
++                require(page.sourceId == row.id) { "候选不属于当前来源账单，请重新预览" }
++                if (comparisonGate.accepts(ticket, "$actionId|${comparing?.id}")) comparisonPage = page
++            } catch (e: CancellationException) { throw e
++            } catch (e: AuthExpiredException) {
++                if (comparisonGate.accepts(ticket, "$actionId|${comparing?.id}")) {
++                    closeComparison()
++                    onAuthExpired()
++                }
++            } catch (e: Exception) {
++                if (comparisonGate.accepts(ticket, "$actionId|${comparing?.id}")) comparisonError = e.message ?: "读取失败，请重试"
++            } finally {
++                if (comparisonGate.accepts(ticket, "$actionId|${comparing?.id}")) comparisonLoading = false
++            }
++        }
++    }
++    if (comparing != null) {
++        val source = comparing!!
++        androidx.compose.ui.window.Dialog(onDismissRequest = { closeComparison() }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
++            Surface(Modifier.fillMaxSize()) {
++                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
++                    TextButton(onClick = { closeComparison() }) { Text("返回导入审核") }
++                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++                        Text("来源账单", style = MaterialTheme.typography.titleLarge)
++                        Text("同平台账户、服务端本地同日、同类型、同金额仅为疑似重复线索，不证明是同一笔账。")
++                        Text("${source.dateLabel} · ${formatYuan(source.amountCents)} · ${if (source.type == 1) "收入" else "支出"}${if (source.isRefund) "（独立退款）" else ""}")
++                        Text("来源分类：${source.sourceCategory.ifBlank { "（未提供）" }}")
++                        Text("审核分类：${assistantImportCategories(card).firstOrNull { it.id == reviewedImportCategory(source, overrides) }?.name ?: "未选择分类"}")
++                        if (source.refundWarning.isNotBlank()) Text(source.refundWarning)
++                        Text("来源备注：${source.sourceNote.ifBlank { "（空）" }}")
++                        Text("审核备注：${reviewedImportNote(source, notes).ifBlank { "（已清空）" }}")
++                        comparisonPage?.let { page ->
++                            Text("账户：${page.sourceAccount}")
++                            if (page.sourceOrder.isNotBlank()) Text("来源单号：${page.sourceOrder}")
++                            if (page.sourceCounterparty.isNotBlank()) Text("交易对方：${page.sourceCounterparty}")
++                            if (page.sourceStatus.isNotBlank()) Text("来源状态：${page.sourceStatus}")
++                            Text(page.rationale)
++                            Text("现有账本共 ${page.total} 个候选 · 读取时间 ${java.util.Date(page.readAt)}；当前读取不保证确认时仍相同")
++                            if (page.items.isEmpty()) Text("当前没有匹配账单；候选可能已删除或修改。")
++                            page.items.forEach { item ->
++                                HorizontalDivider()
++                                Text("账单编号：${item.id}")
++                                Text("${java.util.Date(item.date)} · ${formatYuan(item.amountCents)} · ${if (item.type == 1) "收入" else "支出"}${if (item.isRefund) "（独立退款）" else ""}")
++                                Text("账户：${item.accountName} · 分类：${item.categoryName}")
++                                Text("完整备注：${item.note.ifBlank { "（空）" }}")
++                            }
++                        }
++                        if (comparisonLoading) { CircularProgressIndicator(); Text("正在读取当前账本…") }
++                        comparisonError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
++                        TextButton(onClick = { loadComparison(source) }, enabled = !comparisonLoading && card.optString("status") == "pending") { Text("刷新 / 重试第一页") }
++                        comparisonPage?.nextCursor?.let { cursor -> TextButton(onClick = { loadComparison(source, cursor) }, enabled = !comparisonLoading && card.optString("status") == "pending") { Text("下一页候选") } }
++                    }
++                    Text("打开或关闭不改变选择；最多选择100行，已存在账单不可选。")
++                    val editable = card.optString("status") == "pending" && !busy && !uncertain
++                    Button(onClick = { onSelection(selectVisibleImportRows(selected, listOf(source))) }, enabled = editable && source.eligible && (source.id in selected || selected.size < IMPORT_SELECTION_LIMIT), modifier = Modifier.fillMaxWidth()) { Text(if (source.id in selected) "已保留此来源账单" else "保留并选择此来源账单") }
++                    OutlinedButton(onClick = { onSelection(selected - source.id) }, enabled = editable && source.eligible, modifier = Modifier.fillMaxWidth()) { Text("排除此来源账单") }
++                }
++            }
++        }
++    }
+     var query by remember(actionId) { mutableStateOf("") }
+     var filter by remember(actionId) { mutableStateOf("全部") }
+     var editing by remember(actionId) { mutableStateOf<AssistantImportRow?>(null) }
+@@ -67,7 +153,7 @@
+             }
+             Button(onClick = { onCategory(rowToEdit.id, categoryDraft); if (noteDraft != reviewedImportNote(rowToEdit, notes)) onNote(rowToEdit.id, noteDraft); editing = null }, enabled = pending && !busy && noteDraft.length <= 200 && categories.any { it.id == categoryDraft && it.type == rowToEdit.type }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("保存审核修改") }
+         } else {
+-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
++            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = parentListState, verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+                 item {
+                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+             val analysis = card.optJSONObject("preview")?.optJSONObject("analysis")
+@@ -104,6 +190,7 @@
+                                 if (row.refundWarning.isNotBlank()) Text(row.refundWarning)
+                                 if (!pending || busy || (!selected.contains(row.id) && selected.size >= 100)) Text(when { !pending -> "操作已关闭"; busy -> "请求处理中，暂不可修改"; else -> "已达到100行上限，先取消其他选择" })
+                                 if (row.rawStatus.isNotBlank()) Text("来源状态：${row.rawStatus}")
++                                if (row.softDuplicate) TextButton(onClick = { comparing = row; comparisonPage = null; loadComparison(row) }, enabled = pending && !busy, modifier = Modifier.heightIn(min = 48.dp)) { Text("对比现有账单") }
+                                 Text(row.status, color = if (row.softDuplicate) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                                 TextButton(onClick = { editing = row; categoryDraft = reviewedImportCategory(row, overrides); noteDraft = reviewedImportNote(row, notes) }, enabled = pending && !busy && row.eligible, modifier = Modifier.heightIn(min = 48.dp)) { Text("分类：${categories.firstOrNull { it.id == reviewedImportCategory(row, overrides) }?.name ?: "未选择分类"} · 编辑") }
+                             }
+--- baseline/packages/server/src/services/assistant-import-comparison-service.ts
++++ packages/server/src/services/assistant-import-comparison-service.ts
+@@ -0,0 +1,20 @@
++/** Resolve only displayed, server-owned import facts; comparison never runs a tool or writes. */
++import type { Db } from '../db/index.js';
++import { AssistantConversationService } from './assistant-conversation-service.js';
++import { AssistantActionStaleError, AssistantValidationError } from './assistant-types.js';
++import { PortabilityService } from './portability-service.js';
++
++export class AssistantImportComparisonService {
++  constructor(private readonly db: Db, private readonly dataDir: string, private readonly now: () => number) {}
++
++  read(conversationId: string, actionId: string, rowId: string, limit: unknown, cursor: unknown) {
++    const conversations = new AssistantConversationService(this.db, this.now);
++    conversations.get(conversationId);
++    const pending = conversations.pending(actionId);
++    if (pending.conversationId !== conversationId || pending.status !== 'pending' || pending.toolName !== 'platform-import.prepare') throw new AssistantActionStaleError();
++    const rows = pending.preview['rows'];
++    const source = Array.isArray(rows) ? rows.slice(0, 200).find((row) => typeof row === 'object' && row !== null && !Array.isArray(row) && row['id'] === rowId) : undefined;
++    if (source === undefined || typeof source !== 'object' || source === null || Array.isArray(source)) throw new AssistantValidationError('账单不在当前预览中，请重新上传并预览。');
++    return new PortabilityService(this.db, { dataDir: this.dataDir }).duplicateCandidates(source, limit, cursor, this.now());
++  }
++}
+--- baseline/clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateState.kt
++++ clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateState.kt
+@@ -0,0 +1,46 @@
++package com.yansuu1.jizhang.ui.feature.assistant
++
++import org.json.JSONObject
++
++/** Read-only current ledger projection. No selection or review draft is owned here. */
++internal data class AssistantDuplicateItem(
++    val id: String, val date: Long, val amountCents: Long, val type: Int,
++    val isRefund: Boolean, val accountName: String, val categoryName: String, val note: String,
++)
++internal data class AssistantDuplicatePage(
++    val sourceId: String, val sourceAccount: String, val sourceOrder: String,
++    val sourceCounterparty: String, val sourceStatus: String,
++    val total: Int, val items: List<AssistantDuplicateItem>, val nextCursor: String?,
++    val readAt: Long, val rationale: String,
++)
++private fun JSONObject.optionalText(key: String): String = if (isNull(key)) "" else optString(key)
++/** JSONObject.getLong/getInt silently truncate fractional numbers; ledger facts must not. */
++private fun JSONObject.integerFact(key: String): Long {
++    val raw = get(key)
++    require(raw is Number) { "候选整数事实无效，请刷新" }
++    return raw.toString().toLongOrNull() ?: error("候选整数事实无效，请刷新")
++}
++internal fun decodeAssistantDuplicatePage(value: JSONObject): AssistantDuplicatePage {
++    val source = value.getJSONObject("source")
++    val array = value.getJSONArray("items")
++    require(array.length() <= 50) { "候选分页超出限制，请刷新" }
++    val totalFact = value.integerFact("total")
++    require(totalFact in 0..Int.MAX_VALUE.toLong()) { "候选数量无效，请刷新" }
++    val total = totalFact.toInt()
++    val items = (0 until array.length()).map { index ->
++        val row = array.getJSONObject(index)
++        val id = row.getString("id")
++        val amount = row.integerFact("amountCents")
++        val typeFact = row.integerFact("type")
++        require(id.isNotBlank() && id.length <= 100 && amount > 0 && typeFact in 0..1) { "候选账单无效，请刷新" }
++        AssistantDuplicateItem(id, row.integerFact("date"), amount, typeFact.toInt(), row.getBoolean("isRefund"),
++            row.optionalText("accountName").ifBlank { "名称不可用" },
++            row.optionalText("categoryName").ifBlank { "名称不可用" }, row.getString("note"))
++    }
++    require(items.map { it.id }.distinct().size == items.size) { "候选账单编号重复，请刷新" }
++    val cursor = value.optionalText("nextCursor").takeIf { it.isNotBlank() }
++    require(cursor == null || cursor.length <= 100) { "候选分页无效，请刷新" }
++    return AssistantDuplicatePage(source.getString("id"), source.optionalText("accountName"),
++        source.optionalText("externalId"), source.optionalText("counterparty"), source.optionalText("rawStatus"),
++        total, items, cursor, value.integerFact("readAt"), value.getString("rationale"))
++}
+--- baseline/clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateStateTest.kt
++++ clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateStateTest.kt
+@@ -0,0 +1,77 @@
++package com.yansuu1.jizhang.ui.feature.assistant
++
++import org.json.JSONArray
++import org.json.JSONObject
++import org.junit.Assert.*
++import org.junit.Test
++
++class AssistantDuplicateStateTest {
++    private fun page() = JSONObject().put("source", JSONObject().put("id", "source").put("accountName", "微信")
++        .put("externalId", JSONObject.NULL).put("counterparty", "对方").put("rawStatus", "支付成功"))
++        .put("total", 2).put("nextCursor", "a").put("readAt", 123L).put("rationale", "同日同金额仅为线索")
++        .put("items", JSONArray().put(JSONObject().put("id", "a").put("date", 100L).put("amountCents", 100L)
++            .put("type", 1).put("isRefund", true).put("accountName", "历史账户").put("categoryName", JSONObject.NULL).put("note", "")))
++
++    @Test fun decoderPreservesSourceFactsPaginationEmptyNotesAndRefundIdentity() {
++        val decoded = decodeAssistantDuplicatePage(page())
++        assertEquals("source", decoded.sourceId)
++        assertEquals("", decoded.sourceOrder)
++        assertEquals("支付成功", decoded.sourceStatus)
++        assertEquals(2, decoded.total)
++        assertEquals("a", decoded.nextCursor)
++        assertEquals(123L, decoded.readAt)
++        assertTrue(decoded.items.single().isRefund)
++        assertEquals("", decoded.items.single().note)
++        assertEquals("名称不可用", decoded.items.single().categoryName)
++        val empty = decodeAssistantDuplicatePage(page().put("items", JSONArray()).put("total", 0).put("nextCursor", JSONObject.NULL))
++        assertTrue(empty.items.isEmpty()); assertNull(empty.nextCursor)
++    }
++    @Test fun decoderPreservesFullNotesAndRejectsMalformedCandidateAndOversizedPages() {
++        val value = page()
++        value.getJSONArray("items").getJSONObject(0).put("note", "完整备注".repeat(300))
++        assertEquals("完整备注".repeat(300), decodeAssistantDuplicatePage(value).items.single().note)
++        value.getJSONArray("items").getJSONObject(0).put("type", -1)
++        assertTrue(runCatching { decodeAssistantDuplicatePage(value) }.isFailure)
++        val array = JSONArray()
++        repeat(51) { array.put(page().getJSONArray("items").getJSONObject(0)) }
++        assertTrue(runCatching { decodeAssistantDuplicatePage(page().put("items", array)) }.isFailure)
++    }
++    @Test fun decoderRejectsFractionalOverflowAndStringIntegerFacts() {
++        for (key in listOf("amountCents", "type", "date")) {
++            for (invalid in listOf<Any>(1.5, "100", 1e30)) {
++                val value = page()
++                value.getJSONArray("items").getJSONObject(0).put(key, invalid)
++                assertTrue("$key=$invalid", runCatching { decodeAssistantDuplicatePage(value) }.isFailure)
++            }
++        }
++        for (key in listOf("total", "readAt")) {
++            assertTrue(runCatching { decodeAssistantDuplicatePage(page().put(key, 1.5)) }.isFailure)
++        }
++        assertTrue(runCatching { decodeAssistantDuplicatePage(page().put("total", 4294967296L)) }.isFailure)
++    }
++    @Test fun lateResponsesCannotCrossRowsActionsCloseReopenOrNewerPagination() {
++        val gate = AssistantRequestGate()
++        val first = gate.begin("comparison", "actionA|rowA")
++        val nextPage = gate.begin("comparison", "actionA|rowA")
++        assertFalse(gate.accepts(first, "actionA|rowA"))
++        assertTrue(gate.accepts(nextPage, "actionA|rowA"))
++        assertFalse(gate.accepts(nextPage, "actionA|rowB"))
++        assertFalse(gate.accepts(nextPage, "actionB|rowA"))
++        gate.invalidate()
++        gate.begin("comparison", "actionA|rowA")
++        assertFalse(gate.accepts(nextPage, "actionA|rowA"))
++    }
++    @Test fun explicitSelectionPreservesOtherRowsAndDraftsAndHardBlockAnd100Cap() {
++        val source = AssistantImportRow("soft", "来源", "2026-10-14", 100, "餐饮", "疑似重复", true, true, sourceNote = "原备注")
++        val selected = setOf("other")
++        val categories = mapOf("soft" to "reviewed-category")
++        val notes = mapOf("soft" to "")
++        assertEquals(setOf("other", "soft"), selectVisibleImportRows(selected, listOf(source)))
++        assertEquals(selected, (selected + "soft") - source.id)
++        assertEquals("reviewed-category", reviewedImportCategory(source, categories))
++        assertEquals("", reviewedImportNote(source, notes))
++        assertEquals(selected, selectVisibleImportRows(selected, listOf(source.copy(eligible = false))))
++        val full = (1..100).map { "$it" }.toSet()
++        assertEquals(full, selectVisibleImportRows(full, listOf(source)))
++    }
++}

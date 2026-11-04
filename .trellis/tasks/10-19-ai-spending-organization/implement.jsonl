@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/10-19-ai-spending-organization/research/planning-research.md","reason":"Source-backed planning evidence for existing organization behavior, migration head/pattern, tag/category/template compatibility, aggregation semantics, provider/batch bounds, and unresolved technical research gates."}
+{"file":".trellis/spec/backend/ai-provider.md","reason":"Existing AI provider and organization contracts, safe advisory-only behavior, current preview/apply/undo semantics, and provider data-boundary requirements."}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Additive TypeScript migration rules, transaction/backup behavior, JSON tag parsing, soft-delete conventions, and database test requirements."}
+{"file":".trellis/spec/backend/assistant-streaming.md","reason":"Durable progress/streaming limits and lifecycle constraints to evaluate before selecting an analysis progress mechanism."}
+{"file":".trellis/spec/backend/merged-bill-import.md","reason":"Existing bounded batch, full-coverage, review/confirm, idempotency, and failure semantics as related precedent—not a capacity guarantee."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend layering, shared financial aggregation, test strategy, and required lint/typecheck/test verification commands."}

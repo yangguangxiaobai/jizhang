@@ -1,0 +1,12 @@
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"success\":true,\"data\":{\"operations\":[{\"type\":\"Insert\",\"node\":{\"type\":\"frame\",\"id\":\"32:170\",\"name\":\"底部输入栏\"}},{\"type\":\"Insert\",\"node\":{\"type\":\"text\",\"id\":\"32:171\",\"name\":\"占位文字\",\"content\":\"核对卡片或在此输入补充指令...\"}}],\"expiredBindings\":\"binding names [ cmp, cmp_t ] is expired, dont use in next batch_edit\"}}"
+      }
+    ]
+  },
+  "jsonrpc": "2.0",
+  "id": 1
+}

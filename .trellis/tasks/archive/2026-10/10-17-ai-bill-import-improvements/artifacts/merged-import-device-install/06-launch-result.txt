@@ -1,0 +1,2 @@
+LAUNCH_START_UTC=2026-10-19T05:30:10Z
+Starting: Intent { cmp=com.yansuu1.jizhang/.MainActivity }

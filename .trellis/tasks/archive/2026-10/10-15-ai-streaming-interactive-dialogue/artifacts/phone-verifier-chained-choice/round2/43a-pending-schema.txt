@@ -1,0 +1,1 @@
+["id","conversation_id","source_message_id","tool_name","arguments_json","preview_json","fingerprint","attachment_sha256","attachment_name","attachment_size","status","result_json","created_at","updated_at"]

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend boundaries and ledger invariants"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required checks and deployment lessons"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "API error and authorization contract"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Database backup and migration safety"}
+{"file": ".trellis/tasks/10-09-android-server-delivery/prd.md", "reason": "Latest approved-intent scope; overrides old Web/domain assumptions"}
+{"file": ".trellis/tasks/10-09-android-server-delivery/design.md", "reason": "Shared technical design and staged Web retirement"}
+{"file": ".trellis/tasks/10-09-android-server-delivery/implement.md", "reason": "Execution order, dependency gates and rollback"}
+{"file": ".trellis/tasks/10-06-android-kotlin-native/prd.md", "reason": "Existing full Android feature requirements"}
+{"file": ".trellis/spec/backend/native-delivery.md", "reason": "API-only delivery and staged Web retirement contracts"}

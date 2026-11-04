@@ -1,0 +1,1 @@
+MSG=I paid 15 dollars for coffee today. First ask me the category: Dining or Entertainment. After I choose the category, ask me which account with the options Alipay or WeChat. This is a draft discussion only; do not book anything.

@@ -3,6 +3,11 @@
 > Code quality standards for `packages/server`.
 > Established by T1 (`09-11-t1-skeleton`); extended by later tasks as they land.
 
+> The repository targets API-only delivery; production upgrade is not established by repository changes. See [Native Client Delivery](./native-delivery.md).
+> Older SPA/browser field notes below describe historical or temporary reference
+> checks, not production hosting. Validate root/old assets returning JSON 404,
+> and validate APK functionality separately from backend tests or compilation.
+
 ---
 
 ## Overview
@@ -33,16 +38,21 @@ A task is not done while any of those is red. "It compiles" is not the gate.
 - **Pure logic belongs in `packages/shared`.** The budget engine and money maths
   are pure functions with no IO so they are testable without a database, an HTTP
   server or a clock. A route must not re-implement a rule the shared package owns.
-- **One aggregation rule, one implementation.** Net-expense semantics
-  (`expenseContribution` / `incomeContribution` in `packages/shared/src/types.ts`)
-  must be imported everywhere it is needed — budget, charts, summaries. Do not
-  inline `type === 0 ? … : …` at a second call site; that is how the two copies
-  drift apart.
+- **One ordinary aggregation rule, one implementation.** Use `expenseContribution`
+  and `incomeContribution` in `packages/shared/src/types.ts` for ordinary budget,
+  statistics and summaries rather than duplicating type checks. A refund is an income
+  transaction (`type=1`, `isRefund=true`), while ordinary and category-envelope
+  expense remains gross. Confirmed refund allocations reduce the separate four-purpose
+  execution view's net spending; they do not change ordinary ledger facts.
 - **Money is integer cents.** Every `*Cents` field is an `INTEGER`. Convert at the
   boundary only, and always with `Math.round(value * 100)` — `19.99 * 100` is
   `1998.9999999999998`.
 - **Tests drive the app with `app.inject()`**, never a real port, so tests cannot
   collide or leak a listener.
+- **API cache and delivery regressions stay covered.** `Cache-Control: no-store`
+  applies to API responses, including errors and 404s. `test/app.test.ts` asserts
+  this and JSON 404 for root and retired Web paths even with stale assets present;
+  preserve these assertions rather than restoring a shell fallback.
 
 ---
 
@@ -145,14 +155,12 @@ renames the builtin 餐饮 category — that IS one of the things it verifies �
 other suites then could not find it by name, so they passed alone and failed in
 sequence. Each suite resetting only "the tables it cared about" was the root cause.
 
-The fix is `packages/server/scripts/lib/e2e-reset.mjs`: it restores the seeded rows
-and clears user data, and every suite calls `resetToKnownState()` first. It also
-exposes `loadServerModule()`, which resolves `dist/` both from the repo and from
-inside the image so the suites do not each hard-code a path.
-
-**Verify independence explicitly**, not just "all green": run the suites in a
-different order (or twice each) and confirm the counts do not change. `npm`-style
-aggregate runners hide this class of bug because they stop at the first failure.
+`packages/server/scripts/lib/e2e-reset.mjs` restores seeded rows and clears user
+data. Scripts calling `resetToKnownState()` are destructive: **run them only against
+an isolated disposable database and server, never the production ledger**. The helper
+also exposes `loadServerModule()` to resolve `dist/` from the repo or image. Verify
+independence by changing the order or repeating reset-based suites only in that isolated
+environment. Not every script resets: `e2e-pwa.mjs` is a read-only API-only probe.
 
 ### Verify inside the container, from the package directory
 
@@ -186,74 +194,26 @@ to a file, `docker cp` it into the package directory, run it, and remove it.
 existing Nginx/Caddy owns 80/443 and terminates TLS. Any change that widens this
 binding can take down the user's other sites — treat it as a breaking change.
 
-### A rebuilt image does NOT replace a running container, and the API does not serve the SPA
+### Verify the deployed API, not a retired SPA
 
-Two traps that both produce the same symptom — "my frontend change is not there" —
-and both cost a full debugging round here:
+The former browser rendering and PWA field notes are historical: `packages/web` and
+its browser tools have been removed, and Fastify does not serve a Web shell. Rebuilding
+an image is not itself evidence that the running container was replaced; verify the
+actual target image and API behavior using the applicable deployment procedure, without
+recreating or stopping a production service merely for a test. Confirm `/` and retired
+page/asset paths return JSON 404, and verify Android on a device separately.
 
-1. **`docker compose up -d` is not enough after `docker compose build`.** Compose
-   reuses the existing container when only the image changed, so the old layers keep
-   serving. Use `docker compose up -d --force-recreate` after every rebuild whose
-   contents you intend to verify. To check what is actually being served rather than
-   what you built:
-
-   ```bash
-   docker compose exec -T jizhang cat /app/public/index.html | grep -o 'assets/index-[^"]*\.js'
-   ```
-
-   A stale hash against your host `packages/web/dist/index.html` is the proof.
-
-2. **The Fastify server is what serves the built SPA**, so an API-level e2e suite can be
-   entirely green while the deployed bundle is stale. `packages/web/dist` is baked into
-   the image at build time; rebuilding the frontend therefore requires **rebuilding the
-   image**, not just restarting the container.
-
-Also note the container's `scripts/` directory does **not** exist in the image (the
-Dockerfile does not copy it). Every `docker compose cp packages/server/scripts/. …`
-must be repeated after any container recreation, or the suites fail with
-`chdir to cwd … failed: no such file or directory`.
-
-### Verifying a frontend change needs a browser, and the browser has a cache
-
-`packages/web/scripts/render-dashboard.mjs` drives headless Chrome over the DevTools
-protocol: it logs in over the API, sets the session cookie, loads the SPA, asserts the
-dashboard's text, measures the rendered layout, and screenshots.
-
-The static audit in `check-mobile.mjs` reads CSS **source** and cannot see a computed
-size, a wrapped label, or a dangling sentence assembled from template fragments. The
-browser script is where the 44px rule and "six tabs fit at 375px" get verified as
-facts. It found a real UI defect on first run that every HTTP check had passed.
-
-Two things to know when using it:
-
-- **It needs a fresh profile.** The script points Chrome at a fixed
-  `--user-data-dir`; a rerun can serve the previous build out of the HTTP cache and
-  report the old DOM. Delete that profile directory before trusting a result.
-- **`spawn(..., { stdio: 'ignore' })` is deliberate.** The sandbox cannot open named
-  pipes, so capturing the child's output through a pipe fails with EPERM.
-
-### `Network.emulateNetworkConditions` does not reliably cut the network
-
-Do not verify the offline path with it. On the Chrome build used here it left
-`navigator.onLine === true` and let `fetch('/api/v1/health')` return **200 with a real
-body**, so the "offline" run was exercising a working network and every conclusion
-drawn from it was noise. Two rounds went into reasoning about a caching bug that the
-simulation had invented.
-
-The render script therefore **stops and restarts the app service** for its offline check
-(`docker compose stop/start jizhang`, inside a `try/finally` so a failing assertion cannot
-leave the app down). The optional cutout worker is a separate private service; it is not
-the browser's API origin and is not part of this outage simulation.
-
-Whatever method you use, **make the outage prove itself** before trusting the result:
-assert `navigator.onLine === false`, or that the fetch throws. A silent no-op simulation
-reports whichever outcome you were hoping for.
+`packages/server/scripts/check-api-only.mjs` is a read-only health and retired-path
+probe. Its legacy entry point `e2e-pwa.mjs` imports that probe: it does not test a
+manifest, service worker or offline shell. Browser offline-simulation notes are not
+current deployment or acceptance instructions.
 
 ### Container test inventory
 
-Each suite calls `resetToKnownState()` first, so they are order-independent; verify
-that explicitly rather than trusting it. Run each with, from
-`/app/packages/server/scripts`:
+Most of these API suites call `resetToKnownState()` and modify or clear data. Run
+reset-based suites only against a verified isolated disposable server and database;
+never run them against production. Verify independence in that environment. The
+legacy-named `e2e-pwa.mjs` is a read-only exception, not a PWA test.
 
 | Suite | Focus |
 |---|---|
@@ -267,7 +227,7 @@ that explicitly rather than trusting it. Run each with, from
 | `e2e-periods.mjs` | historical cycle review: a past cycle returns its own figures, neighbours do not leak in, unknown periods 400, and the omitted path is field-for-field unchanged |
 | `e2e-recurring.mjs` | recurring bills: due dates become pending (never bills), confirmation is idempotent, ignoring sticks, the backlog cap keeps the NEWEST periods and flags the rest |
 | `e2e-portability.mjs` | CSV export/import: BOM on the bytes, round trip preserves count and totals, repeated import is a no-op, malformed files are refused whole, backups list without leaking a path |
-| `e2e-pwa.mjs` | manifest, service worker, offline shell |
+| `e2e-pwa.mjs` | read-only API-only health and retired-path JSON 404 probe via `check-api-only.mjs` |
 | `security-nopassword.mjs` | an unprovisioned instance is not loginable |
 | `e2e-backup.mjs` | two-phase backup → stop → restore → start → assert drill |
 
@@ -280,11 +240,55 @@ the container by design (that is AC9).
 
 ---
 
+## Scenario: API workspace development watcher
+
+### 1. Scope / Trigger
+
+Use this contract when changing root development commands or the shared/server build chain.
+
+### 2. Signatures
+
+Run `pnpm dev` from the repository root; it first builds `@jizhang/shared`, then starts
+shared's TypeScript watcher and the server's `tsx` watcher in parallel.
+
+### 3. Contracts
+
+`@jizhang/shared` resolves to `dist`, so a first build must finish before the server starts;
+shared source changes must rebuild the output and server watch must see the changed output.
+For local development the server reads `packages/server/.env` from its package working
+directory. Use an isolated `DATA_DIR` for mutation tests; root Compose `.env` is separate.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required outcome |
+|---|---|
+| Missing required local credentials | Server refuses startup with configuration errors |
+| Shared build failure | Server watcher does not start against stale/missing output |
+| Shared source/output changed | Shared rebuilds; server reloads its updated dependency |
+| Production deployment not checked | Do not claim an upgrade or device acceptance |
+
+### 5. Good / Base / Bad Cases
+
+Good: both watchers run against a disposable local database and health returns `ok`.
+Base: build passes but live watcher reload is not yet verified. Bad: start only the server
+watcher and silently execute stale shared accounting code.
+
+### 6. Tests Required
+
+Verify startup and a shared-output-triggered server reload on an isolated server; stop the
+managed watcher and clean only verified temporary paths. Never reset a production ledger.
+
+### 7. Wrong vs Correct
+
+Wrong: `pnpm --filter @jizhang/server dev` alone after editing shared source. Correct: root
+`pnpm dev`, which builds and watches both packages, with the intended local environment.
+
 ## Code Review Checklist
 
 - [ ] Does the change put business rules in a service/shared package rather than a route?
 - [ ] Are amounts integer cents, converted once at the boundary with `Math.round`?
-- [ ] Is there exactly one implementation of the net-expense rule in play?
-- [ ] Do unmatched `/api/**` paths still answer JSON, and client routes still get the shell?
+- [ ] Do ordinary refunds count as income and ordinary expense stay gross, while confirmed four-purpose allocations affect only that view's net execution?
+- [ ] Do API errors remain JSON and carry `Cache-Control: no-store`, and do root and retired Web paths return JSON 404 rather than a shell?
+- [ ] Are reset-based integration tests limited to an isolated disposable database and server?
 - [ ] Was the container rebuilt and re-verified if the image contents changed?
 - [ ] Did `lint` / `typecheck` / `test` pass after the last edit (not before it)?

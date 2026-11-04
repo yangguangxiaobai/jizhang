@@ -1,0 +1,914 @@
+[
+  {
+    "file": "packages/server/src/app.ts",
+    "sha256": "98476395e891e694f2c452452e9e03cb3f14f78fb963eb2f8537e457ce5261b2"
+  },
+  {
+    "file": "packages/server/src/cli-db.ts",
+    "sha256": "21026c8e9d32282ed7243111cefb2996839ee840486a243744bea61053edc427"
+  },
+  {
+    "file": "packages/server/src/cli.ts",
+    "sha256": "e4578e28d41e35a0bc8ef851bcbae91f38f0a4781ea4453492e1e28e5254e9dd"
+  },
+  {
+    "file": "packages/server/src/config.ts",
+    "sha256": "b754769aefbd4873e1ba4f590ec9c26bf0498768fac825cc0af16c98da127727"
+  },
+  {
+    "file": "packages/server/src/index.ts",
+    "sha256": "b363726c3f5055d6f3b4d8a9ecced989ba91c4d5c3701e217758fbdb8d50b752"
+  },
+  {
+    "file": "packages/server/src/db/index.ts",
+    "sha256": "9e40e9b2bcfa6110b6433e08eb27653a3cfed418a808129025346c0b00fa9057"
+  },
+  {
+    "file": "packages/server/src/db/migrate.ts",
+    "sha256": "3e55385b8bd1e36d05f433a394d016e4cab48e8f530ffddc21536647078159e5"
+  },
+  {
+    "file": "packages/server/src/db/seed.ts",
+    "sha256": "1307a3c699b7e70d46ff174dd3deb53676680b2e86b84506274307fa88df9dab"
+  },
+  {
+    "file": "packages/server/src/plugins/auth.ts",
+    "sha256": "340afac345ea7b164459e1dba9b53b3aa1c975c6dd497a44548c4566823e6347"
+  },
+  {
+    "file": "packages/server/src/routes/ai.ts",
+    "sha256": "8d1412b9d0d7ab13ca335c8252712026bcfeaf8566e7d425d4dfa29234b1801a"
+  },
+  {
+    "file": "packages/server/src/routes/assistant.ts",
+    "sha256": "03f00c8e4ba8d6c6592b6a649b4abe43412ef7454d5de70e6f744adb6be523a9"
+  },
+  {
+    "file": "packages/server/src/routes/auth.ts",
+    "sha256": "bdf278df0122d6d6ecba5c8e71c0e9ebbad2be8fc7f4d72b1d9addd8168f99b7"
+  },
+  {
+    "file": "packages/server/src/routes/budget.ts",
+    "sha256": "135301901509f752f34909a151ef4dcacc2caa76c7cad417a031972cdeb71ebd"
+  },
+  {
+    "file": "packages/server/src/routes/import-batches.ts",
+    "sha256": "69e126d605f1e345cacd58bfe2c3f5e260c2d077d532352e4a6f2ea4d89706c9"
+  },
+  {
+    "file": "packages/server/src/routes/item-cutouts.ts",
+    "sha256": "a08bf5f1b5445c96603cd57459005a61e667b3438759f72640321ed0687e15ee"
+  },
+  {
+    "file": "packages/server/src/routes/items.ts",
+    "sha256": "3b5635c82bf4d1076f1792b76b245c2c7d77dddcc72857c6a1aa63a709384e29"
+  },
+  {
+    "file": "packages/server/src/routes/master-data.ts",
+    "sha256": "53a259bf084e5dee7d7fbae45b31b3b941ffefeab2f27b1404704926471b7008"
+  },
+  {
+    "file": "packages/server/src/routes/portability.ts",
+    "sha256": "79b619d06d118b1436a674f96611613801d22c9e0f7bf9e5a466735d0606fc0e"
+  },
+  {
+    "file": "packages/server/src/routes/recurring.ts",
+    "sha256": "a2d005b372275e97352b2629d79fbac8d9908fb12f1e3d38d0cf1683569afe72"
+  },
+  {
+    "file": "packages/server/src/routes/stats.ts",
+    "sha256": "851fc3a9ff95a5cc20691defd5162e6a6959cb71a460fab731aa22285ec488d0"
+  },
+  {
+    "file": "packages/server/src/routes/transactions.ts",
+    "sha256": "48ec434ca94e487cdccc23f953d5ccf225626a21e78fbb6b0ff430a42aa48751"
+  },
+  {
+    "file": "packages/server/src/routes/transfers.ts",
+    "sha256": "722542348511d17242867222abc1b1c89ec8d58e93b29ef6c1eff9562001d06c"
+  },
+  {
+    "file": "packages/server/src/routes/trash.ts",
+    "sha256": "8e1ac324232d45f197e67a0f190eb92bd5ee66bceffeb2da0b2abf521db78510"
+  },
+  {
+    "file": "packages/server/src/services/account-balance-service.ts",
+    "sha256": "35a1b69e019651a10f8fcd323c125d3f821c665a5cc4248f475ecef3dab71fad"
+  },
+  {
+    "file": "packages/server/src/services/ai-config-service.ts",
+    "sha256": "2cc8b9c6be061d6cd609e57f05507b0b3b1113632161d4eb15160afa580067a1"
+  },
+  {
+    "file": "packages/server/src/services/ai-crypto.ts",
+    "sha256": "0142d8ad608148030eb75687a3a9fdc3af42a5a1e85f347c858415f43d851360"
+  },
+  {
+    "file": "packages/server/src/services/ai-organization-service.ts",
+    "sha256": "56cd5efa4a3db4c3b22c34b265da0bc89f7bc59c3739c5a44f9c5a34c6485c70"
+  },
+  {
+    "file": "packages/server/src/services/ai-provider-service.ts",
+    "sha256": "f703366c062c2b288030d38d07b450a921c3afaa6d9a86ef46e707201461406f"
+  },
+  {
+    "file": "packages/server/src/services/ai-transaction-service.ts",
+    "sha256": "df1a20d0856bab8043656293e9240ede62221550ae23d3368e054bc415bfac75"
+  },
+  {
+    "file": "packages/server/src/services/ai-types.ts",
+    "sha256": "67045645741a0dca1398bdf396ced303528bba4ba70dcc31dbdad1ebf0d32a14"
+  },
+  {
+    "file": "packages/server/src/services/assistant-active-lock.ts",
+    "sha256": "90575b981d187ef5d0098452c73a1f23c01010d3c56f3a8ba1f5c23d7ea7cbed"
+  },
+  {
+    "file": "packages/server/src/services/assistant-conversation-service.ts",
+    "sha256": "b4c2f9d9b52c9449993b32ef189801ec0b9063850dedea744b38c30db18f0fe9"
+  },
+  {
+    "file": "packages/server/src/services/assistant-generation-runner.ts",
+    "sha256": "5e1a62340a4d67acaeb52d230d96d0358aa37bc379b7d075b33d23768336002d"
+  },
+  {
+    "file": "packages/server/src/services/assistant-generation-service.ts",
+    "sha256": "bb1e66910133ee4d987c98922fdffd4fc3366b2ceb335ca77bfc353098444c6e"
+  },
+  {
+    "file": "packages/server/src/services/assistant-import-comparison-service.ts",
+    "sha256": "a5b3cd6e8678a4e8af930979d15e38a865b4d019ae8a8e53c90fe35497e8855a"
+  },
+  {
+    "file": "packages/server/src/services/assistant-orchestrator.ts",
+    "sha256": "148b9aaf003f94b154d6325150a731abb301c96fed5c0dcce076f07f5a7f82df"
+  },
+  {
+    "file": "packages/server/src/services/assistant-stream-tokenizer.ts",
+    "sha256": "952b4772c5c02e2d94ef5dd21026f4709ad95040dd74d9620c2353df8c084cf1"
+  },
+  {
+    "file": "packages/server/src/services/assistant-stream-types.ts",
+    "sha256": "c15ca08d8a731f7ac37b529c43ddd7ce3bb16e760b4dab4290e08d9154c66e67"
+  },
+  {
+    "file": "packages/server/src/services/assistant-tool-registry.ts",
+    "sha256": "30d42c35e70cdcd8f8269df0c83d431c1c9e0ca9673461197a81fc311970bb7d"
+  },
+  {
+    "file": "packages/server/src/services/assistant-types.ts",
+    "sha256": "a73d6d28f03b8b7821c677649c8841f2edb85500cbb305de441182846e227a86"
+  },
+  {
+    "file": "packages/server/src/services/auth-service.ts",
+    "sha256": "8f4d89a916a41b4196a9cebc920bec5f6f8376f890e06ce299d25ecbbaf0e862"
+  },
+  {
+    "file": "packages/server/src/services/bill-decode.ts",
+    "sha256": "afb500d9ce52f0d9311f0a1d39e3e2507084353e1586c46741e268e8b37b48d1"
+  },
+  {
+    "file": "packages/server/src/services/bill-import-analysis.ts",
+    "sha256": "e443b91eb05c74cdcc157f9b79047174e3569ff670c6a36ed2470a55e3e43d8b"
+  },
+  {
+    "file": "packages/server/src/services/budget-overview-service.ts",
+    "sha256": "ee4ace859d16dae6d91f8db9fc7945b921986fe39856dfd638ae411f2f774f69"
+  },
+  {
+    "file": "packages/server/src/services/import-batch-analysis.ts",
+    "sha256": "3e345452a74a98d63580772a1ceabe303f7a2adf53e6d119d2e3bcf87b11ebb4"
+  },
+  {
+    "file": "packages/server/src/services/import-batch-identity.ts",
+    "sha256": "3ca697b99cfb4faf78562c4a40594408cff08da4025108726856fbc4831a1f00"
+  },
+  {
+    "file": "packages/server/src/services/import-batch-service.ts",
+    "sha256": "a92395fae4add85df1c42e97aeafcf3ad92b808a52b3ebc221b4cf52b8db996d"
+  },
+  {
+    "file": "packages/server/src/services/import-batch-types.ts",
+    "sha256": "564089314ddcd10eb0f2c63b8ff080e6de6e7a45c43213b6513d6e080b6bda2e"
+  },
+  {
+    "file": "packages/server/src/services/item-cutout-client.ts",
+    "sha256": "ead1e9e6114a8f6e3a22d24ca8adf984f334f1d87942bc6b591f3775c727ca76"
+  },
+  {
+    "file": "packages/server/src/services/item-service.ts",
+    "sha256": "e5d4ca4483c0b957404b7fe50db304db006cba2f6f0b66404e87c1fa0120616c"
+  },
+  {
+    "file": "packages/server/src/services/master-data-service.ts",
+    "sha256": "a0d9a4daa5f8b98edd659911fdf436c6e692bd8d61eace64c029ab2ee4072871"
+  },
+  {
+    "file": "packages/server/src/services/monthly-evaluation-service.ts",
+    "sha256": "67916f212955aa181f69ac4877f123e6410f261550a123bc5287fd7ce0265cfd"
+  },
+  {
+    "file": "packages/server/src/services/password.ts",
+    "sha256": "54cd521750c22add1d44d7636e6a0e74623d5a96c1d990a9fa293e7dab5d9c16"
+  },
+  {
+    "file": "packages/server/src/services/portability-service.ts",
+    "sha256": "8abeb0d14f8ecc98e07fed25399d6fff8a6b5c9c6c56259f6de39e92d08c99cf"
+  },
+  {
+    "file": "packages/server/src/services/recurring-service.ts",
+    "sha256": "ba98ecc6e4ee6491ed7bb57d43ff5f8a2764f43bd6503b52a34b87cb1878a608"
+  },
+  {
+    "file": "packages/server/src/services/salary-service.ts",
+    "sha256": "fd429b8909364fe3b65a6416ec3088ea7b092d0cf59cb559d75241488344e25b"
+  },
+  {
+    "file": "packages/server/src/services/stats-service.ts",
+    "sha256": "2dd3e060dae005699edaa8fda1d00c53cb205b2f985520f5a125df95af9f6459"
+  },
+  {
+    "file": "packages/server/src/services/tags.ts",
+    "sha256": "1d553f1f38b16a662087e66149c9ba07540a92320654e7fd26d40ea36c9eb53e"
+  },
+  {
+    "file": "packages/server/src/services/template-service.ts",
+    "sha256": "870cd2eded57bd9c0b4dfc1a99df561c8483154b2b2f2848626835887d869c21"
+  },
+  {
+    "file": "packages/server/src/services/transaction-service.ts",
+    "sha256": "77a6fdd0406c51e0845f615f5d9055f1e1c79656ea64146a19211811019d3a3b"
+  },
+  {
+    "file": "packages/server/src/services/transfer-service.ts",
+    "sha256": "81f9a32b07b89b95778ce8a411debe74c2ff27acde29972cc044bb35780ec53b"
+  },
+  {
+    "file": "packages/server/src/services/xlsx-lite.ts",
+    "sha256": "16e73f08814d2335f6bece609cc201b4ac247d3e79ce3b7810bc31f84b481a16"
+  },
+  {
+    "file": "packages/server/src/db/migrations/001-init.ts",
+    "sha256": "9e1d5d99bbe9885b57c0f383c4a4a10604061c3307723b4e2ac954573570f9ef"
+  },
+  {
+    "file": "packages/server/src/db/migrations/002-recurring.ts",
+    "sha256": "7b64b9aa0498ba938cf847b001e50c25e948f418e5bab9155b452ab9821a244d"
+  },
+  {
+    "file": "packages/server/src/db/migrations/003-salary-account.ts",
+    "sha256": "142fc10b8292ea4adaf5716ff918aeddcb39832dff810aa8cd50a09af0ca0f1b"
+  },
+  {
+    "file": "packages/server/src/db/migrations/004-transfers.ts",
+    "sha256": "464a89c40a28711ca095e717a5518578e8ece39f6b9805cdcb98fd2464d139c0"
+  },
+  {
+    "file": "packages/server/src/db/migrations/005-refund-links.ts",
+    "sha256": "bd9952761b69fa594c031ee0e1c4065d5611c53a0520284adc94beaf5a15bbc5"
+  },
+  {
+    "file": "packages/server/src/db/migrations/006-refund-income.ts",
+    "sha256": "98dc35ad7b4040438439416ce957c5e0087d8c572a67c463867bfbf1e5c07edd"
+  },
+  {
+    "file": "packages/server/src/db/migrations/007-category-hierarchy.ts",
+    "sha256": "86f78de8ce657461bc32f60b26d251790feeba650b955e7f58636be97e46504d"
+  },
+  {
+    "file": "packages/server/src/db/migrations/008-ai-organization-audit.ts",
+    "sha256": "f9c88a87600dc1f9537e81d3e7da5391e288d43a43ec522bc361a19449b85ba4"
+  },
+  {
+    "file": "packages/server/src/db/migrations/009-assistant.ts",
+    "sha256": "ce112ba4cafcc560f890f8ee0f87064f2cf11d53f709e300b7d26b0ede512115"
+  },
+  {
+    "file": "packages/server/src/db/migrations/010-item-assets.ts",
+    "sha256": "f40fcb86c8eaf1c652d5fd70f9d37aae57f45b2c67aed80fda804ba73fe96a95"
+  },
+  {
+    "file": "packages/server/src/db/migrations/011-assistant-generations.ts",
+    "sha256": "7f2cadec9792ad49fc989785972db6f0b4bf73a0c85a338a7d2d37aeb4fdaa2e"
+  },
+  {
+    "file": "packages/server/src/db/migrations/012-import-batches.ts",
+    "sha256": "d8c1b0af492776f50eddfe8b43c6de67d5279f3434d06ab5c4e07ef1a2f71130"
+  },
+  {
+    "file": "packages/server/src/db/migrations/README.md",
+    "sha256": "c4255ca56f57b924dcbb45748277b7683fbba5ccd67babd785925851b04a5498"
+  },
+  {
+    "file": "packages/server/test/account-balance.test.ts",
+    "sha256": "1d03c2199a72f121c9bff0d2fb5e049d986c793bdc6727e268956d7d6c8756df"
+  },
+  {
+    "file": "packages/server/test/ai-organization.test.ts",
+    "sha256": "04258e5a535112527525cab3e5aba77860e8a6ea834770976d2d768fa94257de"
+  },
+  {
+    "file": "packages/server/test/ai.test.ts",
+    "sha256": "1d8e24962bc2549dd7eabba515bf449c4589795d0089cc37987d172cc6e6f5e0"
+  },
+  {
+    "file": "packages/server/test/app.test.ts",
+    "sha256": "9d83f673877c829f3399bc1ee9bc86b113ee2f90535f99e5984d1c9e0e263151"
+  },
+  {
+    "file": "packages/server/test/assistant-contracts.test.ts",
+    "sha256": "b6269784992b4339492d2710bf446b2290ae2132175a4138d744466343f34db7"
+  },
+  {
+    "file": "packages/server/test/assistant-generation-persistence.test.ts",
+    "sha256": "d239cdbdeabf4b663aa8d30bc550ac42e6c22f6d58f96ddf4e88297435e74102"
+  },
+  {
+    "file": "packages/server/test/assistant-stream-routes.test.ts",
+    "sha256": "d889f386f82b832d0e6b3e00dc6ad104ecac4b36ed8ff480600ac9b652fcb7bd"
+  },
+  {
+    "file": "packages/server/test/assistant-stream.test.ts",
+    "sha256": "c625ef2b8574ef9ca2684056f6cda559e97702f8c3132ba1a8043f31828fbc4b"
+  },
+  {
+    "file": "packages/server/test/assistant.test.ts",
+    "sha256": "9749701efe4a7f076c3120dcf1490a547d9675f1b28a0bc0e7ecc15b38d63fc3"
+  },
+  {
+    "file": "packages/server/test/auth.test.ts",
+    "sha256": "db3766f5bff4236830146fca0c4ca9a276a927ba9abe6f9efcb15aa900ff1728"
+  },
+  {
+    "file": "packages/server/test/bill-import-analysis.test.ts",
+    "sha256": "bc9e319c1ca6d9ab211e3745b3068c5b11c36db48252545ec85a9a9b580a27fc"
+  },
+  {
+    "file": "packages/server/test/budget.test.ts",
+    "sha256": "6c40840e378bd9ba3cd11ec503571efa336fbabfdff46c640f0cd5daa298af70"
+  },
+  {
+    "file": "packages/server/test/cli-db.test.ts",
+    "sha256": "c2280cae523157c5fdd206fdef2e4ab0cc10d00040733c6e6c721af708d4b12b"
+  },
+  {
+    "file": "packages/server/test/db.test.ts",
+    "sha256": "cc2ffbe47f413cc73dc7b8b9e81f274a5465b3f4c40e683dd23f46280d19a0a9"
+  },
+  {
+    "file": "packages/server/test/import-batch-analysis.test.ts",
+    "sha256": "409bedeffbcf177071371efab9aed116f1f7ca4dd125d5ae4e5b966e0c83a45a"
+  },
+  {
+    "file": "packages/server/test/import-batch-confirm.test.ts",
+    "sha256": "50c2dfb1d2f4c730f3851da2c760c2e89e76a3dfc2794d946cc1519556a227f3"
+  },
+  {
+    "file": "packages/server/test/import-batch-identity.test.ts",
+    "sha256": "25b735307701bc505036ed52821204043f92715beac05bc3113125ac1df84e1f"
+  },
+  {
+    "file": "packages/server/test/import-batch-limits.test.ts",
+    "sha256": "0fa2feed35fea019054f9e3ebdd8527ed2c7f84a9ef1a08a7970d05b487dcf03"
+  },
+  {
+    "file": "packages/server/test/import-batch-regression.test.ts",
+    "sha256": "1cc8b757c0854fb84d42dad4151de2c821323641b98e505fe121300e41e6313a"
+  },
+  {
+    "file": "packages/server/test/import-batch.test.ts",
+    "sha256": "80e8e7c8c57108560c721b8cbdca8c27c64e976d7d47c47a771bc195c022399a"
+  },
+  {
+    "file": "packages/server/test/item-cutouts.test.ts",
+    "sha256": "bde5678d2ae21e5ee0dc6aca6c528b6db0e2a9a6d33e9bdf8bd098b7373d779f"
+  },
+  {
+    "file": "packages/server/test/items.test.ts",
+    "sha256": "d9decefc3c91f7cc977e6d710eabc7aa7a98aa992636163362334e3f6109a776"
+  },
+  {
+    "file": "packages/server/test/master-data.test.ts",
+    "sha256": "06762902f34cb1e0a608cb6c133b8846eef24d0f3dbc8c66331e54b83988930e"
+  },
+  {
+    "file": "packages/server/test/platform-import.test.ts",
+    "sha256": "23285597d566dd2ae35f4a20ba5cbee498318584bb3f30b5d15731bd594a5694"
+  },
+  {
+    "file": "packages/server/test/portability.test.ts",
+    "sha256": "ce4c835f5ff5751b345a65e4709704f3bc1c419de82f7186637c24a82a6fa017"
+  },
+  {
+    "file": "packages/server/test/recurring.test.ts",
+    "sha256": "8088a591d493375a9c11806458f7dfc17a5572a748d715ee88e4df942e599d1a"
+  },
+  {
+    "file": "packages/server/test/stats.test.ts",
+    "sha256": "8a2d484bb73c9cfa912727e5d9833fa08ae88eb899cf1a3d441687b8c6dc26b9"
+  },
+  {
+    "file": "packages/server/test/transactions.test.ts",
+    "sha256": "1ff05e721d5cca743b44aec4848464baf05af6941c1eaae48e37d987e0f3a177"
+  },
+  {
+    "file": "packages/server/test/transfers.test.ts",
+    "sha256": "775fa296ee0aabc2fbd9499cd32c605c4d5d28b261cb608202f933d1c7bd0594"
+  },
+  {
+    "file": "packages/server/test/trash.test.ts",
+    "sha256": "95d9075667c6056ea2d0e4e4a4ecd905fc67a906c999d9eecb5cc59c47a681f6"
+  },
+  {
+    "file": "packages/server/test/benchmark/import-batch-bench.ts",
+    "sha256": "eb36d28cc0dbc16c12e9f304c8743974fcc085926fec7fd542883c172dbffdbd"
+  },
+  {
+    "file": "packages/server/test/fixtures/alipay-bill-sample.csv",
+    "sha256": "b5e557fd8de3ca4e75bfc56231b1d499877cb5386a4e9c5c2636b19383d2dfb5"
+  },
+  {
+    "file": "packages/server/test/fixtures/alipay-bill-sample.utf8.csv",
+    "sha256": "604c7c505aa15d7e5ac38d954bf07474d4a70b262ae1336aeb14b97b1d584fbc"
+  },
+  {
+    "file": "packages/server/test/fixtures/refund-review.csv",
+    "sha256": "1570b0fce0a9675d5aae95b35edcdac7d4637ce9fce474b30bd434be42c2467e"
+  },
+  {
+    "file": "packages/server/test/fixtures/wechat-bill-sample.csv",
+    "sha256": "0479fbd61787e84696699d7896a560384a73e803951ae461ae50b1e9befab51b"
+  },
+  {
+    "file": "packages/shared/src/account-balance.ts",
+    "sha256": "e680fb9a0cb89ef54de2a25120e787c3c00a58f8f3c0d48c85b1645fdb50dfc1"
+  },
+  {
+    "file": "packages/shared/src/budget-engine.ts",
+    "sha256": "50d78884041f7d8b4f9885679a69514388871e79af2073b01a3935d27a646a18"
+  },
+  {
+    "file": "packages/shared/src/csv.ts",
+    "sha256": "6176d09fa1bc385a192ef231086b42de7d186666f099e6cf971a8dcc3940cd38"
+  },
+  {
+    "file": "packages/shared/src/date-utils.ts",
+    "sha256": "9b074b4f172948c032f0f275e61edf6ec164415b9ce8fb04409b058757df9262"
+  },
+  {
+    "file": "packages/shared/src/index.ts",
+    "sha256": "5324c573cad1466d27ac997c9078c2847f851e8ee84e121bb0eaedcb5559d2c2"
+  },
+  {
+    "file": "packages/shared/src/palette.ts",
+    "sha256": "28b648695b6e3688a423f30b249fecea028da8b0e0de93c3bbf56d73319be47e"
+  },
+  {
+    "file": "packages/shared/src/platform-bills.ts",
+    "sha256": "d490975ae8cdcbe017fc6af06559d9ed4e072473b34460dfc50472b88eb5f6a9"
+  },
+  {
+    "file": "packages/shared/src/recurring.ts",
+    "sha256": "6eda981d26637f6be815696b147cc1efa4e7ae40d6edc1be35e36cdabb393757"
+  },
+  {
+    "file": "packages/shared/src/seed-data.ts",
+    "sha256": "675be17d2df3f2a9ed89594725d3e679ff1427206fdb50fa7af5abf5f776f82b"
+  },
+  {
+    "file": "packages/shared/src/types.ts",
+    "sha256": "be107cdb5cfed39f38d12429b0ac17cff1d333dd5a9b546106a6ee6a1e262c50"
+  },
+  {
+    "file": "packages/shared/test/account-balance.test.ts",
+    "sha256": "c5d415b9b41631c668c4fd145a2dd360060ec293131bffc12ec84bef7a8d2a23"
+  },
+  {
+    "file": "packages/shared/test/budget-completeness.test.ts",
+    "sha256": "58228d5233532d68a50fbfd2b02d96593f9fc9120bad195a115ea9330afa3f9d"
+  },
+  {
+    "file": "packages/shared/test/budget-engine.test.ts",
+    "sha256": "4cc4fe0239d97364a7330338e1d9bcc019e507c9f2bd749dc97536afdcd2f62f"
+  },
+  {
+    "file": "packages/shared/test/csv.test.ts",
+    "sha256": "456a56f0b9afb565393e7d6fc1a45af627105dcbd4b033b60d311bdd65c7eb20"
+  },
+  {
+    "file": "packages/shared/test/palette.test.ts",
+    "sha256": "0847289134fa40298196efcf6313c6231bffb7a66bf56e20fdd1164cdab26944"
+  },
+  {
+    "file": "packages/shared/test/platform-bills.test.ts",
+    "sha256": "08ff70d117fdb074a82923956c62f1f9657c70b24cadd91bc1d1dec76f70c133"
+  },
+  {
+    "file": "packages/shared/test/recurring.test.ts",
+    "sha256": "4248f52d7e918a39af80d6bbde6450623c8195e599b8f48207ebcbc31f4f3dd1"
+  },
+  {
+    "file": "clients/android/app/src/debug/AndroidManifest.xml",
+    "sha256": "209b0bf75afd3aebffa19e4ebd8ded82b1843fcc36ac1243006f70a26bb9d427"
+  },
+  {
+    "file": "clients/android/app/src/main/AndroidManifest.xml",
+    "sha256": "5065e03230048db6177ae4619367cf4f2460d4eea8bae825a64b0b2161c23efc"
+  },
+  {
+    "file": "clients/android/app/src/test/resources/fixtures/import/batch.json",
+    "sha256": "60080c906bc1ea0ebe091a58183090cc537ec00d5926d1fb8d1d9e93fa007c11"
+  },
+  {
+    "file": "clients/android/app/src/test/resources/fixtures/import/categories.json",
+    "sha256": "9733fb5079c56de7dcadbc50227613495e742399293febcb4f2fec241f382bc9"
+  },
+  {
+    "file": "clients/android/app/src/test/resources/fixtures/import/manifest.json",
+    "sha256": "11f0bb6bbaa799d913e7842cca5aba89424fcbd106d0969ab1ae96ce2927495e"
+  },
+  {
+    "file": "clients/android/app/src/test/resources/fixtures/import/review.json",
+    "sha256": "1592dce1a040b5c0112bff3f41e4fa2680b4a2f4f0ac8a6911af927057b191d4"
+  },
+  {
+    "file": "clients/android/app/src/test/resources/fixtures/import/rows.json",
+    "sha256": "efd5e2a0bb34b04c55b4d53413aa6ddbd3624d51b453f1fb704d01d4eea58487"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/net/AssistantBatchNetworkContractTest.kt",
+    "sha256": "abe25c575c9a5237e55d5764484234af074a9be34be0488c4231c344482a65a2"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/net/CancellableBlockingFlowTest.kt",
+    "sha256": "bc94e16e36eefb7d8f808ec20167d368f86d9660d50818962b0f945c913dfcfd"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/net/NetworkContractTest.kt",
+    "sha256": "921e4be3b54975f73bfb6f72328fdceaa9639734f38dacc188b62f0b8789abeb"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/net/SseParserTest.kt",
+    "sha256": "3d9ab5599d87755e4075ddb99b24381a66dc018fe14e350febd2705292cf46a7"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/InputContractTest.kt",
+    "sha256": "7aa28fe1bfb5655e9a51040b6e1f42b19c60bf234990b61d6c9fcbfe67a30d22"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/ProviderSettingsHelperTest.kt",
+    "sha256": "e26cca5e42c0f74144d72ae0c5cfff372239113de3e12a1d7e83d391c5717cc1"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchImportStateTest.kt",
+    "sha256": "e2e1c8cdda4de931baa6461232200004cd0021b33219c8237e1a59ac626ccced"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantConversationHelperTest.kt",
+    "sha256": "035aa9ef1fcccdd8dea5ed0e703c269c023eee3a58907111664069409c152425"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateStateTest.kt",
+    "sha256": "cb48b1b436515004d3f641d80d4e33b434280f3b9ba68b0a1ed7db8eb473ae3a"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantIdentityCoordinatorTest.kt",
+    "sha256": "e0a050ee1375285a252c92140fffb70c89766658039ffab4165f6928a80e93c7"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportStateTest.kt",
+    "sha256": "98cbdb3736406c6ed9897b964d2fcca4105c21f99f7710c141894acf03ff2052"
+  },
+  {
+    "file": "clients/android/app/src/test/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantStreamReducerTest.kt",
+    "sha256": "96186b21b347f2a03c77eebd1f00c21c3f1db671390af51df1295c1bfa75537b"
+  },
+  {
+    "file": "clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.png",
+    "sha256": "a43f8962497d5e55874beccc4df94e4e2ff04cc3fc050f302e37e7130423ae88"
+  },
+  {
+    "file": "clients/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.png",
+    "sha256": "f1ea130397eda0aff3ee3b62dc6dc97c7c7880411593344b8a7b39505c241622"
+  },
+  {
+    "file": "clients/android/app/src/main/res/values/strings.xml",
+    "sha256": "e40219897a14757a9cb9ace3d4a63c8684eabb86c532c6dc274af9ffe9ae3b2e"
+  },
+  {
+    "file": "clients/android/app/src/main/res/values/themes.xml",
+    "sha256": "9088484df67bbb10c146c743f3133f5571a1d5c522645c5a9fdbe2fd208b2393"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/MainActivity.kt",
+    "sha256": "0ce5363e019f5a2960d2c1d7e1c651b9db3ada904069cff17368a7f6009f1609"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/net/ApiClient.kt",
+    "sha256": "9dc31e24d0739d29338ba9d289f154ab1916ae814f3dbf493a45b43883107e0a"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/net/CancellableBlockingFlow.kt",
+    "sha256": "d3b5877e5018519640d80f50449d6374833cf064578518c500df409ac664b22a"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/net/SseParser.kt",
+    "sha256": "e3ec30312b02cceb4ed3c15fb5b6bae59f324c65be57b427be7ae8cfaed4417c"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AdminRepository.kt",
+    "sha256": "3447113c51e08d4ecb8c815b2ef6c5f01a0fb2543680f8a1d1784539ad0518a1"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantRepository.kt",
+    "sha256": "947812f920633bcb96122b59be7f18f8d87c55248c62bf5e0178f525fca871b7"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AssistantStreamingModels.kt",
+    "sha256": "2336199309913515c9dc7e27285162beae07c7818015345732b95db937c9724a"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/AuthRepository.kt",
+    "sha256": "c90f15a47957b1f8a7e3df4569a120c606f0fe317d0aa40692986145341e1b28"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/BudgetRepository.kt",
+    "sha256": "51539a71b6f52445dea6a2c2bade32a7eb4b1c6fc6aa60856c6365a44acab2fe"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/ItemPhotoUploader.kt",
+    "sha256": "fece445f4db4a6b380b7e57c26a1c538eb68d15fae3d54d813db15ace5b0bc3a"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/ItemRepository.kt",
+    "sha256": "2191855d6531f963cd613ab823e40211c30e1080cdfe1b0a8920e2edbff2b5b4"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/LedgerRepository.kt",
+    "sha256": "1214bd892c4d32d2428e288d6f4f2908ea5fb350e8009bc69c08cb09927676d5"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/PortabilityRepository.kt",
+    "sha256": "a5787759ffdd617c6b1fd1514eb481c4f805b159d6e15ef4249dd8572aae597a"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/AssistantTab.kt",
+    "sha256": "46d499cf466e759112ed6a0cb530bb5ef12897d1da223796240c858fcd9a57ac"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/BudgetTab.kt",
+    "sha256": "e869817296a2ba3b7d30b8ae188a2b20f5bacfdde4b6bf348f28b5a01d87bd29"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/Buttons.kt",
+    "sha256": "1ce24e6724430517db67aab64002da54bb83cd7af22654d85ce7d1d8b3fee5ee"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/Cards.kt",
+    "sha256": "cf0be396fbead7a0759174441c96d5c06c3ff7d50ed5efb519cb8ad3dd53870e"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/Charts.kt",
+    "sha256": "ab31f80ad50c8d25d1e7efcf6ef873dec6e8fd2c3186b398dfe397c620c4d8b4"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DashboardTab.kt",
+    "sha256": "ae80e1bea100048038d5b814ed633b079320850f008a389d93849fe6693c688c"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DataTab.kt",
+    "sha256": "57bb4c08c7ab9d9785dce20ed2821c6ec861b82bb217bcc48dc277c9171cc526"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/DocumentFiles.kt",
+    "sha256": "59854d4f8737a2cc70d9491dee1d49d509274aceb65442683a1b117c9141948d"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/FinanceComponents.kt",
+    "sha256": "622d1f9df3aed9683a6752745ec7117b6bec484fba549686a785c64085bcd188"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/format.kt",
+    "sha256": "6afa6c850c34930e6c43d564d56a38f5043a27625c832bc3b40ec3474c012e09"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ItemsTab.kt",
+    "sha256": "136009215ac89e2ed51885d6537d1799d15a19fb3eedcbe9b8abf1e1b4b8558f"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/LedgerLinkPicker.kt",
+    "sha256": "fba35a074f30fd8fc65d6ba60549f0862b39be0de8e679aa47056a0d6e115e31"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/LoginScreen.kt",
+    "sha256": "f6c30d0ab04321aa01523b247a53f03b721a61198f942a32a3c37ccb967da311"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MainShell.kt",
+    "sha256": "9d213fc8e2182d63d1d3114345c0570af11596a74f44fb1e9b1e46d87d25eb7e"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ManageTab.kt",
+    "sha256": "f4f6cdded0e9c69f29e1ba1c8469e25cc1a56d4f6643d1cfe5ab1510bbd2623b"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MotionTokens.kt",
+    "sha256": "c11c6034d212d98ccfe97f7209b183295016ea92aa3cb469bb4bc08e66ef6391"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/MyTab.kt",
+    "sha256": "437a2faf24b584d3f99f13f870c0a6c15a7b1f66762646462928ff861c62c6f6"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/PendingTab.kt",
+    "sha256": "21c20ccd370edcfd1ec11b699b9935b93b96f0259822f7d8733f6320d80e1803"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ProviderSettings.kt",
+    "sha256": "02680cd29c01c869866f21300807be56ea51d840c6a97af68f2bb2fff2ff6aa1"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ProviderSettingsHelper.kt",
+    "sha256": "beb7b8b138d6c592df70b614695fa00e65aa26fcf592294f7ae23e868cd8a652"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/RecurringRulesTab.kt",
+    "sha256": "8d17549a0845b496584bb8b6a4084daeabe8fd91ef4795661582353c05602ee9"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SalarySheet.kt",
+    "sha256": "1e2fca620db0a768c8fbcb6f5993eedf4eb56fb5124f2c5defe6159140c414e0"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/SettingsTab.kt",
+    "sha256": "32501116af57ef2f86f62cf031dedd918613160d02cdffb2880cf9d84dd5d647"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/StatsTab.kt",
+    "sha256": "b38c899e5847b8cb02761e5f4d2d4283dabd19c5cff9000b14976c74fb076af9"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ThemePrefs.kt",
+    "sha256": "d190275b37a66ba6516315811edab5d415c3e173909c8d77ef51bb5848f0b2e0"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDetailScreen.kt",
+    "sha256": "e2ff8671d60c0d243fe441a51ce7a23bbe82a41f72d9c2e66e1967d5045ecd9d"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionEditSheet.kt",
+    "sha256": "aa04bcd02eb4f8ae7a1f612dbfcb1a797447cc09840c009b8d9780ae333c6cd9"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionsTab.kt",
+    "sha256": "2fd3cb056c0016ee75f770c95587ccd845fb12b7ac9eeb14644d52ef4478234e"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransfersTrashTabs.kt",
+    "sha256": "c05e4f02e1c697988f77d98324d2837cc7633ed65405b6157062f3822008a2e7"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/theme/JizhangTheme.kt",
+    "sha256": "bf69344800ac2c0f6a54aa61d93bada76ae2a337e392590ed594972d57879ad9"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchImportWorkspace.kt",
+    "sha256": "760ee2c87bf46b7e939d0c37a947780b82bfd1feecb8f683f249e3f89532805a"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantBatchModels.kt",
+    "sha256": "7edf0b05de984b8061ac45cdd4602db8c84298e492beda3d420b96308609706b"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantConversationHelper.kt",
+    "sha256": "2b9e31860725d45a22ac61668a1a62e4d1b08da5841a4e449f7b4b279c1ff259"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantDuplicateState.kt",
+    "sha256": "43cea0071f5dc7b8acfdc753a1a971f50eb3c92b67d9bd4d271d5b5bce8a38a4"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportState.kt",
+    "sha256": "e0dccbcbdd95f59d18bffa52d87553b312389e6de6eb9b75a9a534d7340841a1"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantImportWorkspace.kt",
+    "sha256": "20f420f26225f6c89b956f90656d83f816b715bb7d385a1a177aab0685e7a55a"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantStreamingComponents.kt",
+    "sha256": "6e6c5cb03f9e0192c6788873aabca0b97a106f1a2db8840e5bf4e0f908aff752"
+  },
+  {
+    "file": "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/feature/assistant/AssistantStreamReducer.kt",
+    "sha256": "e31b5e34da5c19a5dbcb3fadc7f2e034ddf973c0af82cfcc6428e2af4c0f918b"
+  },
+  {
+    "file": "clients/android/app/src/debug/res/xml/debug_network_security.xml",
+    "sha256": "e43a7b6d5d89ce3b833c4b0d34047d7a67956ec2659b5f62b9fff1937e0c5628"
+  },
+  {
+    "file": "clients/android/app/src/debug/java/com/yansuu1/jizhang/DemoActivity.kt",
+    "sha256": "8091c7a7f442761e9310319760d3e652a31dd0ec1ba329eefff647e38116ee41"
+  },
+  {
+    "file": ".trellis/spec/backend/ai-provider.md",
+    "sha256": "adbbb102c3a0db3a4587d69eeb9aeab96427635eac5c581a790913edfd445abf"
+  },
+  {
+    "file": ".trellis/spec/backend/api-production-maintenance.md",
+    "sha256": "8b77ae7fd3ee0992f115c4f2963426be73705341740e85de8c0bececbac80a12"
+  },
+  {
+    "file": ".trellis/spec/backend/assistant-streaming.md",
+    "sha256": "f84dee7d2adc7568534b70a0106b72e207d1809254fe0481c3dc6326adef58e4"
+  },
+  {
+    "file": ".trellis/spec/backend/backup-retention.md",
+    "sha256": "2a4f43f39bf36dceac44986eaab68cdde2ca08453d8d4fa08cbaa2bfd2779a5f"
+  },
+  {
+    "file": ".trellis/spec/backend/database-guidelines.md",
+    "sha256": "896826096131e8e8176f9da6f6661eaab57c70d186c6bc54ec45e4d3a3a6f408"
+  },
+  {
+    "file": ".trellis/spec/backend/directory-structure.md",
+    "sha256": "6d01e02c7bd7733ef21e5e745f4d5d1e2cc285bc492f2f6a9e749d0a332382c6"
+  },
+  {
+    "file": ".trellis/spec/backend/error-handling.md",
+    "sha256": "8b7f06a7bb3b710c00af727c5f5043bcd66862f49b2d7aa700210864b7978705"
+  },
+  {
+    "file": ".trellis/spec/backend/index.md",
+    "sha256": "811f4cd6a20e40a8f7fea2af3802df68d013731b2804d7baeab2c8d2dad2316f"
+  },
+  {
+    "file": ".trellis/spec/backend/item-assets.md",
+    "sha256": "292bb53c233bb5c76ed3bc90a62639ebe53a5038b8deea8e9c53955cadcc82a1"
+  },
+  {
+    "file": ".trellis/spec/backend/logging-guidelines.md",
+    "sha256": "3a4f5d09f321874fcd23139e82a29557aea813da9d8d26f262d337b1f5ee276e"
+  },
+  {
+    "file": ".trellis/spec/backend/merged-bill-import.md",
+    "sha256": "ee41c9f8dea92d90fbd615f48d7909ec046cbf3bcde79560282fc903414b1c01"
+  },
+  {
+    "file": ".trellis/spec/backend/native-delivery.md",
+    "sha256": "8729c3e5086270a856e204867c0513e3465846c42d9065e1159132ff1a1a9ce8"
+  },
+  {
+    "file": ".trellis/spec/backend/quality-guidelines.md",
+    "sha256": "a8b3f579f69eca65a6991de80fc282614003dd02a40b068bb1ca32a046321810"
+  },
+  {
+    "file": ".trellis/spec/frontend/color-guidelines.md",
+    "sha256": "e8103a4edbb5f24611b1b31213fffd97373e63d1f2e71b986221bbfc90e777ec"
+  },
+  {
+    "file": ".trellis/spec/frontend/component-guidelines.md",
+    "sha256": "24320502f453e13cef963569a62b316b796ecf261c0801c827f340ae27f2df24"
+  },
+  {
+    "file": ".trellis/spec/frontend/directory-structure.md",
+    "sha256": "92efdc4fc57f40427f0aa420e6a65974769688010e85747e21d26b5228e38b2c"
+  },
+  {
+    "file": ".trellis/spec/frontend/hook-guidelines.md",
+    "sha256": "96c8dcc0b27d3bd781f95fb20f1b9cd602075e3f335ec45e6f55b109af8e0e16"
+  },
+  {
+    "file": ".trellis/spec/frontend/index.md",
+    "sha256": "c80854ce2ade4c8c2810fffd08397fcf83933728f0e935ac979aaf76aab82c37"
+  },
+  {
+    "file": ".trellis/spec/frontend/motion-guidelines.md",
+    "sha256": "60c0424b6187707bb5c8d0c88fa51520b5b55af4b71eba237f3b95b45997d21e"
+  },
+  {
+    "file": ".trellis/spec/frontend/quality-guidelines.md",
+    "sha256": "16513c53301ae34d41cb4678fc211c6d07ed80497bc71ad3b4c9a7941508722a"
+  },
+  {
+    "file": ".trellis/spec/frontend/state-management.md",
+    "sha256": "e79aadc76ff044873aa91d2f6dc6340661dd09ed728f76d6eed2a895d06c5568"
+  },
+  {
+    "file": ".trellis/spec/frontend/type-safety.md",
+    "sha256": "038c4d0d31c88913150b3a2d98d40fece679cb39103db7dbfde3c2f2e9ecdd9a"
+  },
+  {
+    "file": ".trellis/spec/guides/code-reuse-thinking-guide.md",
+    "sha256": "21044b97ba03682be2f3a6496ff75ac475211878d065f54823bc784dc6f6d961"
+  },
+  {
+    "file": ".trellis/spec/guides/cross-layer-thinking-guide.md",
+    "sha256": "0fd2f944c9ab679682fdd5d7f23e90b81df252fb8e0fd28df1d994a6a0f30735"
+  },
+  {
+    "file": ".trellis/spec/guides/index.md",
+    "sha256": "5e87f7ee825c0d53b2066fda879d692c7618de0e3d8ce4506270725b2e1059ef"
+  }
+]

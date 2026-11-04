@@ -1,0 +1,40 @@
+# Observable Acceptance Matrix
+
+All items are planned, NOT executed/passed. P1/P2/P3 indicate the earliest release that must satisfy the case. Re-run earlier cases in later phases. Money examples are yuan, storage/assertions are integer cents.
+
+| ID | Phase | Requirement | Scenario and expected outcome |
+| --- | --- | --- | --- |
+| A01 | P1 | R1,R2 | Save one 10,000 salary then confirm plan: targets 2,500/1,500/5,000/1,000. Plan confirmation changes no account balance, salary count, legacy category allocation, transfer or transaction. |
+| A02 | P1 | R2 | Repeat same salary request key: one salary. Repeat same plan operation: one source inclusion. Same key/different payload is conflict. Unknown response recovers persisted result after reopening. |
+| A03 | P1 | R2,R7 | Add second salary in same cycle: one period/new confirmed revision, each source counted once; original revision inspectable. Skip prompt saves salary but no plan. |
+| A04 | P1 | R2,R7 | Later ratios 30/15/45/10 affect only confirmed future revisions. Earlier 25/15/50/10 target unchanged. Ratios must sum 10000 basis points, nonnegative; 1-cent and ties conserve exact income; overflow rejected. |
+| A05 | P1 | R2,R7 | Natural month, start-day25, payday before start-day, skipped month, historical insertion, timezone switch and cycle-config edit show explicit frozen financial dates. No silent regrouping of confirmed periods, unknown/overlapping cycle rejected or explicitly reconciled. Legacy budget window difference is labeled. |
+| A06 | P1 | R2,R6 | Salary amount/date/account edit or deletion marks source changed/invalid, retains original snapshot and warns; explicit reconcile creates new revision. Stale clients cannot silently overwrite targets. |
+| A07 | P1 | R3 | Purpose precedence explicit bill > child > parent > unresolved. Child category rename/move/delete or new rules never silently rewrite confirmed historical purpose mapping. Pending cents/counts visible. |
+| A08 | P1 | R3,R6 | Optional purpose supports new/edit/clear/old null; dirty draft and cancel preserve values. Old API writers omit field without deleting existing override. Recurring/import/AI-created bills obtain consistent mapping provenance, not an invented explicit choice. |
+| A09 | P1 | R3,R6 | Essentials expense3,200 and joy600: financial remaining1,800/400 for 5,000/1,000 targets. Details reconcile every counted fact. Growth/reserve show not connected until P2, not simulated execution. |
+| A10 | P1 | R3,R6 | Expense100 refund30 split to it: gross100/refund30/net70, no new allocatable salary. Refund to original in prior cycle restates only original financial execution; receipt date audit retained. Legacy gross expense/income/budget remains100/+30. |
+| A11 | P1 | R3,R6 | Refund100 linked originals across purposes requires exact splits totaling<=100 and within each original's residual. No full100 credited to both. Unlinked/multi-original/over-refund legacy records stay unresolved, not guessed or reported exact. |
+| A12 | P1 | R3,R6 | Bill/refund amount/type/date/category edit, delete, restore and hard purge recompute net consistently. Existing legacy refund_links deletion on soft delete cannot silently erase new audit or resurrect invalid split. Reconfirmation/conflict behavior is explicit. |
+| A13 | P1 | R1,R6 | Credit purchase100 is one consumption; bank-to-card repayment100 is a transfer and zero consumption; all own-account transfers leave total assets unchanged. Legacy expense labeled repayment is not silently hidden. |
+| A14 | P1 | R6 | Recurring pending/ignored rule contributes0; confirm twice produces one bill and one consumption; actual bill deletion removes execution. |
+| A15 | P1 | R1,R3,R7 | Existing full-salary category template is not rewritten or augmented by financial confirmation. Mapped child references show envelope-total versus purpose-ceiling discrepancy, not a claim all categories already fit60% income. Daily overspend cannot reduce growth/reserve targets or earmarks. |
+| A16 | P1 | R3,R8 | Bottom positions unchanged; home switch remembered after process restart per server/user; invalid preference safe fallback. Home+My enter same host/config with one back owner, no bypass of dirty/busy guard; return restores cycle/segment/scroll. |
+| A17 | P1 | R8 | Isolated failure/retry for card/plan/ledger; old server explicitly unsupported for execution but manual/ledger still work. Session/server change and late responses never leak old figures. Empty/unavailable distinct from0. |
+| A18 | P1 | R7,R8 | Whole-DB isolated restore preserves all new IDs/revisions/splits; migration rollback on injected failure; old API contracts remain compatible; CSV limitation disclosed. No production DB touched by tests. |
+| A19 | P2 | R4 | Transfer1,500 bank→reserve: source−1,500/destination+1,500/assets unchanged, reserve net addition+1,500, spending0. Link same source twice rejected; transfer within reserve purpose net0. |
+| A20 | P2 | R4 | Virtual earmark on same bank changes no ledger/account balance; combined growth+reserve designations cannot exceed current available liquid balance. Same money cannot count in dedicated mode too. |
+| A21 | P2 | R4,R6 | Future-dated funds cannot inflate current reserve. Growth5,000+reserve5,000 on one account then liquidity6,000: aggregate shortfall4,000, both purpose positions coverage-unresolved/excluded from confirmed usable totals, exact reserve gap/ETA unavailable, no silent ownership choice or per-purpose double cap. Confirm revised growth1,000/reserve5,000: funded sum6,000; baseline5,000 and target25,000 gives confirmed reserve gap20,000 (no other reserves). Negative/deleted/debt accounts never fund usable emergency reserve. |
+| A22 | P2 | R4,R6 | Reserve20,000 transfer-out3,000 leaves usable17,000; eventual merchant expense counts once, no extra expense from transfer. Direct spend from dedicated reserve reduces stock once. Refill corrects gap/coverage/ETA. |
+| A23 | P2 | R4,R6 | Linked transfer/bill edit, deletion or reversal conflicts or reconciles atomically, no stale executed funding. Opening balance/designation is stock, not this-period saving; price/balance increases not investment contributions. |
+| A24 | P2 | R4,R7 | Essential baseline5,000 ×5 target25,000; reserve12,000:48%, gap13,000, monthly1,500 gives9 contributions if assumptions hold. Baseline differing from50% budget changes target independently. Zero contribution gives no ETA, above-target reserve retained. |
+| A25 | P2 | R4 | Target reached offers40/0/50/10 or custom future config only; decline/no action changes nothing. Withdrawal/new necessary costs prompts review, not auto ratio change. |
+| A26 | P3 | R5 | History completion and savings-rate figures trace exactly to canonical period API. Zero income/negative net flow/incomplete purpose data show defined unavailable/provisional states, never divide-by-zero or fabricated streak. |
+| A27 | P3 | R5 | Rolling12-month forecast exposes observed sample/assumptions; insufficient facts use explicitly manual forecast. No return assumption or planned contributions shown as real reserve. |
+| A28 | P3 | R5 | AI numerical answers equal API, cite selected period/asOf/pending inputs. Repeated read causes zero domain writes. No Provider config needed for financial pages. Action suggestions require separate selected confirmation; cancel/stale/repeat is safe. |
+| A29 | Each | R8 | Shared/server tests+lint+typecheck+build; Android unit+lint+debug build; scoped cross-layer review. Record actual commands/results, not inherited counts. |
+| A30 | Each | R8 | Physical device: API26+target modern OS, small screen/large font/TalkBack48dp, IME/amount switch, rotation/back/process restart, weak-network repeated submit/server switch. Source-only guards do not pass this row. Backend deployment and APK installation verified separately after authorization. |
+
+## Non-gates in this planning session
+
+No build, automated feature test, APK regeneration, device install, live AI call, schema migration or production deployment is claimed. Planning quality checks are existence/content consistency, source-backed constraints and review closure only.

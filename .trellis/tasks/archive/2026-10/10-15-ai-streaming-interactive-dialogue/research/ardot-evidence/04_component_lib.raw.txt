@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"libraryKey\":\"local\",\"isLocal\":true,\"components\":[],\"componentSets\":[]}}"}]},"jsonrpc":"2.0","id":1}
+

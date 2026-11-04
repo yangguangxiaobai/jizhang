@@ -1,0 +1,3 @@
+event: message
+data: {"result":{"content":[{"type":"text","text":"{\"success\":true,\"data\":{\"result\":\"Find empty space at x: 1852, y: 0 on Page (20:1)\"}}"}]},"jsonrpc":"2.0","id":1}
+

@@ -1,0 +1,25 @@
+--- HEAD-baseline
++++ current
+@@ -38,6 +38,14 @@
+   return value;
+ }
+ 
++function optionalTagId(value: unknown): string | undefined {
++  if (value === undefined || value === null) return undefined;
++  if (typeof value !== 'string' || value.trim() === '') {
++    throw new ValidationError('tagId must be a non-empty tag id when provided.');
++  }
++  return value;
++}
++
+ function parseListQuery(query: Record<string, unknown>): ListTransactionsQuery {
+   const type = optionalNumber(query['type']);
+   if (type !== undefined && type !== 0 && type !== 1) {
+@@ -61,6 +69,7 @@
+     categoryId: optionalString(query['categoryId']),
+     accountId: optionalString(query['accountId']),
+     tag: optionalString(query['tag']),
++    tagId: optionalTagId(query['tagId']),
+     q: optionalString(query['q']),
+     includeDeleted: query['includeDeleted'] === 'true' || query['includeDeleted'] === true,
+     limit,

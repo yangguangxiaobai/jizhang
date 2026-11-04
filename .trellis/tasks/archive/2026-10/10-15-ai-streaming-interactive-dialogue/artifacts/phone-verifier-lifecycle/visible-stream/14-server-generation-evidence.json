@@ -1,0 +1,329 @@
+{
+  "gen": {
+    "id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+    "conversation_id": "f59a2d6e-7f10-48a1-ab2b-504995a2ed37",
+    "client_request_id": "c3a2a747-4a8a-489a-a0ee-cf8439a79707",
+    "request_hash": "228bae538217a2886446a6007e46d5731b185d2405c2fbfbcc9e8a12f2b64cea",
+    "input_json": "{\"type\":\"text\",\"text\":\"UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not book transactions.\"}",
+    "user_message_id": "a8f812b2-d394-4472-9693-8ca8c4afe8d6",
+    "status": "completed",
+    "delivery": "stream",
+    "outcome": "answer",
+    "last_seq": 40,
+    "message_ids_json": "[\"195ca978-b96c-45c5-9f20-3bf14957ba05\"]",
+    "partials_json": "[]",
+    "source_generation_id": null,
+    "question_id": null,
+    "question_json": null,
+    "answered_option_id": null,
+    "answered_at": null,
+    "error_code": null,
+    "error_message": null,
+    "today": "2026-10-16",
+    "created_at": 1792161524136,
+    "updated_at": 1792161531226
+  },
+  "events": [
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 1,
+      "type": "state",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":1,\"type\":\"state\",\"status\":\"accepted\"}",
+      "created_at": 1792161524136
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 2,
+      "type": "state",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":2,\"type\":\"state\",\"status\":\"running\"}",
+      "created_at": 1792161524137
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 3,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":3,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":0,\"text\":\"1. Pay\"}",
+      "created_at": 1792161527441
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 4,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":4,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":6,\"text\":\" yourself\"}",
+      "created_at": 1792161527504
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 5,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":5,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":15,\"text\":\" first: Set an automatic transfer\"}",
+      "created_at": 1792161527785
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 6,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":6,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":48,\"text\":\" to savings on payday\"}",
+      "created_at": 1792161527836
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 7,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":7,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":69,\"text\":\", even if\"}",
+      "created_at": 1792161527918
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 8,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":8,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":78,\"text\":\" you start small. Treat it like a\"}",
+      "created_at": 1792161527931
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 9,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":9,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":111,\"text\":\" bill, then build toward an emergency\"}",
+      "created_at": 1792161527958
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 10,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":10,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":148,\"text\":\" fund covering three to\"}",
+      "created_at": 1792161528037
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 11,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":11,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":171,\"text\":\" six months of\"}",
+      "created_at": 1792161528095
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 12,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":12,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":185,\"text\":\" essential expenses.\"}",
+      "created_at": 1792161528159
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 13,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":13,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":205,\"text\":\"\\n\\n2\"}",
+      "created_at": 1792161528211
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 14,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":14,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":208,\"text\":\".\"}",
+      "created_at": 1792161528287
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 15,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":15,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":209,\"text\":\" Give every dollar a job: List take\"}",
+      "created_at": 1792161528502
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 16,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":16,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":244,\"text\":\"-home\"}",
+      "created_at": 1792161528554
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 17,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":17,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":249,\"text\":\" income and plan for essentials,\"}",
+      "created_at": 1792161528648
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 18,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":18,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":281,\"text\":\" savings\"}",
+      "created_at": 1792161528699
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 19,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":19,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":289,\"text\":\", debt payments, and fun. Try a simple\"}",
+      "created_at": 1792161528743
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 20,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":20,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":327,\"text\":\" starting split—50\"}",
+      "created_at": 1792161528793
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 21,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":21,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":345,\"text\":\"% needs, 20% savings and debt, 30\"}",
+      "created_at": 1792161529456
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 22,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":22,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":378,\"text\":\"% wants—then adjust it to fit your\"}",
+      "created_at": 1792161529459
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 23,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":23,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":412,\"text\":\" real costs and goals.\\n\\n3. Make spending\"}",
+      "created_at": 1792161529461
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 24,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":24,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":452,\"text\":\" visible: Review transactions\"}",
+      "created_at": 1792161529512
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 25,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":25,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":481,\"text\":\" once a week and set practical limits\"}",
+      "created_at": 1792161529692
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 26,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":26,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":518,\"text\":\" for flexible categories such as\"}",
+      "created_at": 1792161529694
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 27,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":27,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":550,\"text\":\" dining\"}",
+      "created_at": 1792161529745
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 28,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":28,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":557,\"text\":\" out, rideshares, and subscriptions\"}",
+      "created_at": 1792161529897
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 29,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":29,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":592,\"text\":\". Use calendar reminders to cancel\"}",
+      "created_at": 1792161529899
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 30,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":30,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":626,\"text\":\" services\"}",
+      "created_at": 1792161529952
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 31,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":31,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":635,\"text\":\" you no longer use\"}",
+      "created_at": 1792161530220
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 32,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":32,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":653,\"text\":\", and pause before large purchases\"}",
+      "created_at": 1792161530421
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 33,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":33,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":687,\"text\":\". If you overspend, revise next week\"}",
+      "created_at": 1792161530424
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 34,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":34,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":723,\"text\":\"’s plan rather than abandoning the\"}",
+      "created_at": 1792161530428
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 35,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":35,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":757,\"text\":\" budget. A budget is a tool for\"}",
+      "created_at": 1792161530478
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 36,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":36,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":788,\"text\":\" making choices,\"}",
+      "created_at": 1792161530548
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 37,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":37,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":804,\"text\":\" not\"}",
+      "created_at": 1792161530607
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 38,
+      "type": "text-delta",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":38,\"type\":\"text-delta\",\"messageId\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"step\":0,\"offset\":808,\"text\":\" a test of perfection.\"}",
+      "created_at": 1792161530912
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 39,
+      "type": "message",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":39,\"type\":\"message\",\"message\":{\"id\":\"195ca978-b96c-45c5-9f20-3bf14957ba05\",\"conversationId\":\"f59a2d6e-7f10-48a1-ab2b-504995a2ed37\",\"role\":\"assistant\",\"kind\":\"text\",\"content\":{\"version\":1,\"text\":\"1. Pay yourself first: Set an automatic transfer to savings on payday, even if you start small. Treat it like a bill, then build toward an emergency fund covering three to six months of essential expenses.\\n\\n2. Give every dollar a job: List take-home income and plan for essentials, savings, debt payments, and fun. Try a simple starting split—50% needs, 20% savings and debt, 30% wants—then adjust it to fit your real costs and goals.\\n\\n3. Make spending visible: Review transactions once a week and set practical limits for flexible categories such as dining out, rideshares, and subscriptions. Use calendar reminders to cancel services you no longer use, and pause before large purchases. If you overspend, revise next week’s plan rather than abandoning the budget. A budget is a tool for making choices, not a test of perfection.\",\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\"},\"createdAt\":1792161531226}}",
+      "created_at": 1792161531226
+    },
+    {
+      "generation_id": "4abe2b48-93bb-457b-b5d6-21288487cd02",
+      "seq": 40,
+      "type": "terminal",
+      "payload_json": "{\"version\":1,\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\",\"seq\":40,\"type\":\"terminal\",\"status\":\"completed\",\"outcome\":\"answer\",\"messageIds\":[\"195ca978-b96c-45c5-9f20-3bf14957ba05\"],\"error\":null}",
+      "created_at": 1792161531226
+    }
+  ],
+  "messages": [
+    {
+      "id": "a8f812b2-d394-4472-9693-8ca8c4afe8d6",
+      "conversation_id": "f59a2d6e-7f10-48a1-ab2b-504995a2ed37",
+      "client_request_id": null,
+      "role": "user",
+      "kind": "text",
+      "content_json": "{\"version\":1,\"text\":\"UI TEST: Please provide 3 practical budgeting tips for young professionals in 150 words. Reading advice only, do not book transactions.\"}",
+      "created_at": 1792161524136
+    },
+    {
+      "id": "195ca978-b96c-45c5-9f20-3bf14957ba05",
+      "conversation_id": "f59a2d6e-7f10-48a1-ab2b-504995a2ed37",
+      "client_request_id": null,
+      "role": "assistant",
+      "kind": "text",
+      "content_json": "{\"version\":1,\"text\":\"1. Pay yourself first: Set an automatic transfer to savings on payday, even if you start small. Treat it like a bill, then build toward an emergency fund covering three to six months of essential expenses.\\n\\n2. Give every dollar a job: List take-home income and plan for essentials, savings, debt payments, and fun. Try a simple starting split—50% needs, 20% savings and debt, 30% wants—then adjust it to fit your real costs and goals.\\n\\n3. Make spending visible: Review transactions once a week and set practical limits for flexible categories such as dining out, rideshares, and subscriptions. Use calendar reminders to cancel services you no longer use, and pause before large purchases. If you overspend, revise next week’s plan rather than abandoning the budget. A budget is a tool for making choices, not a test of perfection.\",\"generationId\":\"4abe2b48-93bb-457b-b5d6-21288487cd02\"}",
+      "created_at": 1792161531226
+    }
+  ],
+  "pendings": []
+}

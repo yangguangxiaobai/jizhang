@@ -1,0 +1,84 @@
+import { createRequire } from 'node:module';
+import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const root = 'C:/Users/QUIZ/Desktop/project/jizhang';
+const requireServer = createRequire(join(root, 'packages/server/package.json'));
+const Database = requireServer('better-sqlite3');
+const mod = async (path) => import(pathToFileURL(join(root, 'packages/server/dist', path)).href);
+const { buildApp } = await mod('app.js');
+const { loadConfig } = await mod('config.js');
+const { initializeDatabase, closeDatabase } = await mod('db/index.js');
+const { AuthService } = await mod('services/auth-service.js');
+const { SESSION_COOKIE } = await mod('plugins/auth.js');
+const dataDir = mkdtempSync(join(tmpdir(), 'jizhang-review-20261103-'));
+const db = new Database(':memory:');
+db.pragma('foreign_keys = ON');
+initializeDatabase(db, null);
+const now = () => Date.UTC(2026, 8, 22, 12);
+const password = 'synthetic-audit-only-password';
+const config = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', JIZHANG_USERNAME: 'audit', JIZHANG_PASSWORD_HASH: 'unused', JIZHANG_AI_ENCRYPTION_KEY: 'ab'.repeat(32), DATA_DIR: dataDir });
+const auth = new AuthService(db, { sessionTtlDays: config.sessionTtlDays, now });
+await auth.setPassword('audit', password);
+const app = buildApp({ config, db, authService: auth, secureCookies: false, now, fetchImpl: async () => { throw new Error('provider must not be called'); } });
+const checks = { date: '2026-11-03', database: ':memory:', providerCallsPermitted: false, findings: [] };
+try {
+  await app.ready();
+  const login = await app.inject({ method: 'POST', url: '/api/v1/auth/login', headers: { 'x-requested-with': 'fetch' }, payload: { username: 'audit', password } });
+  if (login.statusCode !== 200) throw new Error('Synthetic login failed: ' + login.statusCode);
+  const cookie = login.cookies.find(x => x.name === SESSION_COOKIE)?.value;
+  const headers = { 'x-requested-with': 'fetch', Cookie: SESSION_COOKIE + '=' + cookie };
+  const call = (method, url, payload) => app.inject({ method, url, headers, ...(payload === undefined ? {} : { payload }) });
+  const conversation = await call('POST', '/api/v1/assistant/conversations', { title: 'isolation audit probe' });
+  const conversationId = conversation.json().id;
+  const base = '/api/v1/assistant/conversations/' + conversationId + '/import-batches';
+  const fixture = name => readFileSync(join(root, 'packages/server/test/fixtures', name));
+  const wechat = fixture('wechat-bill-sample.csv');
+  const alipay = fixture('alipay-bill-sample.utf8.csv');
+  const fileEntry = (name, bytes) => ({ fileName: name, source: 'auto', fileBase64: bytes.toString('base64') });
+  let sequence = 0;
+  const createBatch = async files => {
+    const result = await call('POST', base, { files, analyse: false, clientRequestId: 'audit-create-' + (++sequence) });
+    if (result.statusCode !== 201) throw new Error('Create failed: ' + result.body);
+    return result.json().batch;
+  };
+  for (const index of [0, 1]) {
+    const batch = await createBatch([fileEntry('wechat.csv', wechat), fileEntry('alipay.csv', alipay)]);
+    const payload = { expectedVersion: batch.version, clientRequestId: 'audit-remove-' + index, targetFileIndex: index, files: index === 0 ? [fileEntry('alipay.csv', alipay)] : [fileEntry('wechat.csv', wechat)] };
+    const url = base + '/' + batch.batchId + '/files/' + index + '/remove';
+    const first = await call('POST', url, payload);
+    const replay = await call('POST', url, payload);
+    const latest = await call('GET', base + '/' + batch.batchId);
+    checks.findings.push({ id: 'IMPORT-01', removedIndex: index, firstStatus: first.statusCode, replayStatus: replay.statusCode, replayBody: replay.json(), versionAfter: latest.json().batch.version });
+    if (first.statusCode !== 200 || replay.statusCode !== 400) throw new Error('Unexpected remove probe result');
+  }
+  const batch = await createBatch([fileEntry('wechat.csv', wechat)]);
+  const rows = [];
+  let cursor = null;
+  do {
+    const response = await call('GET', base + '/' + batch.batchId + '/rows?limit=100' + (cursor === null ? '' : '&cursor=' + encodeURIComponent(cursor)));
+    const page = response.json(); rows.push(...page.items); cursor = page.nextCursor;
+  } while (cursor !== null);
+  const chosen = rows.filter(r => !r.existing && !r.ignored && r.amountCents > 0 && r.conflictKind === null && r.type === 0).slice(0, 2);
+  if (chosen.length !== 2) throw new Error('Two eligible synthetic expenses not found');
+  const suggestions = chosen.map((r, i) => ({ suggestionId: 'audit-entity-' + i, origin: 'server-fallback', name: 'audit suggestion ' + i, type: 0, parentId: null, relatedItemIds: [r.itemId] }));
+  db.prepare('UPDATE assistant_import_batches SET suggestions_json = ? WHERE id = ?').run(JSON.stringify(suggestions), batch.batchId);
+  for (const s of suggestions) db.prepare("INSERT OR REPLACE INTO assistant_import_batch_categories (batch_id, suggestion_id, origin, name, type, parent_id, related_item_ids_json) VALUES (?, ?, 'server-fallback', ?, 0, NULL, ?)").run(batch.batchId, s.suggestionId, s.name, JSON.stringify(s.relatedItemIds));
+  const current = (await call('GET', base + '/' + batch.batchId)).json().batch;
+  const proposedName = 'Audit Shared New Category';
+  const reviewPayload = { version: current.version, analysisRevision: current.analysis.analysisRevision, viewRevision: current.viewRevision, selectedItemIds: chosen.map(r=>r.itemId), categoryAssignments: Object.fromEntries(chosen.map((r,i)=>[r.itemId,{kind:'suggestion',suggestionId:suggestions[i].suggestionId}])), noteOverrides: {}, approvedCategories: suggestions.map(s=>({suggestionId:s.suggestionId,resolution:'create',reuseCategoryId:null,name:proposedName,type:0,parentId:null})), conflictDecisions: [] };
+  const review = await call('POST', base + '/' + batch.batchId + '/review', reviewPayload);
+  if (review.statusCode !== 200) throw new Error('Review failed: ' + review.body);
+  const reviewed = review.json();
+  const confirm = await call('POST', base + '/' + batch.batchId + '/confirm', { reviewToken: reviewed.reviewToken, expectedVersion: current.version, files: [{ fileIndex: 0, fileBase64: wechat.toString('base64') }] });
+  if (confirm.statusCode !== 200) throw new Error('Confirm failed: ' + confirm.body);
+  const confirmed = confirm.json();
+  checks.findings.push({ id: 'IMPORT-02', reviewStatus: review.statusCode, reviewCategoriesToCreate: reviewed.summary.categoriesToCreate, confirmStatus: confirm.statusCode, confirmation: confirmed.result, databaseCategoryCount: db.prepare('SELECT COUNT(*) AS c FROM categories WHERE name = ? AND deleted = 0').get(proposedName).c });
+  if (reviewed.summary.categoriesToCreate.length !== 2 || confirmed.result.categoriesCreated !== 1) throw new Error('Unexpected category count probe result');
+  const output = JSON.stringify(checks, null, 2);
+  writeFileSync(join(root, '.trellis/tasks/11-02-four-purpose-only-finance/research/evidence-2026-11-03/import-edge-probes.json'), output + '\n');
+  console.log(output);
+} finally {
+  await app.close(); closeDatabase(db);
+}

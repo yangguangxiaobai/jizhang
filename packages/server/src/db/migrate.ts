@@ -33,6 +33,8 @@ import { MIGRATION_016_AI_ORGANIZATION_OPERATIONS } from './migrations/016-ai-or
 import { MIGRATION_017_AI_ORGANIZATION_PROGRESS } from './migrations/017-ai-organization-progress.js';
 import { MIGRATION_018_AI_ORGANIZATION_CHECKPOINTS } from './migrations/018-ai-organization-checkpoints.js';
 import { MIGRATION_019_FINANCIAL_EXECUTION } from './migrations/019-financial-execution.js';
+import { MIGRATION_020_MANUAL_GOAL_PROGRESS } from './migrations/020-manual-goal-progress.js';
+import { MIGRATION_021_FOUR_PURPOSE_FUNDS, backfillFourPurposeFunds } from './migrations/021-four-purpose-funds.js';
 
 export interface Migration {
   readonly version: number;
@@ -65,6 +67,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 17, name: 'ai-organization-progress', sql: MIGRATION_017_AI_ORGANIZATION_PROGRESS },
   { version: 18, name: 'ai-organization-checkpoints', sql: MIGRATION_018_AI_ORGANIZATION_CHECKPOINTS },
   { version: 19, name: 'financial-execution', sql: MIGRATION_019_FINANCIAL_EXECUTION },
+  { version: 20, name: 'manual-goal-progress', sql: MIGRATION_020_MANUAL_GOAL_PROGRESS },
+  { version: 21, name: 'four-purpose-funds', sql: MIGRATION_021_FOUR_PURPOSE_FUNDS, run: backfillFourPurposeFunds },
 ];
 
 interface AppliedRow {

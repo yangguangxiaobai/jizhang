@@ -70,7 +70,7 @@ The real reason lives only in the server log: `reason: 'no-user' | 'wrong-passwo
 | Mutating request without `X-Requested-With: fetch` | `403 CSRF_REQUIRED` | second layer behind `SameSite=Lax` |
 | **Unknown `/api/**` path while signed out** | **`401`, not 404** | a 401/404 difference would let anyone enumerate which routes exist on a public hostname |
 | Unknown `/api/**` path while signed in | `404 NOT_FOUND`, JSON | never the SPA shell |
-| Unknown non-API path | `index.html` | the client router owns those |
+| Root or unknown non-API path | `404 NOT_FOUND`, JSON | public Web hosting is retired |
 
 The guard runs *before* routing, which is what produces the third row. Do not "fix" it.
 
@@ -131,7 +131,13 @@ let it through.
 
 ---
 
-## Forbidden patterns
+## Merged import errors use dedicated stable codes within the existing envelope
+
+Batch errors still serialize as `{error:{code,message}}`; they do not create a second response shape. Observed codes include `ASSISTANT_INVALID`, `IMPORT_BATCH_LIMIT_EXCEEDED`, `IMPORT_BATCH_DUPLICATE_FILE`, `IMPORT_BATCH_FILE_FAILED`, `IMPORT_BATCH_IDENTITY_CONFLICT`, `IMPORT_BATCH_CATEGORY_REQUIRED`, `IMPORT_BATCH_CATEGORY_CONFLICT`, `IMPORT_BATCH_STALE_VERSION`, `IMPORT_BATCH_IDEMPOTENCY_MISMATCH`, `IMPORT_BATCH_ALREADY_CONFIRMED`, `ASSISTANT_ACTION_STALE`, `ASSISTANT_NOT_FOUND`, and `ASSISTANT_GENERATION_ACTIVE`. Exact route/condition matrix and status behavior are recorded in [Merged Bill Import](./merged-bill-import.md).
+
+Specific boundaries: a failed file remains inspectable but blocks review/confirm until explicitly removed/replaced; a live-view/ledger change is stale rather than a silent skip; limits reject the whole input rather than truncate; no internal stack or raw provider response belongs in the wire error.
+
+
 
 - `reply.status(500).send({ error: error.message })` — leaks internals.
 - Inventing a second error body shape (`{ message: ... }`, `{ error: "..." }`).
@@ -151,3 +157,6 @@ let it through.
   that loses its meaning fails the suite.
 - The `401`-not-`404` behaviour for an unknown `/api` path is asserted, so nobody
   "corrects" it into an enumeration surface.
+
+## Assistant generation SSE exception
+Generation events use authenticated text/event-stream; errors before headers retain JSON contract, after headers are durable safe terminal events. A transport disconnect is not a successful response or instruction to rerun the model. See [Assistant streaming](./assistant-streaming.md).

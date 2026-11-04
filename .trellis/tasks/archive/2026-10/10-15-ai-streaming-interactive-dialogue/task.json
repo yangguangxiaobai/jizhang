@@ -1,0 +1,39 @@
+{
+  "id": "ai-streaming-interactive-dialogue",
+  "name": "ai-streaming-interactive-dialogue",
+  "title": "AI流式对话、可点击追问与明确状态反馈",
+  "description": "真实流式输出、结构化追问选项卡片、明确回答终态；保留人工确认账务保护",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-15",
+  "completedAt": "2026-10-17",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "archiveClosure": {
+      "reason": "user_requested_administrative_archive",
+      "acceptance": "partial",
+      "coreFunctionalSuites": "passed_with_scoped_evidence",
+      "codeCommitted": false,
+      "closureDocument": "archive-status.md",
+      "unresolved": [
+        "recorded INVALID_ENVELOPE failure",
+        "recorded 20-second TTFT timeout",
+        "large-font/weak-network/extended-scroll verification incomplete"
+      ]
+    }
+  }
+}

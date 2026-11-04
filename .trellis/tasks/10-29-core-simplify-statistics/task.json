@@ -1,0 +1,61 @@
+{
+  "id": "core-simplify-statistics",
+  "name": "core-simplify-statistics",
+  "title": "费用统计与月末复盘精简",
+  "description": "统一统计金额名称与日期范围，提供分类到账单的查看路径和简洁月末复盘。",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": "statistics",
+  "package": null,
+  "priority": "P1",
+  "creator": "yansuu1",
+  "assignee": "yansuu1",
+  "createdAt": "2026-10-29",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "10-29-core-finance-simplification",
+  "relatedFiles": [
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/StatsTab.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/Charts.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDetailScreen.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionMonthLoader.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/BudgetRepository.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/repo/LedgerRepository.kt",
+    "packages/server/src/routes/stats.ts",
+    "packages/server/src/services/stats-service.ts",
+    "packages/shared/src/date-utils.ts",
+    "packages/shared/src/index.ts",
+    "packages/shared/src/stats-window.ts",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDrilldownScreen.kt",
+    "clients/android/app/src/main/java/com/yansuu1/jizhang/ui/TransactionDrilldownQuery.kt"
+  ],
+  "notes": "",
+  "meta": {
+    "requirements": [
+      "F06",
+      "F07"
+    ],
+    "depends_on": [
+      "C1",
+      "C2"
+    ],
+    "acceptance_ids": [
+      "C3-01",
+      "C3-02",
+      "C3-03",
+      "C3-04",
+      "C3-05",
+      "C3-06",
+      "C3-07"
+    ],
+    "planning_version": "2026-10-29",
+    "implementation_approved": true,
+    "parent_plan": "docs/superpowers/plans/2026-10-29-core-finance-simplification.md"
+  }
+}

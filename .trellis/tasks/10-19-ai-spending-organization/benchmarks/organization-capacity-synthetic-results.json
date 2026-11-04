@@ -1,0 +1,176 @@
+{
+  "harness": "synthetic-only-no-network-no-db-no-real-ledger",
+  "node": "v24.14.0",
+  "provisionalProposal": {
+    "cap": 500,
+    "batchSize": 25
+  },
+  "mockLatencyMs": 8,
+  "injectedFailureBatch": null,
+  "cases": [
+    {
+      "eligible": 1,
+      "accepted": true,
+      "batchSize": 25,
+      "batchCount": 1,
+      "providerCalls": 1,
+      "requestBytes": {
+        "total": 409,
+        "max": 409
+      },
+      "responseBytes": {
+        "total": 81,
+        "max": 81
+      },
+      "processed": 1,
+      "coverageComplete": true,
+      "cardPublished": true,
+      "elapsedMs": 19.79,
+      "mockLatencyPerCallMs": 8,
+      "heapDeltaBytes": 25008,
+      "rssDeltaBytes": 77824
+    },
+    {
+      "eligible": 24,
+      "accepted": true,
+      "batchSize": 25,
+      "batchCount": 1,
+      "providerCalls": 1,
+      "requestBytes": {
+        "total": 8862,
+        "max": 8862
+      },
+      "responseBytes": {
+        "total": 1645,
+        "max": 1645
+      },
+      "processed": 24,
+      "coverageComplete": true,
+      "cardPublished": true,
+      "elapsedMs": 14.95,
+      "mockLatencyPerCallMs": 8,
+      "heapDeltaBytes": 38728,
+      "rssDeltaBytes": 0
+    },
+    {
+      "eligible": 25,
+      "accepted": true,
+      "batchSize": 25,
+      "batchCount": 1,
+      "providerCalls": 1,
+      "requestBytes": {
+        "total": 9229,
+        "max": 9229
+      },
+      "responseBytes": {
+        "total": 1713,
+        "max": 1713
+      },
+      "processed": 25,
+      "coverageComplete": true,
+      "cardPublished": true,
+      "elapsedMs": 15.38,
+      "mockLatencyPerCallMs": 8,
+      "heapDeltaBytes": 39128,
+      "rssDeltaBytes": 16384
+    },
+    {
+      "eligible": 26,
+      "accepted": true,
+      "batchSize": 25,
+      "batchCount": 2,
+      "providerCalls": 2,
+      "requestBytes": {
+        "total": 9639,
+        "max": 9229
+      },
+      "responseBytes": {
+        "total": 1794,
+        "max": 1713
+      },
+      "processed": 26,
+      "coverageComplete": true,
+      "cardPublished": true,
+      "elapsedMs": 32.01,
+      "mockLatencyPerCallMs": 8,
+      "heapDeltaBytes": 44768,
+      "rssDeltaBytes": 45056
+    },
+    {
+      "eligible": 200,
+      "accepted": true,
+      "batchSize": 25,
+      "batchCount": 8,
+      "providerCalls": 8,
+      "requestBytes": {
+        "total": 74044,
+        "max": 9277
+      },
+      "responseBytes": {
+        "total": 13704,
+        "max": 1713
+      },
+      "processed": 200,
+      "coverageComplete": true,
+      "cardPublished": true,
+      "elapsedMs": 123.32,
+      "mockLatencyPerCallMs": 8,
+      "heapDeltaBytes": 344280,
+      "rssDeltaBytes": 323584
+    },
+    {
+      "eligible": 499,
+      "accepted": true,
+      "batchSize": 25,
+      "batchCount": 20,
+      "providerCalls": 20,
+      "requestBytes": {
+        "total": 184904,
+        "max": 9277
+      },
+      "responseBytes": {
+        "total": 34192,
+        "max": 1713
+      },
+      "processed": 499,
+      "coverageComplete": true,
+      "cardPublished": true,
+      "elapsedMs": 306.99,
+      "mockLatencyPerCallMs": 8,
+      "heapDeltaBytes": -232832,
+      "rssDeltaBytes": 1634304
+    },
+    {
+      "eligible": 500,
+      "accepted": true,
+      "batchSize": 25,
+      "batchCount": 20,
+      "providerCalls": 20,
+      "requestBytes": {
+        "total": 185274,
+        "max": 9277
+      },
+      "responseBytes": {
+        "total": 34260,
+        "max": 1713
+      },
+      "processed": 500,
+      "coverageComplete": true,
+      "cardPublished": true,
+      "elapsedMs": 309,
+      "mockLatencyPerCallMs": 8,
+      "heapDeltaBytes": 246912,
+      "rssDeltaBytes": 233472
+    },
+    {
+      "eligible": 501,
+      "accepted": false,
+      "expected": "reject whole range before provider calls; no truncation or card",
+      "providerCalls": 0,
+      "cardPublished": false,
+      "elapsedMs": 0.02,
+      "heapDeltaBytes": 2544
+    }
+  ],
+  "interpretation": "Synthetic payload byte counts and local timings are not real-provider, deployment-heap, timeout, or production safety evidence."
+}
