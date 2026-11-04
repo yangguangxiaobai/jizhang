@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import Jizhang
 
 private struct AssistantTestCredentialStore: SessionCredentialStore {
@@ -24,15 +25,19 @@ private final class AssistantTestURLProtocol: URLProtocol {
 
     func respond(_ object: Any, status: Int = 200) {
         do {
-            guard let url = request.url,
-                  let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"]) else {
-                fail(URLError(.badURL)); return
-            }
             let data = try JSONSerialization.data(withJSONObject: object)
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
-            client?.urlProtocolDidFinishLoading(self)
+            respond(data: data, contentType: "application/json", status: status)
         } catch { fail(error) }
+    }
+
+    func respond(data: Data, contentType: String, status: Int = 200) {
+        guard let url = request.url,
+              let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": contentType]) else {
+            fail(URLError(.badURL)); return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
     }
 
     func fail(_ error: Error) { client?.urlProtocol(self, didFailWithError: error) }
@@ -102,6 +107,74 @@ final class AssistantStateTests: XCTestCase {
     }
 
     @MainActor
+    func testPendingPostResumesTheReopenedThreadAndReleasesSupersededRead() async throws {
+        let postStarted = expectation(description: "Generation POST is held")
+        let reopenStarted = expectation(description: "Reopened A history is held")
+        let stateSettled = expectation(description: "Terminal generation and current history are applied")
+        let eventsRequested = expectation(description: "Current selection subscribes to accepted generation")
+        let lock = NSLock()
+        var aReads = 0
+        var pendingPost: AssistantTestURLProtocol?
+        var pendingRead: AssistantTestURLProtocol?
+        AssistantTestURLProtocol.configure { transport in
+            let path = transport.request.url?.path ?? ""
+            if transport.request.httpMethod == "POST" {
+                lock.lock(); pendingPost = transport; lock.unlock()
+                postStarted.fulfill()
+            } else if path.hasSuffix("/events") {
+                eventsRequested.fulfill()
+                let event = #"{"version":1,"generationId":"g1","seq":1,"type":"terminal","status":"completed","outcome":"answer","messageIds":[],"error":null}"#
+                transport.respond(data: Data("id: 1\nevent: terminal\ndata: \(event)\n\n".utf8), contentType: "text/event-stream")
+            } else if path.hasSuffix("/a/messages") {
+                lock.lock(); aReads += 1; let number = aReads
+                if number == 2 { pendingRead = transport }
+                lock.unlock()
+                if number == 2 { reopenStarted.fulfill() }
+                else {
+                    transport.respond(Self.history("a", text: number == 1 ? "before" : "current-A"))
+                }
+            } else if path.hasSuffix("/b/messages") { transport.respond(Self.history("b", text: "only-B")) }
+            else { transport.respond(["items": []]) }
+        }
+        let api = try makeClient(); defer { api.invalidate() }
+        let store = AssistantStore(api: api)
+        var observedSettledState = false
+        let observation = store.$threads.sink { threads in
+            guard !observedSettledState, let thread = threads["a"], !thread.loading,
+                  thread.generation?.status == .completed,
+                  thread.history.first?.content.text == "current-A" else { return }
+            observedSettledState = true
+            stateSettled.fulfill()
+        }
+        defer { observation.cancel() }
+        await store.open("a")
+        store.setDraft("查预算", for: "a")
+        let send = Task { await store.sendText(in: "a") }
+        await fulfillment(of: [postStarted], timeout: 3)
+        store.leave("a")
+        await store.open("b")
+        let reopen = Task { await store.open("a") }
+        await fulfillment(of: [reopenStarted], timeout: 3)
+        lock.lock(); let heldPost = pendingPost; let heldRead = pendingRead; lock.unlock()
+        heldPost?.respond(["created": true, "generation": [
+            "version": 1, "id": "g1", "conversationId": "a", "userMessageId": "u1", "userMessage": NSNull(),
+            "status": "accepted", "delivery": "stream", "lastSeq": 0, "createdAt": 1_000, "updatedAt": 1_000,
+            "partialMessages": [], "messageIds": [], "messages": [], "outcome": NSNull(), "error": NSNull()
+        ]])
+        await send.value
+        await fulfillment(of: [eventsRequested, stateSettled], timeout: 3)
+        heldRead?.respond(Self.history("a", text: "stale-A"))
+        await reopen.value
+        XCTAssertEqual(store.selectedID, "a")
+        XCTAssertFalse(store.thread("a").loading)
+        XCTAssertFalse(store.thread("a").composerLocked)
+        XCTAssertEqual(store.thread("a").generation?.status, .completed)
+        XCTAssertEqual(store.thread("a").draft, "")
+        XCTAssertEqual(store.thread("a").messages.map { $0.content.text }, ["current-A"])
+        XCTAssertEqual(store.thread("b").messages.map { $0.content.text }, ["only-B"])
+    }
+
+    @MainActor
     func testUncertainSendOnlyRetriesExplicitlyWithOriginalID() async throws {
         let lock = NSLock()
         var bodies: [[String: Any]] = []
@@ -130,6 +203,9 @@ final class AssistantStateTests: XCTestCase {
         XCTAssertEqual(countAfterFailure, 1)
         store.setDraft("不应该替换未知请求", for: "a")
         XCTAssertEqual(store.thread("a").draft, "查预算")
+        store.leave("a")
+        await store.open("a")
+        XCTAssertNotNil(store.thread("a").notice, "Reopening must retain the explicit retry action for an uncertain POST")
         await store.retrySubmission(in: "a")
         lock.lock(); let sentBodies = bodies; lock.unlock()
         XCTAssertEqual(sentBodies.count, 2)
@@ -178,6 +254,57 @@ final class AssistantStateTests: XCTestCase {
         XCTAssertFalse(store.canAnswer(message, in: "a"))
         store.setDraft("可以继续输入", for: "a")
         XCTAssertEqual(store.thread("a").draft, "可以继续输入")
+    }
+
+    @MainActor
+    func testCreatedConversationSurvivesARefreshStartedDuringCreation() async throws {
+        try await assertListMutationWinsConcurrentRefresh(archiving: false)
+    }
+
+    @MainActor
+    func testArchivedConversationIsNotRestoredByAConcurrentRefresh() async throws {
+        try await assertListMutationWinsConcurrentRefresh(archiving: true)
+    }
+
+    @MainActor
+    private func assertListMutationWinsConcurrentRefresh(archiving: Bool) async throws {
+        let mutationStarted = expectation(description: "List mutation is held")
+        let refreshStarted = expectation(description: "Concurrent list read is held")
+        let old: [String: Any] = ["id": "old", "title": "已有对话", "archived": false, "createdAt": 1_000, "updatedAt": 1_000]
+        let new: [String: Any] = ["id": "new", "title": "新对话", "archived": false, "createdAt": 2_000, "updatedAt": 2_000]
+        let lock = NSLock(); var listReads = 0
+        var pendingMutation: AssistantTestURLProtocol?
+        var pendingRefresh: AssistantTestURLProtocol?
+        AssistantTestURLProtocol.configure { transport in
+            if transport.request.httpMethod == "POST" || transport.request.httpMethod == "DELETE" {
+                lock.lock(); pendingMutation = transport; lock.unlock()
+                mutationStarted.fulfill()
+            } else {
+                lock.lock(); listReads += 1; let number = listReads
+                if number > 1 { pendingRefresh = transport }
+                lock.unlock()
+                if number == 1 { transport.respond(["items": [old]]) }
+                else { refreshStarted.fulfill() }
+            }
+        }
+        let api = try makeClient(); defer { api.invalidate() }
+        let store = AssistantStore(api: api)
+        await store.loadConversations()
+        let conversation = try XCTUnwrap(store.conversations.first)
+        let mutation = Task {
+            if archiving { await store.archive(conversation) }
+            else { _ = await store.createConversation() }
+        }
+        await fulfillment(of: [mutationStarted], timeout: 3)
+        let refresh = Task { await store.loadConversations() }
+        await fulfillment(of: [refreshStarted], timeout: 3)
+        lock.lock(); let heldMutation = pendingMutation; let heldRefresh = pendingRefresh; lock.unlock()
+        heldMutation?.respond(archiving ? ["ok": true] : new)
+        await mutation.value
+        heldRefresh?.respond(["items": [old]])
+        await refresh.value
+        XCTAssertEqual(store.conversations.map(\.id), archiving ? [] : ["new", "old"])
+        XCTAssertFalse(store.loadingList)
     }
 }
 

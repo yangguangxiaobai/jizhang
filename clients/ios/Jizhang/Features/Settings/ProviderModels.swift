@@ -74,19 +74,24 @@ struct ProviderDraft: Equatable {
 
     static func normalizedURL(_ value: String, mode: String) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var components = URLComponents(string: trimmed),
+        let sample = trimmed.replacingOccurrences(of: #"\{\{([A-Za-z][A-Za-z0-9_]*)\}\}"#,
+                                                 with: "template-value", options: .regularExpression)
+        guard trimmed.utf16.count <= 2_000, let components = URLComponents(string: sample),
               let scheme = components.scheme?.lowercased(), ["https", "http"].contains(scheme),
               components.host?.isEmpty == false, components.user == nil, components.password == nil,
               components.fragment == nil else { throw ProviderValidationError.address }
-        if mode != "custom" {
-            let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            let suffix = mode == "responses" ? "responses" : "chat/completions"
-            if path.isEmpty { components.path = "/v1/" + suffix }
-            else if path.lowercased().hasSuffix("/v1") || path.lowercased() == "v1" { components.path = "/" + path + "/" + suffix }
-            // An arbitrary non-standard endpoint may already be complete. Preserve it.
-        }
-        guard let normalized = components.string else { throw ProviderValidationError.address }
-        return normalized
+        // URLComponents.string percent-encodes the backend's literal {{model}}/{{input}}
+        // variables. Validate a substituted sample but retain the original template text.
+        guard mode != "custom" else { return trimmed }
+        let path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let suffix = mode == "responses" ? "responses" : "chat/completions"
+        let addition: String
+        if path.isEmpty { addition = "/v1/" + suffix }
+        else if path.lowercased().hasSuffix("/v1") || path.lowercased() == "v1" { addition = "/" + suffix }
+        else { return trimmed }
+        let queryIndex = trimmed.firstIndex(of: "?") ?? trimmed.endIndex
+        let base = String(trimmed[..<queryIndex]).replacingOccurrences(of: #"/+$"#, with: "", options: .regularExpression)
+        return base + addition + String(trimmed[queryIndex...])
     }
 
     func hasSameConnection(as saved: ProviderDraft) -> Bool {
@@ -103,11 +108,12 @@ struct ProviderDraft: Equatable {
             responsePath = mode == "responses" ? "output_text" : (mode == "custom" ? "" : "choices[0].message.content")
         }
         if mode != "custom" { method = "POST" }
-        if old != "custom", mode != "custom", var components = URLComponents(string: url) {
+        if old != "custom", mode != "custom" {
             let oldSuffix = old == "responses" ? "/responses" : "/chat/completions"
-            if components.path.hasSuffix(oldSuffix) {
-                components.path = String(components.path.dropLast(oldSuffix.count)) + (mode == "responses" ? "/responses" : "/chat/completions")
-                url = components.string ?? url
+            let queryIndex = url.firstIndex(of: "?") ?? url.endIndex
+            let base = String(url[..<queryIndex])
+            if base.hasSuffix(oldSuffix) {
+                url = String(base.dropLast(oldSuffix.count)) + (mode == "responses" ? "/responses" : "/chat/completions") + String(url[queryIndex...])
             }
         }
     }

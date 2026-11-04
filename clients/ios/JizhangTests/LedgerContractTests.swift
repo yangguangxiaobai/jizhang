@@ -30,7 +30,7 @@ final class LedgerContractTests: XCTestCase {
         let values = Dictionary(uniqueKeysWithValues: pairs.map { ($0.name, $0.value ?? "") })
         XCTAssertEqual(url.path, "/transactions")
         XCTAssertEqual(pairs.count, 7)
-        XCTAssertEqual(values["q"], "早餐 + 咖啡&茶")
+        XCTAssertEqual(values["search"], "早餐 + 咖啡&茶")
         XCTAssertEqual(values["accountId"], "a/1?")
         XCTAssertEqual(values["categoryId"], "c&2")
         XCTAssertEqual(values["tag"], "A+B")
@@ -38,7 +38,7 @@ final class LedgerContractTests: XCTestCase {
         XCTAssertEqual(values["offset"], "50")
         XCTAssertTrue(path.contains("%2B"))
         XCTAssertFalse(path.contains("+"))
-        XCTAssertFalse(LedgerBillQuery(text: " \n ").path().contains("q="))
+        XCTAssertFalse(LedgerBillQuery(text: " \n ").path().contains("search="))
     }
 
     func testPathSegmentCannotTurnAnIdentifierIntoAnotherRoute() {
@@ -61,7 +61,7 @@ final class LedgerContractTests: XCTestCase {
         let page = try decode(LedgerTransactionPage.self, """
         {"items":[\(Self.refund)],"total":51,"limit":50,"offset":50,"searchVersion":1,"searchRevision":"revision-a"}
         """)
-        XCTAssertNoThrow(try page.validate(expectedOffset: 50, expectedLimit: 50))
+        XCTAssertNoThrow(try page.validate(expectedOffset: 50, expectedLimit: 50, requiresSearch: true))
         XCTAssertThrowsError(try page.validate(expectedOffset: 0, expectedLimit: 50))
         let duplicate = try decode(LedgerTransactionPage.self, """
         {"items":[\(Self.refund),\(Self.refund)],"total":2,"limit":50,"offset":0}
@@ -71,6 +71,11 @@ final class LedgerContractTests: XCTestCase {
         {"items":[\(Self.refund)],"total":0,"limit":50,"offset":0}
         """)
         XCTAssertThrowsError(try inconsistent.validate(expectedOffset: 0, expectedLimit: 50))
+        let oldServer = try decode(LedgerTransactionPage.self, """
+        {"items":[\(Self.refund)],"total":1,"limit":50,"offset":0}
+        """)
+        XCTAssertNoThrow(try oldServer.validate(expectedOffset: 0, expectedLimit: 50))
+        XCTAssertThrowsError(try oldServer.validate(expectedOffset: 0, expectedLimit: 50, requiresSearch: true))
     }
 
     func testBalanceResponseKeepsServerTotalsAndMissingMoneyFails() throws {

@@ -79,6 +79,16 @@ final class ProviderSettingsTests: XCTestCase {
         XCTAssertThrowsError(try ProviderDraft.normalizedURL("https://example.com/#fragment", mode: "chat-completions"))
     }
 
+    func testTemplateURLSurvivesAnUnrelatedBasicEdit() throws {
+        let saved = try configuration(mode: "custom", template: "{\"input\":\"{{input}}\"}")
+        var draft = ProviderDraft(saved)
+        draft.url = "https://example.com/run?model={{model}}&input={{input}}&route=a%2Fb"
+        draft.model = "replacement-model"
+        XCTAssertEqual(try draft.payload(saved: saved)["url"].stringValue, draft.url)
+        XCTAssertEqual(try ProviderDraft.normalizedURL("https://example.com/v1?model={{model}}", mode: "responses"),
+                       "https://example.com/v1/responses?model={{model}}")
+    }
+
     func testModelOnlyEditDoesNotInvalidateSavedConnection() throws {
         let saved = ProviderDraft(try configuration())
         var draft = saved; draft.model = "new-model"

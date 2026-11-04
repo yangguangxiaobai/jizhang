@@ -11,11 +11,13 @@ struct LedgerPage<Item: Decodable>: Decodable {
 enum LedgerDataError: LocalizedError {
     case invalidResponse
     case changedPage
+    case unsupportedSearch
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse: return "服务器返回的数据不完整，请刷新重试。"
         case .changedPage: return "账单数据已变化，请下拉刷新后继续浏览。"
+        case .unsupportedSearch: return "当前服务器尚不支持完整账单搜索，请升级服务后重试。仍可清空搜索并按账户、分类浏览。"
         }
     }
 }
@@ -176,7 +178,7 @@ struct LedgerBillQuery: Equatable, Hashable {
     func path(offset: Int = 0, limit: Int = 50) -> String {
         var values: [(String, String)] = [("limit", String(limit)), ("offset", String(offset))]
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { values.append(("q", trimmed)) }
+        if !trimmed.isEmpty { values.append(("search", trimmed)) }
         if let type { values.append(("type", String(type))) }
         if let accountId { values.append(("accountId", accountId)) }
         if let categoryId { values.append(("categoryId", categoryId)) }

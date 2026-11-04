@@ -59,6 +59,7 @@ final class AssistantStore: ObservableObject {
     @Published private(set) var providerEnabled: Bool?
     private var listTicket = UUID()
     private var selectionTicket = UUID()
+    private var visibleConversationID: String?
     private var streamTask: Task<Void, Never>?
 
     init(api: APIClient) { self.api = api }
@@ -110,6 +111,8 @@ final class AssistantStore: ObservableObject {
         do {
             let conversation: AssistantConversation = try await api.request("/assistant/conversations", method: "POST")
             guard !conversation.id.isEmpty, !conversation.archived else { throw AssistantProtocolError.invalidSnapshot }
+            listTicket = UUID()
+            loadingList = false
             conversations.removeAll { $0.id == conversation.id }
             conversations.insert(conversation, at: 0)
             threads[conversation.id] = AssistantThread()
@@ -127,6 +130,8 @@ final class AssistantStore: ObservableObject {
         do {
             let result: JSONValue = try await api.request(AssistantPath.conversation(conversation.id), method: "DELETE")
             guard result["ok"].boolValue == true else { throw AssistantProtocolError.invalidSnapshot }
+            listTicket = UUID()
+            loadingList = false
             if selectedID == conversation.id { leave(conversation.id); selectedID = nil }
             conversations.removeAll { $0.id == conversation.id }
             threads.removeValue(forKey: conversation.id)
@@ -144,10 +149,15 @@ final class AssistantStore: ObservableObject {
         streamTask?.cancel()
         streamTask = nil
         selectedID = id
+        visibleConversationID = id
         let selection = UUID()
         selectionTicket = selection
         let read = UUID()
-        update(id) { $0.loading = true; $0.notice = nil; $0.readTicket = read; $0.reconnectNeeded = false }
+        update(id) {
+            $0.loading = true
+            if $0.pendingSubmission == nil { $0.notice = nil }
+            $0.readTicket = read; $0.reconnectNeeded = false
+        }
         defer {
             if accepts(id, selection), threads[id]?.readTicket == read { update(id) { $0.loading = false } }
         }
@@ -171,8 +181,10 @@ final class AssistantStore: ObservableObject {
     }
 
     func leave(_ id: String) {
-        guard selectedID == id else { return }
+        guard visibleConversationID == id else { return }
+        visibleConversationID = nil
         selectionTicket = UUID()
+        update(id) { $0.loading = false; $0.readTicket = UUID() }
         streamTask?.cancel()
         streamTask = nil
     }
@@ -210,10 +222,11 @@ final class AssistantStore: ObservableObject {
 
     private func submit(_ submission: AssistantSubmission, in id: String) async {
         guard !thread(id).sending else { return }
-        streamTask?.cancel()
-        streamTask = nil
-        let selection = UUID()
-        if selectedID == id { selectionTicket = selection }
+        if visibleConversationID == id {
+            streamTask?.cancel()
+            streamTask = nil
+            selectionTicket = UUID()
+        }
         update(id) {
             $0.readTicket = UUID(); $0.loading = false; $0.sending = true
             $0.pendingSubmission = submission; $0.notice = nil; $0.reconnectNeeded = false
@@ -231,15 +244,19 @@ final class AssistantStore: ObservableObject {
                 $0.pendingSubmission = nil
                 $0.sending = false
                 $0.readTicket = UUID()
+                $0.loading = false
                 if let text = submission.draftText, $0.draft == text {
                     $0.draft = ""; $0.draftRequestID = UUID().uuidString
                 }
             }
             // Responses are cached only in their owning thread; selecting another chat never
             // installs this result into that chat or starts an unwanted subscription there.
-            if accepts(id, selection) {
+            // The user may have left and reopened this thread while POST was pending.
+            // Continue with its current visible selection, never the submitting screen's token.
+            if visibleConversationID == id {
+                let selection = selectionTicket
                 if thread(id).isGenerating { listen(id, selection: selection) }
-                else { await refreshHistory(id, selection: selection) }
+                await refreshHistory(id, selection: selection)
             }
         } catch {
             guard threads[id]?.pendingSubmission?.requestID == submission.requestID else { return }
@@ -247,7 +264,7 @@ final class AssistantStore: ObservableObject {
                 // A rejected choice/request did not create a turn. Keeping it as an uncertain
                 // submission would lock the composer into retrying the same stale choice forever.
                 update(id) { $0.pendingSubmission = nil; $0.sending = false }
-                if accepts(id, selection), apiError.status == 409 {
+                if visibleConversationID == id, apiError.status == 409 {
                     await open(id)
                 }
                 update(id) { $0.notice = apiError.localizedDescription }
@@ -259,19 +276,20 @@ final class AssistantStore: ObservableObject {
 
     func stop(in id: String) async {
         guard let generation = thread(id).generation, !generation.status.isTerminal, !thread(id).stopping else { return }
-        streamTask?.cancel()
-        streamTask = nil
-        let selection = UUID()
-        if selectedID == id { selectionTicket = selection }
-        update(id) { $0.stopping = true; $0.readTicket = UUID(); $0.notice = nil }
+        if visibleConversationID == id {
+            streamTask?.cancel()
+            streamTask = nil
+            selectionTicket = UUID()
+        }
+        update(id) { $0.stopping = true; $0.loading = false; $0.readTicket = UUID(); $0.notice = nil }
         defer { update(id) { $0.stopping = false } }
         do {
             let response: AssistantGenerationResponse = try await api.request(AssistantPath.conversation(id) + "/generations/\(AssistantPath.segment(generation.id))/cancel", method: "POST")
             try response.generation.validate(conversation: id, generation: generation.id)
             guard threads[id]?.generation?.id == generation.id else { return }
             try install(response.generation, conversation: id)
-            update(id) { $0.reconnectNeeded = false }
-            if accepts(id, selection) { await refreshHistory(id, selection: selection) }
+            update(id) { $0.reconnectNeeded = false; $0.loading = false; $0.readTicket = UUID() }
+            if visibleConversationID == id { await refreshHistory(id, selection: selectionTicket) }
         } catch {
             update(id) { $0.notice = "停止结果需要核对，请刷新对话。"; $0.reconnectNeeded = true }
         }
@@ -280,7 +298,7 @@ final class AssistantStore: ObservableObject {
     func reconnect(in id: String) async { await open(id) }
 
     private func accepts(_ id: String, _ selection: UUID) -> Bool {
-        selectedID == id && selectionTicket == selection
+        visibleConversationID == id && selectedID == id && selectionTicket == selection
     }
 
     private func install(_ snapshot: AssistantGenerationSnapshot, conversation id: String) throws {
@@ -302,13 +320,16 @@ final class AssistantStore: ObservableObject {
     }
 
     private func refreshHistory(_ id: String, selection: UUID) async {
+        guard accepts(id, selection) else { return }
+        let read = UUID()
+        update(id) { $0.readTicket = read }
         do {
             let response: AssistantItems<AssistantMessage> = try await api.request(AssistantPath.conversation(id) + "/messages")
-            guard accepts(id, selection), !Task.isCancelled else { return }
+            guard accepts(id, selection), threads[id]?.readTicket == read, !Task.isCancelled else { return }
             try validateHistory(response.items, conversation: id)
             update(id) { $0.history = response.items; $0.loaded = true }
         } catch {
-            guard accepts(id, selection), !Task.isCancelled else { return }
+            guard accepts(id, selection), threads[id]?.readTicket == read, !Task.isCancelled else { return }
             update(id) { $0.notice = "回复已保留，历史同步失败，请刷新核对。" }
         }
     }

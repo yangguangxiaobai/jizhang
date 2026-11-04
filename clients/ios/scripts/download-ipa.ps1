@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)][long]$RunId,
-    [string]$Repository = 'zhangh0/jizhang',
+    [string]$Repository = 'yangguangxiaobai/jizhang',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '../build/downloads')
 )
 

@@ -36,7 +36,7 @@ import SwiftUI
         defer { if generation == ticket { loading = false } }
         do {
             let page: LedgerTransactionPage = try await api.request(query.path(limit: pageSize))
-            try page.validate(expectedOffset: 0, expectedLimit: pageSize)
+            try page.validate(expectedOffset: 0, expectedLimit: pageSize, requiresSearch: !query.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             let metadata = try await LedgerMetadata.load(api: api)
             guard generation == ticket, !Task.isCancelled else { return }
             self.metadata = metadata
@@ -59,7 +59,7 @@ import SwiftUI
         defer { if generation == ticket { loadingMore = false } }
         do {
             let page: LedgerTransactionPage = try await api.request(query.path(offset: offset, limit: pageSize))
-            try page.validate(expectedOffset: offset, expectedLimit: pageSize)
+            try page.validate(expectedOffset: offset, expectedLimit: pageSize, requiresSearch: !query.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             guard generation == ticket, !Task.isCancelled else { return }
             guard page.total == total, page.searchRevision == revision,
                   !page.items.isEmpty,
@@ -79,9 +79,13 @@ struct LedgerTransactionPage: Decodable {
     let total: Int
     let limit: Int
     let offset: Int
+    let searchVersion: Int?
     let searchRevision: String?
 
-    func validate(expectedOffset: Int, expectedLimit: Int) throws {
+    func validate(expectedOffset: Int, expectedLimit: Int, requiresSearch: Bool = false) throws {
+        if requiresSearch {
+            guard searchVersion == 1, let searchRevision, !searchRevision.isEmpty else { throw LedgerDataError.unsupportedSearch }
+        }
         guard offset == expectedOffset, limit == expectedLimit, total >= 0,
               offset >= 0, offset <= total, items.count <= limit, items.count <= total - offset,
               Set(items.map(\.id)).count == items.count else { throw LedgerDataError.invalidResponse }

@@ -36,6 +36,7 @@ jobs:
           path: clients/ios/build/artifacts/
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
       - name: Upload test and build diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -46,3 +47,4 @@ jobs:
             clients/ios/build/TestResults.xcresult/
           if-no-files-found: warn
           retention-days: 5
+          overwrite: true
