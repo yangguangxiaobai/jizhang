@@ -67,4 +67,5 @@ Check other domains' navigation, server totals and honest empty/error/unavailabl
 - Build fork: `https://github.com/yangguangxiaobai/jizhang`, verified upstream `yansuui/jizhang`, authenticated push access; source remote remains unchanged.
 - Work branch: `feat/ios-assistant`.
 - First native run: `41818117814`, Xcode 16.4 on macOS 15. Project/plist validation and application compilation passed. XCTest compilation found one ambiguous fixture expression in `AssistantStateTests`; correction and rerun required before IPA delivery.
+- Second native run: `41818561128`, commit `bc04ea6`. All 77 XCTest cases passed (0 failures), including the three simulator screen captures. Unsigned iPhone Release compilation passed. Packaging then exposed incorrect `lipo -verify_arch` argument ordering; corrected to place the binary before the option. End-to-end artifact delivery still requires a successful rerun.
 - Sideloadly inspection: existing `D:/Sideloadly/Sideloadly.exe`, v0.72. Device list currently reports `<no devices detected>`; no installation is claimed.

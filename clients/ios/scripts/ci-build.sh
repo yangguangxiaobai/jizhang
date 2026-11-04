@@ -23,7 +23,7 @@ xcodebuild -project Jizhang.xcodeproj -scheme Jizhang -configuration Release \
 
 app_path="$PWD/build/DeviceDerived/Build/Products/Release-iphoneos/Jizhang.app"
 test -f "$app_path/Jizhang"
-lipo -verify_arch arm64 "$app_path/Jizhang"
+lipo "$app_path/Jizhang" -verify_arch arm64
 mkdir -p build/package/Payload
 ditto "$app_path" build/package/Payload/Jizhang.app
 ditto -c -k --keepParent build/package/Payload build/artifacts/Jizhang-unsigned.ipa
