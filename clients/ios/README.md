@@ -4,7 +4,7 @@ Native SwiftUI client for iOS 17 and later. It uses the same authenticated Fasti
 
 ## Build and install from Windows
 
-The GitHub workflow [iOS build and IPA](../../.github/workflows/ios.yml) uses a macOS 15 runner with Xcode 16.4. It runs XCTest on an available iPhone simulator, builds the device app for arm64, and packages an unsigned IPA. Apple ID credentials and signing certificates are not required by CI.
+The GitHub workflow [iOS build and IPA](../../.github/workflows/ios.yml) uses a macOS 15 Intel runner with Xcode 16.4. It runs XCTest on an available iPhone simulator, builds the device app for arm64, and packages an unsigned IPA. Apple ID credentials and signing certificates are not required by CI.
 
 1. Push the iOS source and workflow to your GitHub repository. The workflow runs on iOS changes; it also supports manual dispatch.
 2. Wait for a successful run. Download its `Jizhang-ios-<run number>` artifact, containing `Jizhang-unsigned.ipa`, `SHA256SUMS.txt`, `build-metadata.json`, and a real simulator launch screenshot.
