@@ -71,3 +71,4 @@ Check other domains' navigation, server totals and honest empty/error/unavailabl
 - Sideloadly inspection: existing `D:/Sideloadly/Sideloadly.exe`, v0.72. Device list currently reports `<no devices detected>`; no installation is claimed.
 - The user then explicitly deferred connecting the iPhone and requested the IPA first. Continue packaging; physical installation remains a later step.
 - Run `41819379635` remained queued for macOS arm64 capacity. Switch the workflow to the documented `macos-15-intel` pool, retaining Xcode 16.4 and arm64 device output.
+- Final run `41819877293`, commit `e8734cc`, succeeded: all 77 tests, simulator launch, Release arm64 device compilation, packaging and artifact upload. Download/hash/commit/ZIP/Mach-O checks passed locally. See [delivery.md](delivery.md) for the exact ready IPA, SHA-256, inspected screenshots and remaining device checks.

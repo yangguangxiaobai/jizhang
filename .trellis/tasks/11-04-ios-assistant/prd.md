@@ -14,11 +14,11 @@ The user accepted proceeding on 2026-11-04 and directed GitHub compilation follo
 - Discovery requires saved credentials. Initial setup currently requires disabled-AI connection saving, model selection and another save: clients/android/app/src/main/java/com/yansuu1/jizhang/ui/ProviderSettings.kt:636 and :705; packages/server/src/routes/ai.ts:68.
 - This workstation is Windows with no swift or xcodebuild. Apple build/device evidence cannot be inferred from Windows source checks.
 
-## Proposed requirements
+## Confirmed requirements
 
 | ID | Requirement |
 |---|---|
-| R1 | Native SwiftUI iPhone app, proposed iOS 17 minimum, Chinese interface, Xcode project and existing backend login/server configuration. |
+| R1 | Native SwiftUI iPhone app, iOS 17 minimum, Chinese interface, Xcode project and existing backend login/server configuration. |
 | R2 | Home, Bills, Plan, Assistant and My navigation; native back, safe areas, Dynamic Type, dark mode and keyboard-aware layout. |
 | R3 | Full-width conversation rows, two-line titles, update time, selection, title search, date grouping, refresh, new conversation and explicit archive; distinct loading/empty/error states. |
 | R4 | Functional text chat: history, real incremental replies where supported, Stop, clarification choices, per-conversation drafts, snapshot recovery and history-friendly scrolling. |
@@ -31,14 +31,16 @@ R7 interprets “其他功能就先展示” as read-only presentation, not comp
 
 ## Acceptance criteria
 
-- [ ] A1 (R1–R2): Runnable Xcode scheme, login/server configuration and five native destinations; actual build status reported separately.
-- [ ] A2 (R3): Readable long-title/list/error layouts and working create/select/refresh/archive API calls.
-- [ ] A3 (R4): A → B → A rejects stale/cross-conversation results; final messages replace provisional messages; reconnect never automatically sends another prompt.
+- [x] A1 (R1–R2): Runnable Xcode scheme, login/server configuration and five native destinations; actual build status reported separately.
+- [x] A2 (R3): Readable long-title/list/error layouts and working create/select/refresh/archive API calls.
+- [x] A3 (R4): A → B → A rejects stale/cross-conversation results; final messages replace provisional messages; reconnect never automatically sends another prompt.
 - [ ] A4 (R4): Reading history does not force scrolling; keyboard leaves composer usable; Stop/clarification cannot double-submit.
-- [ ] A5 (R5): First setup supports manual model input or explicit connection-save/discovery. Only three primary fields; selecting a model edits the draft only.
-- [ ] A6 (R6): Blank key preserves secret; hidden custom fields survive edits; failed discovery preserves model; enabled is never mislabelled tested.
-- [ ] A7 (R7): Other pages display server values without alternate accounting arithmetic or simulated writes. AI drafts do not silently confirm transactions.
-- [ ] A8 (R8): Meaningful transport/state/decoding tests and honest build/device evidence.
+- [x] A5 (R5): First setup supports manual model input or explicit connection-save/discovery. Only three primary fields; selecting a model edits the draft only.
+- [x] A6 (R6): Blank key preserves secret; hidden custom fields survive edits; failed discovery preserves model; enabled is never mislabelled tested.
+- [x] A7 (R7): Other pages display server values without alternate accounting arithmetic or simulated writes. AI drafts do not silently confirm transactions.
+- [x] A8 (R8): Meaningful transport/state/decoding tests and honest build/device evidence.
+
+The checked items have source and native fixture-test evidence, reconfirmed in successful run `41819877293` (77 passing tests), plus simulator/device compilation and inspected exported screenshots. A4's interactive keyboard/scroll behavior remains device acceptance. These checks do not claim a live-provider test or physical installation. The user subsequently requested the IPA first and will connect the iPhone later. See [delivery.md](delivery.md) for exact artifact and remaining checks.
 
 ## Deferred scope
 
