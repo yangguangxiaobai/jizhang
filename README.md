@@ -1,12 +1,14 @@
 # jizhang
 
-Single-user accounting with a native Kotlin/Compose Android client (also intended for HarmonyOS 4), a Fastify API and SQLite. The backend serves the API; this repository no longer contains the retired Web client.
+Single-user accounting with native Kotlin/Compose Android and SwiftUI iPhone clients, a Fastify API and SQLite. Android also targets HarmonyOS 4. The backend serves the API; this repository no longer contains the retired Web client.
 
 The existing server was previously recorded as running the older Web Docker image. Repository changes do **not** establish that production has been upgraded; server and device acceptance remain separate. See [DEPLOY.md](./DEPLOY.md) for delivery, existing-data migration and rollback.
 
 ## Features and contracts
 
 See [Android current feature inventory](./clients/android/README.md) for the maintained, source-backed page, field, action, API and known-gap catalogue. The [UI redesign plan](./clients/android/ui-redesign/README.md) describes intended design and is not proof of current implementation.
+
+The [iOS client](./clients/ios/README.md) prioritizes AI conversations and compact provider configuration, with read-only native presentation of the other accounting domains. Its GitHub macOS workflow tests and builds an unsigned IPA for local Sideloadly signing. iOS feature scope and validation are tracked separately from Android.
 
 - Transactions, refunds, accounts, tags, transfers and recycle bin.
 - Salary allocations, budget templates, historical cycles and carryover pool.
@@ -23,6 +25,7 @@ Money is integer cents; timestamps are epoch milliseconds. Server/shared owns al
 | Path                           | Responsibility                                              |
 | ------------------------------ | ----------------------------------------------------------- |
 | `clients/android/`             | Kotlin + Compose APK                                        |
+| `clients/ios/`                 | SwiftUI iPhone app, XCTest and unsigned IPA build            |
 | `clients/README.md`            | Client status and validation                                |
 | `packages/server/`             | Fastify API, SQLite, auth and maintenance CLI               |
 | `packages/shared/`             | Pure accounting/date/portability contracts                  |
@@ -61,6 +64,8 @@ pnpm --filter @jizhang/server build
 ```
 
 Android builds from `clients/android` using `gradlew.bat :app:assembleDebug :app:lintDebug` (Windows) or `./gradlew` (Linux/macOS). Release signing belongs to the owner; keep keys/secrets outside Git and Docker contexts. APK build success does not establish device usability.
+
+iOS builds in GitHub Actions or Xcode on a Mac. See [iOS build and installation](./clients/ios/README.md) for the exact workflow, artifact verification and local Sideloadly steps. Apple credentials stay on the signing computer. A successful IPA build is distinct from installation and device acceptance.
 
 ## Docker
 

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Separate source verification from native device acceptance"}
+{"file": ".trellis/spec/backend/assistant-streaming.md", "reason": "Request ownership, replay and message identity review"}

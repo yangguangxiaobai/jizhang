@@ -1,0 +1,370 @@
+import Foundation
+import Combine
+
+struct AssistantSubmission: Equatable {
+    let requestID: String
+    let input: JSONValue
+    let draftText: String?
+    var body: JSONValue { .object(["version": .integer(1), "clientRequestId": .string(requestID), "input": input]) }
+}
+
+struct AssistantThread {
+    var history: [AssistantMessage] = []
+    var generation: AssistantGenerationState?
+    var draft = ""
+    var draftRequestID = UUID().uuidString
+    var pendingSubmission: AssistantSubmission?
+    var sending = false
+    var stopping = false
+    var loading = false
+    var loaded = false
+    var reconnectNeeded = false
+    var notice: String?
+    var readTicket = UUID()
+
+    var messages: [AssistantMessage] { generation?.merged(with: history) ?? history.filter(\.isVisible) }
+    var isGenerating: Bool { generation.map { !$0.status.isTerminal } ?? false }
+    var composerLocked: Bool { loading || sending || stopping || isGenerating || pendingSubmission != nil }
+    var statusLabel: String? {
+        if sending { return "正在发送" }
+        if stopping { return "正在停止" }
+        if reconnectNeeded { return "连接已中断" }
+        guard let generation else { return nil }
+        switch generation.status {
+        case .accepted: return "正在连接 AI"
+        case .running: return generation.delivery == .stream ? "正在回复" : "正在准备完整回复"
+        case .completed:
+            switch generation.outcome {
+            case .awaitingChoice: return "等待你的选择"
+            case .pendingConfirmation: return "草案已生成，尚未执行"
+            default: return nil
+            }
+        case .cancelled: return "已停止回复"
+        case .interrupted: return "回复已中断"
+        case .failed: return "回复未完成"
+        }
+    }
+}
+
+@MainActor
+final class AssistantStore: ObservableObject {
+    let api: APIClient
+    @Published private(set) var conversations: [AssistantConversation] = []
+    @Published private(set) var threads: [String: AssistantThread] = [:]
+    @Published private(set) var selectedID: String?
+    @Published private(set) var loadingList = false
+    @Published private(set) var creating = false
+    @Published private(set) var archivingID: String?
+    @Published private(set) var listError: String?
+    @Published private(set) var providerEnabled: Bool?
+    private var listTicket = UUID()
+    private var selectionTicket = UUID()
+    private var streamTask: Task<Void, Never>?
+
+    init(api: APIClient) { self.api = api }
+    deinit { streamTask?.cancel() }
+
+    func thread(_ id: String) -> AssistantThread { threads[id] ?? AssistantThread() }
+
+    private func update(_ id: String, _ change: (inout AssistantThread) -> Void) {
+        var value = threads[id] ?? AssistantThread()
+        change(&value)
+        threads[id] = value
+    }
+
+    func loadConversations() async {
+        let ticket = UUID()
+        listTicket = ticket
+        loadingList = true
+        listError = nil
+        defer { if listTicket == ticket { loadingList = false } }
+        do {
+            let response: AssistantItems<AssistantConversation> = try await api.request("/assistant/conversations")
+            try Task.checkCancellation()
+            guard listTicket == ticket else { return }
+            guard response.items.allSatisfy({ !$0.id.isEmpty }), Set(response.items.map(\.id)).count == response.items.count else {
+                throw AssistantProtocolError.invalidSnapshot
+            }
+            conversations = response.items.filter { !$0.archived }.sorted { $0.updatedAt > $1.updatedAt }
+        } catch {
+            guard !Task.isCancelled, listTicket == ticket else { return }
+            listError = error.localizedDescription
+        }
+    }
+
+    func loadProviderStatus() async {
+        do {
+            let response: ProviderConfiguration = try await api.request("/ai/config")
+            try Task.checkCancellation()
+            providerEnabled = response.configured && response.enabled
+        } catch { if !Task.isCancelled { providerEnabled = nil } }
+    }
+
+    func createConversation() async -> AssistantConversation? {
+        guard !creating, archivingID == nil else { return nil }
+        creating = true
+        listError = nil
+        listTicket = UUID()
+        loadingList = false
+        defer { creating = false }
+        do {
+            let conversation: AssistantConversation = try await api.request("/assistant/conversations", method: "POST")
+            guard !conversation.id.isEmpty, !conversation.archived else { throw AssistantProtocolError.invalidSnapshot }
+            conversations.removeAll { $0.id == conversation.id }
+            conversations.insert(conversation, at: 0)
+            threads[conversation.id] = AssistantThread()
+            return conversation
+        } catch { listError = error.localizedDescription; return nil }
+    }
+
+    func archive(_ conversation: AssistantConversation) async {
+        guard archivingID == nil, !thread(conversation.id).sending else { return }
+        archivingID = conversation.id
+        listError = nil
+        listTicket = UUID()
+        loadingList = false
+        defer { archivingID = nil }
+        do {
+            let result: JSONValue = try await api.request(AssistantPath.conversation(conversation.id), method: "DELETE")
+            guard result["ok"].boolValue == true else { throw AssistantProtocolError.invalidSnapshot }
+            if selectedID == conversation.id { leave(conversation.id); selectedID = nil }
+            conversations.removeAll { $0.id == conversation.id }
+            threads.removeValue(forKey: conversation.id)
+        } catch { listError = error.localizedDescription }
+    }
+
+    func setDraft(_ text: String, for id: String) {
+        guard !thread(id).composerLocked else { return }
+        update(id) {
+            if $0.draft != text { $0.draft = text; $0.draftRequestID = UUID().uuidString }
+        }
+    }
+
+    func open(_ id: String) async {
+        streamTask?.cancel()
+        streamTask = nil
+        selectedID = id
+        let selection = UUID()
+        selectionTicket = selection
+        let read = UUID()
+        update(id) { $0.loading = true; $0.notice = nil; $0.readTicket = read; $0.reconnectNeeded = false }
+        defer {
+            if accepts(id, selection), threads[id]?.readTicket == read { update(id) { $0.loading = false } }
+        }
+        do {
+            let history: AssistantItems<AssistantMessage> = try await api.request(AssistantPath.conversation(id) + "/messages")
+            try Task.checkCancellation()
+            guard accepts(id, selection), threads[id]?.readTicket == read else { return }
+            try validateHistory(history.items, conversation: id)
+            update(id) { $0.history = history.items; $0.loaded = true }
+            let latest: AssistantItems<AssistantGenerationSnapshot> = try await api.request(AssistantPath.conversation(id) + "/generations?limit=1")
+            try Task.checkCancellation()
+            guard accepts(id, selection), threads[id]?.readTicket == read else { return }
+            guard latest.items.count <= 1 else { throw AssistantProtocolError.invalidSnapshot }
+            if let snapshot = latest.items.first { try install(snapshot, conversation: id) }
+            update(id) { $0.loading = false }
+            if thread(id).isGenerating { listen(id, selection: selection) }
+        } catch {
+            guard !Task.isCancelled, accepts(id, selection), threads[id]?.readTicket == read else { return }
+            update(id) { $0.notice = error.localizedDescription; $0.reconnectNeeded = $0.isGenerating }
+        }
+    }
+
+    func leave(_ id: String) {
+        guard selectedID == id else { return }
+        selectionTicket = UUID()
+        streamTask?.cancel()
+        streamTask = nil
+    }
+
+    func sendText(in id: String) async {
+        let current = thread(id)
+        let text = current.draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !current.composerLocked, !text.isEmpty else { return }
+        guard text.utf16.count <= 2_000 else { update(id) { $0.notice = "每条消息最多 2,000 字，请分段发送。" }; return }
+        let input: JSONValue = .object(["type": .string("text"), "text": .string(text)])
+        await submit(AssistantSubmission(requestID: current.draftRequestID, input: input, draftText: current.draft), in: id)
+    }
+
+    func canAnswer(_ message: AssistantMessage, in id: String) -> Bool {
+        let current = thread(id)
+        guard !current.composerLocked, let generation = current.generation,
+              generation.status == .completed, generation.outcome == .awaitingChoice,
+              message.content.generationId == generation.id,
+              message.content.clarification?.isValid == true else { return false }
+        return true
+    }
+
+    func answer(_ option: AssistantClarification.Option, message: AssistantMessage, in id: String) async {
+        guard canAnswer(message, in: id), let question = message.content.clarification,
+              let generationID = message.content.generationId else { return }
+        let input: JSONValue = .object(["type": .string("choice"), "sourceGenerationId": .string(generationID),
+            "questionId": .string(question.id), "optionId": .string(option.id)])
+        await submit(AssistantSubmission(requestID: UUID().uuidString, input: input, draftText: nil), in: id)
+    }
+
+    func retrySubmission(in id: String) async {
+        guard let submission = thread(id).pendingSubmission, !thread(id).sending, !thread(id).isGenerating else { return }
+        await submit(submission, in: id)
+    }
+
+    private func submit(_ submission: AssistantSubmission, in id: String) async {
+        guard !thread(id).sending else { return }
+        streamTask?.cancel()
+        streamTask = nil
+        let selection = UUID()
+        if selectedID == id { selectionTicket = selection }
+        update(id) {
+            $0.readTicket = UUID(); $0.loading = false; $0.sending = true
+            $0.pendingSubmission = submission; $0.notice = nil; $0.reconnectNeeded = false
+        }
+        defer {
+            if threads[id]?.pendingSubmission?.requestID == submission.requestID || threads[id]?.pendingSubmission == nil {
+                update(id) { $0.sending = false }
+            }
+        }
+        do {
+            let response: AssistantGenerationResponse = try await api.request(AssistantPath.conversation(id) + "/generations", method: "POST", body: submission.body)
+            guard threads[id]?.pendingSubmission?.requestID == submission.requestID else { return }
+            try install(response.generation, conversation: id)
+            update(id) {
+                $0.pendingSubmission = nil
+                $0.sending = false
+                $0.readTicket = UUID()
+                if let text = submission.draftText, $0.draft == text {
+                    $0.draft = ""; $0.draftRequestID = UUID().uuidString
+                }
+            }
+            // Responses are cached only in their owning thread; selecting another chat never
+            // installs this result into that chat or starts an unwanted subscription there.
+            if accepts(id, selection) {
+                if thread(id).isGenerating { listen(id, selection: selection) }
+                else { await refreshHistory(id, selection: selection) }
+            }
+        } catch {
+            guard threads[id]?.pendingSubmission?.requestID == submission.requestID else { return }
+            if let apiError = error as? APIError, (400..<500).contains(apiError.status), apiError.status != 408 {
+                // A rejected choice/request did not create a turn. Keeping it as an uncertain
+                // submission would lock the composer into retrying the same stale choice forever.
+                update(id) { $0.pendingSubmission = nil; $0.sending = false }
+                if accepts(id, selection), apiError.status == 409 {
+                    await open(id)
+                }
+                update(id) { $0.notice = apiError.localizedDescription }
+            } else {
+                update(id) { $0.notice = "发送结果待核对。\(error.localizedDescription) 重试会使用同一个请求编号，避免重复提问。" }
+            }
+        }
+    }
+
+    func stop(in id: String) async {
+        guard let generation = thread(id).generation, !generation.status.isTerminal, !thread(id).stopping else { return }
+        streamTask?.cancel()
+        streamTask = nil
+        let selection = UUID()
+        if selectedID == id { selectionTicket = selection }
+        update(id) { $0.stopping = true; $0.readTicket = UUID(); $0.notice = nil }
+        defer { update(id) { $0.stopping = false } }
+        do {
+            let response: AssistantGenerationResponse = try await api.request(AssistantPath.conversation(id) + "/generations/\(AssistantPath.segment(generation.id))/cancel", method: "POST")
+            try response.generation.validate(conversation: id, generation: generation.id)
+            guard threads[id]?.generation?.id == generation.id else { return }
+            try install(response.generation, conversation: id)
+            update(id) { $0.reconnectNeeded = false }
+            if accepts(id, selection) { await refreshHistory(id, selection: selection) }
+        } catch {
+            update(id) { $0.notice = "停止结果需要核对，请刷新对话。"; $0.reconnectNeeded = true }
+        }
+    }
+
+    func reconnect(in id: String) async { await open(id) }
+
+    private func accepts(_ id: String, _ selection: UUID) -> Bool {
+        selectedID == id && selectionTicket == selection
+    }
+
+    private func install(_ snapshot: AssistantGenerationSnapshot, conversation id: String) throws {
+        try snapshot.validate(conversation: id)
+        var current = thread(id)
+        if var generation = current.generation, generation.id == snapshot.id {
+            try generation.reconcile(snapshot)
+            current.generation = generation
+        } else {
+            if let previous = current.generation, snapshot.createdAt < previous.createdAt { return }
+            current.generation = try AssistantGenerationState(snapshot, conversation: id)
+        }
+        threads[id] = current
+    }
+
+    private func validateHistory(_ messages: [AssistantMessage], conversation: String) throws {
+        guard messages.allSatisfy({ !$0.id.isEmpty && $0.conversationId == conversation }),
+              Set(messages.map(\.id)).count == messages.count else { throw AssistantProtocolError.invalidSnapshot }
+    }
+
+    private func refreshHistory(_ id: String, selection: UUID) async {
+        do {
+            let response: AssistantItems<AssistantMessage> = try await api.request(AssistantPath.conversation(id) + "/messages")
+            guard accepts(id, selection), !Task.isCancelled else { return }
+            try validateHistory(response.items, conversation: id)
+            update(id) { $0.history = response.items; $0.loaded = true }
+        } catch {
+            guard accepts(id, selection), !Task.isCancelled else { return }
+            update(id) { $0.notice = "回复已保留，历史同步失败，请刷新核对。" }
+        }
+    }
+
+    private func listen(_ id: String, selection: UUID) {
+        guard let generation = thread(id).generation, !generation.status.isTerminal else { return }
+        streamTask?.cancel()
+        streamTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let path = AssistantPath.conversation(id) + "/generations/\(AssistantPath.segment(generation.id))/events?afterSeq=\(generation.lastSeq)"
+                let bytes = try await api.stream(path)
+                defer { bytes.task.cancel() }
+                var parser = AssistantSSEParser()
+                var terminal = false
+                try await withTaskCancellationHandler {
+                    for try await byte in bytes {
+                        try Task.checkCancellation()
+                        guard accepts(id, selection), threads[id]?.generation?.id == generation.id else { return }
+                        if let frame = try parser.feed(byte) {
+                            let event = try frame.decode()
+                            var current = thread(id)
+                            guard var reducer = current.generation else { throw AssistantProtocolError.invalidSnapshot }
+                            try reducer.apply(event)
+                            current.generation = reducer
+                            current.reconnectNeeded = false
+                            threads[id] = current
+                            if reducer.status.isTerminal { terminal = true; break }
+                        }
+                    }
+                } onCancel: { bytes.task.cancel() }
+                guard !Task.isCancelled, accepts(id, selection) else { return }
+                guard terminal else { throw AssistantProtocolError.prematureEnd }
+                await refreshHistory(id, selection: selection)
+            } catch {
+                guard !Task.isCancelled, accepts(id, selection) else { return }
+                await reconcileAfterDisconnect(id, generation: generation.id, selection: selection)
+            }
+        }
+    }
+
+    private func reconcileAfterDisconnect(_ id: String, generation: String, selection: UUID) async {
+        do {
+            let response: AssistantGenerationResponse = try await api.request(AssistantPath.conversation(id) + "/generations/\(AssistantPath.segment(generation))")
+            guard accepts(id, selection), !Task.isCancelled, threads[id]?.generation?.id == generation else { return }
+            try response.generation.validate(conversation: id, generation: generation)
+            try install(response.generation, conversation: id)
+            if thread(id).isGenerating {
+                update(id) { $0.reconnectNeeded = true; $0.notice = "连接已断开，回复仍可能在进行。继续接收会核对同一条回复。" }
+            } else {
+                update(id) { $0.reconnectNeeded = false }
+                await refreshHistory(id, selection: selection)
+            }
+        } catch {
+            guard accepts(id, selection), !Task.isCancelled else { return }
+            update(id) { $0.reconnectNeeded = true; $0.notice = "暂时无法核对回复状态，请联网后继续接收。" }
+        }
+    }
+}

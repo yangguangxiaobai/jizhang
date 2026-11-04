@@ -1,0 +1,216 @@
+import Combine
+import Foundation
+
+enum APIRequestBuilder {
+    static func make(baseURL: URL, path: String, method: String = "GET", body: JSONValue? = nil,
+                     cookie: SessionCookie? = nil) throws -> URLRequest {
+        let destination = try ServerAddress.endpoint(baseURL: baseURL, path: path)
+        let verb = method.uppercased()
+        guard ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"].contains(verb) else {
+            throw APIError.invalidPath
+        }
+        var request = URLRequest(url: destination, cachePolicy: .reloadIgnoringLocalCacheData,
+                                 timeoutInterval: path == "/auth/logout" ? 15 : 90)
+        request.httpMethod = verb
+        request.httpShouldHandleCookies = false
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        if verb != "GET" && verb != "HEAD" {
+            request.setValue("fetch", forHTTPHeaderField: "X-Requested-With")
+        }
+        if let body {
+            request.httpBody = try JSONEncoder().encode(body)
+            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        }
+        if let cookie, cookie.matches(destination) {
+            request.setValue(cookie.requestHeader, forHTTPHeaderField: "Cookie")
+        }
+        return request
+    }
+}
+
+/// A client belongs to one server and one authentication attempt/session for its entire lifetime.
+/// Invalidated instances cannot save cookies, expire a newer session, or publish late responses.
+@MainActor
+final class APIClient: ObservableObject {
+    let identity = UUID()
+    let baseURL: URL
+    var onUnauthorized: (() -> Void)?
+
+    private let credentialStore: SessionCredentialStore
+    private let session: URLSession
+    private let redirectDelegate: APINoRedirectDelegate
+    private let maximumJSONResponseBytes: Int
+    private var cookie: SessionCookie?
+    private var invalidated = false
+
+    init(baseURL: URL, credentialStore: SessionCredentialStore = KeychainSessionStore(),
+         restoreSession: Bool = true, configuration: URLSessionConfiguration = .ephemeral,
+         maximumJSONResponseBytes: Int = 32 * 1_024 * 1_024) throws {
+        guard maximumJSONResponseBytes > 0 else { throw APIError.invalidResponse }
+        self.baseURL = try ServerAddress.parse(baseURL.absoluteString)
+        self.credentialStore = credentialStore
+        self.maximumJSONResponseBytes = maximumJSONResponseBytes
+        let delegate = APINoRedirectDelegate()
+        redirectDelegate = delegate
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = 90
+        configuration.timeoutIntervalForResource = 300
+        session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+        if restoreSession, let saved = try credentialStore.load(server: self.baseURL.absoluteString) {
+            let authURL = try ServerAddress.endpoint(baseURL: self.baseURL, path: "/auth/me")
+            if saved.matches(authURL) {
+                cookie = saved
+            } else {
+                try credentialStore.save(nil, server: self.baseURL.absoluteString)
+            }
+        }
+    }
+
+    var hasSession: Bool {
+        guard !invalidated, let cookie,
+              let destination = try? ServerAddress.endpoint(baseURL: baseURL, path: "/auth/me") else { return false }
+        return cookie.matches(destination)
+    }
+
+    func request<Response: Decodable>(_ path: String, method: String = "GET", body: JSONValue? = nil) async throws -> Response {
+        do {
+            try requireCurrent()
+            let request = try APIRequestBuilder.make(baseURL: baseURL, path: path, method: method, body: body, cookie: cookie)
+            let (data, response) = try await session.data(for: request)
+            try requireCurrent()
+            let http = try checkedResponse(response)
+            try checkStatus(http.statusCode, data: data)
+            guard data.count <= maximumJSONResponseBytes else { throw APIError.invalidResponse }
+            if !data.isEmpty {
+                let type = http.value(forHTTPHeaderField: "Content-Type")?.lowercased().components(separatedBy: ";").first?.trimmingCharacters(in: .whitespaces) ?? ""
+                guard type == "application/json" || (type.hasPrefix("application/") && type.hasSuffix("+json")) else {
+                    throw APIError.invalidResponse
+                }
+            }
+            let decoded = try JSONDecoder().decode(Response.self, from: data.isEmpty ? Data("null".utf8) : data)
+            try captureCookie(http)
+            return decoded
+        } catch {
+            throw APIError.transport(error)
+        }
+    }
+
+    /// The feature owns the returned task and must cancel it when leaving a conversation.
+    /// Cancelling this HTTP subscription is deliberately separate from POST /cancel.
+    func stream(_ path: String) async throws -> URLSession.AsyncBytes {
+        do {
+            try requireCurrent()
+            var request = try APIRequestBuilder.make(baseURL: baseURL, path: path, cookie: cookie)
+            request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("fetch", forHTTPHeaderField: "X-Requested-With")
+            let (bytes, response) = try await session.bytes(for: request)
+            do {
+                try requireCurrent()
+                let http = try checkedResponse(response)
+                guard (200..<300).contains(http.statusCode) else {
+                    if http.statusCode == 401 {
+                        try checkStatus(http.statusCode, data: Data())
+                    }
+                    var errorData = Data()
+                    for try await byte in bytes {
+                        try requireCurrent()
+                        errorData.append(byte)
+                        if errorData.count >= 65_536 { break }
+                    }
+                    try checkStatus(http.statusCode, data: errorData)
+                    throw APIError.invalidResponse
+                }
+                let type = http.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+                guard type.components(separatedBy: ";").first?.trimmingCharacters(in: .whitespaces) == "text/event-stream" else {
+                    throw APIError.invalidResponse
+                }
+                try captureCookie(http)
+                return bytes
+            } catch {
+                bytes.task.cancel()
+                throw error
+            }
+        } catch {
+            throw APIError.transport(error)
+        }
+    }
+
+    func clearStoredSession() throws {
+        cookie = nil
+        try credentialStore.save(nil, server: baseURL.absoluteString)
+    }
+
+    /// Cancel only this client's work. Keep stored credentials for a later network-retry restore.
+    func invalidate() {
+        guard !invalidated else { return }
+        invalidated = true
+        onUnauthorized = nil
+        session.invalidateAndCancel()
+    }
+
+    private func requireCurrent() throws {
+        try Task.checkCancellation()
+        if invalidated { throw CancellationError() }
+    }
+
+    private func checkedResponse(_ response: URLResponse) throws -> HTTPURLResponse {
+        guard let http = response as? HTTPURLResponse, let url = http.url,
+              ServerAddress.sameOrigin(baseURL, url) else { throw APIError.invalidResponse }
+        return http
+    }
+
+    private func checkStatus(_ status: Int, data: Data) throws {
+        guard (200..<300).contains(status) else {
+            let error = APIError.response(status: status, data: data)
+            if status == 401 {
+                cookie = nil
+                try? credentialStore.save(nil, server: baseURL.absoluteString)
+                let callback = onUnauthorized
+                invalidate()
+                callback?()
+            }
+            throw error
+        }
+    }
+
+    private func captureCookie(_ response: HTTPURLResponse) throws {
+        guard let url = response.url,
+              let header = response.value(forHTTPHeaderField: "Set-Cookie") else { return }
+        let parsed = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": header], for: url)
+        let hostOnly = header.range(of: "(?:^|;)\\s*domain\\s*=", options: [.regularExpression, .caseInsensitive]) == nil
+        for parsedCookie in parsed where parsedCookie.name == SessionCookie.name {
+            guard let received = SessionCookie.from(parsedCookie, origin: baseURL, hostOnly: hostOnly) else { continue }
+            if received.value.isEmpty || received.expiresAt.map({ $0 <= Date() }) == true {
+                try clearStoredSession()
+            } else {
+                try credentialStore.save(received, server: baseURL.absoluteString)
+                cookie = received
+            }
+        }
+    }
+
+}
+
+/// Refuse every redirect, so neither a cookie nor a login body can reach a redirected destination.
+private final class APINoRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+}
+
+struct EmptyResponse: Decodable {
+    init(from decoder: Decoder) throws {}
+}
+
+struct AuthenticatedUser: Decodable, Equatable {
+    let username: String
+    let expiresAt: Int64
+}

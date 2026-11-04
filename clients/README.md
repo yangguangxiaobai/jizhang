@@ -1,4 +1,6 @@
-# clients/ — 原生双端工程（与 `packages/` 平级）
+# clients/ — 原生客户端工程（与 `packages/` 平级）
+
+iPhone 客户端见 [iOS README](./ios/README.md)：SwiftUI / iOS 17+，重点提供 AI 对话与简洁配置，其他账务模块先做只读展示。通过 GitHub macOS runner 测试、编译并打包未签名 IPA，再由本机 Sideloadly 签名安装。源码、云端构建、模拟器与真机验证分别记录。
 
 Android 当前实际功能的维护入口：[完整功能 README](./android/README.md)。逐项记录页面、字段、操作、校验、API 和已知缺口；修改相关功能时必须同批更新。UI 设计方案另见 [UI 重构规划](./android/ui-redesign/README.md)，不能将规划当成已实现状态。
 

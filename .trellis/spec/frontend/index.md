@@ -2,7 +2,9 @@
 
 ## Current scope
 
-The maintained client is native Android (`clients/android`, Kotlin/Compose); the Fastify
+The native clients are Android (`clients/android`, Kotlin/Compose) and iPhone
+(`clients/ios`, SwiftUI). Read [iOS client contracts](./ios-client.md) before changing
+the Swift client, Xcode project, CI packaging or sideload delivery. The Fastify
 server is API-only. The retired `packages/web` Vue/PWA application and its build, browser
 and service-worker tools are no longer available. Do not use the old Web manuals as
 current Android implementation instructions or acceptance evidence.
