@@ -6,7 +6,7 @@ import SwiftUI
     @Published private(set) var loading = false
     private var generation = 0
 
-    func load(_ operation: () async throws -> Value) async {
+    func load(_ operation: @MainActor () async throws -> Value) async {
         generation += 1
         let ticket = generation
         loading = true

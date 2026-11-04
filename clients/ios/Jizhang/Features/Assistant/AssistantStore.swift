@@ -348,15 +348,15 @@ final class AssistantStore: ObservableObject {
                 try await withTaskCancellationHandler {
                     for try await byte in bytes {
                         try Task.checkCancellation()
-                        guard accepts(id, selection), threads[id]?.generation?.id == generation.id else { return }
+                        guard self.accepts(id, selection), self.threads[id]?.generation?.id == generation.id else { return }
                         if let frame = try parser.feed(byte) {
                             let event = try frame.decode()
-                            var current = thread(id)
+                            var current = self.thread(id)
                             guard var reducer = current.generation else { throw AssistantProtocolError.invalidSnapshot }
                             try reducer.apply(event)
                             current.generation = reducer
                             current.reconnectNeeded = false
-                            threads[id] = current
+                            self.threads[id] = current
                             if reducer.status.isTerminal { terminal = true; break }
                         }
                     }

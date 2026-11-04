@@ -24,7 +24,11 @@ Amounts are Int64 cents and timestamps epoch milliseconds. Views render authorit
 
 Generation events follow the existing backend protocol, including UTF-16 offsets, monotonically increasing sequence, stable provisional/final message identity and snapshot reconciliation. Leaving a view unsubscribes; Stop explicitly cancels server generation. Network loss does not authorize a new inference POST.
 
+Keep POST ownership separate from the current screen's subscription: a delayed A response after A → B → A must resume the currently visible A. Definite client rejections release the draft for editing; ambiguous transport/server failures retain the original request ID and explicit retry notice across reopening. Successful list mutations invalidate reads started before their completion.
+
 Provider forms read saved configuration before allowing a save. Blank key preserves stored secret. Hidden/redacted settings must not be overwritten by empty defaults. Discovery uses saved connection metadata; initial disabled-connection bootstrap is an explicit user action. Selection edits a draft. Save, model fetch and test are mutually exclusive; testing is never an automatic side effect.
+
+Provider URL templates retain literal `{{model}}`/`{{input}}` placeholders. Validate a substituted sample; do not persist URLComponents serialization that percent-encodes the backend's template braces.
 
 CI uses GitHub macOS/Xcode to build the device app with signing disabled. Package `Payload/Jizhang.app` in `Jizhang-unsigned.ipa`, include SHA-256 and commit metadata, and sign locally using Sideloadly. Apple ID credentials and signing certificates do not belong in the workflow. Artifacts are downloaded only from an identified successful run, with checksum and commit verification.
 

@@ -5,9 +5,9 @@
 - [x] Inspect repository, earlier iPhone work, Android AI screens and APIs.
 - [x] Persist requirements, design and execution order.
 - [x] Obtain final scope approval: native iOS, functional AI chat/config, read-only other domains.
-- [ ] Activate task and load trellis-before-dev before product edits.
+- [x] Activate task and load trellis-before-dev before product edits.
 
-No implementation is claimed while the gate is open. Planning is single-agent. Any later delegation must follow applicable project context/dispatch rules.
+The gate was satisfied before product edits. Implementation followed the project's Phase 2.1 worker dispatch and independent review instructions.
 
 ## Ordered implementation
 
@@ -43,7 +43,7 @@ xcrun simctl list devices available
 xcodebuild -project Jizhang.xcodeproj -scheme Jizhang -destination 'platform=iOS Simulator,id=<available-device-UUID>' test
 ~~~
 
-Use an actual available device UUID. These commands have not run. If no Mac is available, report native compilation/device acceptance pending; do not invent an IPA or treat static checks as compilation.
+Use an actual available device UUID. Native checks now run through GitHub Actions; record their actual outcomes below. Do not treat Windows source checks as compilation.
 
 If a backend change becomes necessary, record expanded scope and update Android inventory/specs. Run relevant shared/server build, tests, lint/typecheck with pinned pnpm. No API change is presently planned.
 
@@ -61,3 +61,10 @@ Check other domains' navigation, server totals and honest empty/error/unavailabl
 3. Push reviewed source, wait for CI, fix real compilation/test failures and rerun until green.
 4. Download the IPA and verify its hash locally.
 5. Load into the already-running Sideloadly. Inspect device availability and install when available; user handles any Apple authentication or iPhone trust/developer-mode prompts. Record actual installation result; absence of a device is not success.
+
+## Execution evidence
+
+- Build fork: `https://github.com/yangguangxiaobai/jizhang`, verified upstream `yansuui/jizhang`, authenticated push access; source remote remains unchanged.
+- Work branch: `feat/ios-assistant`.
+- First native run: `41818117814`, Xcode 16.4 on macOS 15. Project/plist validation and application compilation passed. XCTest compilation found one ambiguous fixture expression in `AssistantStateTests`; correction and rerun required before IPA delivery.
+- Sideloadly inspection: existing `D:/Sideloadly/Sideloadly.exe`, v0.72. Device list currently reports `<no devices detected>`; no installation is claimed.

@@ -98,7 +98,7 @@ final class AssistantStateTests: XCTestCase {
         await store.open("b")
         XCTAssertEqual(store.thread("b").messages.first?.content.text, "only-B")
         await store.open("a")
-        lock.lock(); let oldRequest = pendingA; lock.unlock()
+        let oldRequest = lock.withLock { pendingA }
         oldRequest?.respond(Self.history("a", text: "old-A"))
         await first.value
         XCTAssertEqual(store.selectedID, "a")
@@ -155,7 +155,7 @@ final class AssistantStateTests: XCTestCase {
         await store.open("b")
         let reopen = Task { await store.open("a") }
         await fulfillment(of: [reopenStarted], timeout: 3)
-        lock.lock(); let heldPost = pendingPost; let heldRead = pendingRead; lock.unlock()
+        let (heldPost, heldRead) = lock.withLock { (pendingPost, pendingRead) }
         heldPost?.respond(["created": true, "generation": [
             "version": 1, "id": "g1", "conversationId": "a", "userMessageId": "u1", "userMessage": NSNull(),
             "status": "accepted", "delivery": "stream", "lastSeq": 0, "createdAt": 1_000, "updatedAt": 1_000,
@@ -199,7 +199,7 @@ final class AssistantStateTests: XCTestCase {
         store.setDraft("查预算", for: "a")
         await store.sendText(in: "a")
         XCTAssertNotNil(store.thread("a").pendingSubmission)
-        lock.lock(); let countAfterFailure = bodies.count; lock.unlock()
+        let countAfterFailure = lock.withLock { bodies.count }
         XCTAssertEqual(countAfterFailure, 1)
         store.setDraft("不应该替换未知请求", for: "a")
         XCTAssertEqual(store.thread("a").draft, "查预算")
@@ -207,7 +207,7 @@ final class AssistantStateTests: XCTestCase {
         await store.open("a")
         XCTAssertNotNil(store.thread("a").notice, "Reopening must retain the explicit retry action for an uncertain POST")
         await store.retrySubmission(in: "a")
-        lock.lock(); let sentBodies = bodies; lock.unlock()
+        let sentBodies = lock.withLock { bodies }
         XCTAssertEqual(sentBodies.count, 2)
         XCTAssertEqual(sentBodies[0]["clientRequestId"] as? String, sentBodies[1]["clientRequestId"] as? String)
         XCTAssertEqual((sentBodies[1]["input"] as? [String: Any])?["text"] as? String, "查预算")
@@ -298,8 +298,9 @@ final class AssistantStateTests: XCTestCase {
         await fulfillment(of: [mutationStarted], timeout: 3)
         let refresh = Task { await store.loadConversations() }
         await fulfillment(of: [refreshStarted], timeout: 3)
-        lock.lock(); let heldMutation = pendingMutation; let heldRefresh = pendingRefresh; lock.unlock()
-        heldMutation?.respond(archiving ? ["ok": true] : new)
+        let (heldMutation, heldRefresh) = lock.withLock { (pendingMutation, pendingRefresh) }
+        let mutationResponse: [String: Any] = archiving ? ["ok": true] : new
+        heldMutation?.respond(mutationResponse)
         await mutation.value
         heldRefresh?.respond(["items": [old]])
         await refresh.value
@@ -343,7 +344,7 @@ final class ProviderStateTests: XCTestCase {
         XCTAssertEqual(store.draft.model, "saved-model")
         XCTAssertNotNil(store.error)
         XCTAssertFalse(store.testPassed)
-        lock.lock(); let testCalls = tests; lock.unlock()
+        let testCalls = lock.withLock { tests }
         XCTAssertEqual(testCalls, 0)
     }
 
@@ -379,7 +380,7 @@ final class ProviderStateTests: XCTestCase {
         await store.save()
         XCTAssertEqual(store.saved?.model, "chosen-model")
         XCTAssertEqual(store.saved?.enabled, true)
-        lock.lock(); let payloads = writes; let paths = callPaths; lock.unlock()
+        let (payloads, paths) = lock.withLock { (writes, callPaths) }
         XCTAssertEqual(payloads.count, 2)
         XCTAssertEqual(payloads[0]["enabled"] as? Bool, false)
         XCTAssertEqual(payloads[1]["enabled"] as? Bool, true)
